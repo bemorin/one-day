@@ -17,13 +17,21 @@ const key = d =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const today = key(new Date());
 const tomorrow = key(new Date(new Date().setDate(new Date().getDate() + 1)));
+const yesterday = key(new Date(new Date().setDate(new Date().getDate() - 1)));
 
 const seed = {
   days: {
+    [yesterday]: {
+      u: 1,
+      tasks: [
+        { id: 'y1', text: 'Reply to Sam', done: false },
+        { id: 'y2', text: 'Renew the passport #travel', done: false },
+        { id: 'y3', text: 'Morning run', done: true, at: 1 },
+      ],
+    },
     [today]: {
       u: 1,
       tasks: [
-        { id: 'v1', text: 'Morning run', done: true, at: 1 },
         {
           id: 'v2',
           text: 'Prepare the weekly review #work',
@@ -34,8 +42,7 @@ const seed = {
             { id: 'v2b', text: 'Draft the agenda', done: false },
           ],
         },
-        { id: 'v3', text: 'Book the train to Lyon #travel', done: false },
-        { id: 'v4', text: 'Call mum', done: false },
+        { id: 'v3', text: 'Book the train to London #travel', done: false },
       ],
     },
   },
@@ -48,7 +55,7 @@ const phoneSeed = {
       tasks: [
         { id: 'p1', text: 'Morning run', done: true, at: 1 },
         { id: 'p2', text: 'Pick up the parcel', done: false },
-        { id: 'p3', text: 'Book the train to Lyon #travel', done: false },
+        { id: 'p3', text: 'Book the train to London #travel', done: false },
         { id: 'p4', text: 'Call mum', done: false },
       ],
     },
@@ -392,6 +399,8 @@ async function recordPhone(browser) {
   return { b64, dur };
 }
 
+const ICON_WHEEL =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="3" width="11" height="18" rx="5.5"/><path d="M12 7v3"/></svg>';
 const ICON_CLICK =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9l10.5 4-4.6 1.4L13.5 19z"/><path d="M5.5 5.5 4 4M9 3.5V2M3.5 9H2"/></svg>';
 
@@ -475,7 +484,7 @@ async function main() {
   await page.mouse.move(mx, my);
   await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 92, maxWidth: 1920, maxHeight: 1080, everyNthFrame: 1 });
   const PHONE_IN = 800;
-  const TOTAL = 64000 + PHONE_IN + phone.dur + 450;
+  const TOTAL = 74500 + PHONE_IN + phone.dur + 450;
   await page.evaluate(ms => window.__bar(ms), TOTAL);
 
   // 1. Intro
@@ -483,19 +492,44 @@ async function main() {
   await cap('One Day', 'A calm to-do list that shows one day at a time.');
   await sleep(1920);
 
-  // 2. Plan today
+  // 2. What yesterday left
+  await cap('Pick up where you left off', 'What was left undone comes to today in one click.');
+  await sleep(620);
+  await click('#bring', 'Bring here');
+  await sleep(1150);
+
+  // 3. Plan today
   await cap('Plan today', 'Write down what today is for.');
-  await sleep(520);
+  await sleep(420);
   await press('n', ['N'], 'New task');
   await sleep(260);
   await type('Pick up the cake for Sunday #home');
   await sleep(250);
   await press('Enter', ['Enter'], 'Add');
-  await sleep(670);
-  await click(row('Call mum').locator('.in .ck'), 'Done');
-  await sleep(960);
+  await sleep(600);
+  await click(row('Reply to Sam').locator('.in .ck'), 'Done');
+  await sleep(820);
 
-  // 3. Open a task
+  // 4. Paste a list
+  await cap('Paste a list', 'Every line becomes a task.');
+  await sleep(420);
+  await page.evaluate(() => navigator.clipboard.writeText('- Buy flowers for mum\n- Print the boarding passes\n- Book a table for Friday'));
+  await click('#input', null);
+  await sleep(240);
+  await press('Control+v', ['Ctrl', 'V'], 'Paste a list');
+  await sleep(1350);
+
+  // 5. Undo
+  await cap('Undo anything', 'Ctrl Z, or ⌘Z on a Mac.');
+  await sleep(420);
+  await click(row('Book a table for Friday').locator('.in .acts .rm'), 'Delete');
+  await sleep(760);
+  await click([1120, 600], null);
+  await sleep(160);
+  await press('Control+z', ['Ctrl', 'Z'], 'Undo');
+  await sleep(1150);
+
+  // 6. Open a task
   await cap('Open a task', 'A note and a checklist, one click away.');
   await sleep(370);
   await click(row('Prepare the weekly review').locator('.tx'), 'Open', { dx: 0.82, dy: 0.3 });
@@ -505,7 +539,7 @@ async function main() {
   await click([1120, 600], 'Close');
   await sleep(670);
 
-  // 4. Any day
+  // 7. Any day, and the wheel to get there
   await cap('Any day', 'Send a task to tomorrow without leaving today.');
   await sleep(370);
   await click('#input', null);
@@ -520,12 +554,18 @@ async function main() {
   await sleep(960);
   await page.keyboard.press('Escape');
   await sleep(220);
-  await press('ArrowRight', ['→'], 'Next day');
-  await sleep(1110);
-  await press('d', ['D'], 'Back to today');
-  await sleep(890);
+  await cap('Scroll through the days', 'Down for the next day, up for the one before.');
+  const [nx, ny] = await at('#num');
+  await glide(nx, ny, 420);
+  await sleep(160);
+  await page.evaluate(([i, l]) => window.__hud([i], l), [ICON_WHEEL, 'Next day']);
+  await page.mouse.wheel(0, 120);
+  await sleep(1250);
+  await page.evaluate(([i, l]) => window.__hud([i], l), [ICON_WHEEL, 'Back to today']);
+  await page.mouse.wheel(0, -120);
+  await sleep(1000);
 
-  // 5. Repeat
+  // 8. Repeat
   await cap('Repeat', 'Every few days, weeks or months.');
   await sleep(370);
   await click('#input', null);
@@ -547,7 +587,7 @@ async function main() {
   await press('Enter', ['Enter'], 'Add');
   await sleep(1180);
 
-  // 6. Send a task
+  // 9. Send a task
   await cap('Send a task', 'It travels inside the link. No server, no account.');
   await sleep(370);
   await click(row('Water the plants').locator('.tx'), 'Open', { dx: 0.85, dy: 0.3 });
@@ -562,7 +602,7 @@ async function main() {
   await click('#inNo', 'Ignore');
   await sleep(520);
 
-  // 7. Search
+  // 10. Search
   await cap('Search', 'Every day, every note, every sub-task.');
   await sleep(370);
   await press('Control+k', ['Ctrl', 'K'], 'Search');
@@ -572,7 +612,7 @@ async function main() {
   await press('Control+k', ['Ctrl', 'K'], 'Close');
   await sleep(590);
 
-  // 8. Timer, live
+  // 11. Timer, live
   await cap('Calm or live', 'A timer that rolls like the date.');
   await sleep(370);
   await press('t', ['T'], 'Timer');
@@ -584,7 +624,7 @@ async function main() {
   await click([1120, 600], null);
   await sleep(520);
 
-  // 9. Light and dark, in one click, crossfaded
+  // 12. Light and dark, in one click, crossfaded
   await cap('Light and dark', 'It follows your system, or switches in one click.');
   await sleep(670);
   const [tx, ty] = await at('#theme');
@@ -612,12 +652,12 @@ async function main() {
   });
   await sleep(1780);
 
-  // 10. Also on a phone
+  // 13. Also on a phone
   await cap('Also on your phone', 'Add it to your Home Screen. It works offline, too.');
   await page.evaluate(ms => window.__phone(ms), PHONE_IN);
   await sleep(PHONE_IN + phone.dur + 450);
 
-  // 11. Outro
+  // 14. Outro
   await cap('day.bemorin.com', 'Free, private and open source.');
   await page.evaluate(() => window.__barEnd());
   await sleep(2520);
