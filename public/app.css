@@ -180,7 +180,7 @@ svg {
 /* header */
 header {
   position: relative;
-  padding: 16px var(--pad) 0;
+  padding: calc(16px + env(safe-area-inset-top)) var(--pad) 0;
   flex: none;
   z-index: 5;
 }

@@ -285,6 +285,69 @@ test('an imported backup cannot run code or break the page', async ({ page }) =>
   await expect(row(page, 'nope')).toHaveCount(0);
 });
 
+test.describe('pasting a list', () => {
+  const paste = (page, sel, txt) =>
+    page.evaluate(
+      ([sel, txt]) => {
+        const dt = new DataTransfer();
+        dt.setData('text/plain', txt);
+        const ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true });
+        document.querySelector(sel).dispatchEvent(ev);
+        return ev.defaultPrevented;
+      },
+      [sel, txt],
+    );
+  const LIST = [
+    '- Publish giveaway post and boost as ads',
+    '- Publish the article on X',
+    '',
+    '* Reach out to 5 YouTubers',
+    '2. Reach out to 5 freelancers on news media',
+    '• Reach out to a charity',
+    '- Watch this 15-min video https://youtu.be/RypUD_Fuaqw',
+    '- [x] Look into UGC',
+    '10.5 km run',
+  ].join('\r\n');
+
+  test('the composer makes one task per line, bullets and numbers left out, one undo for all', async ({ page }) => {
+    await open(page);
+    await page.locator('#input').focus();
+    expect(await paste(page, '#input', LIST)).toBe(true);
+    await expect(page.locator('#toast')).toContainText('Added 8 tasks');
+    for (const t of ['Publish giveaway post and boost as ads', 'Reach out to 5 YouTubers', 'Reach out to 5 freelancers on news media', 'Reach out to a charity', '10.5 km run'])
+      await expect(row(page, t)).toHaveCount(1);
+    await expect(row(page, 'Watch this 15-min video')).toHaveCount(1);
+    await expect(row(page, 'Look into UGC')).toHaveClass(/\bdone\b/);
+    await expect(page.locator('#input')).toHaveValue('');
+    await page.locator('#undo').click();
+    await expect(row(page, 'Reach out to a charity')).toHaveCount(0);
+    await expect(row(page, 'Write the report')).toHaveCount(1);
+  });
+
+  test('a single line pastes as usual', async ({ page }) => {
+    await open(page);
+    await page.locator('#input').focus();
+    expect(await paste(page, '#input', '- Just this one\n')).toBe(false);
+  });
+
+  test('the sub-task field makes one sub-task per line', async ({ page }) => {
+    await open(page);
+    await row(page, 'Plan the trip').locator('.mt').click();
+    const field = row(page, 'Plan the trip').locator('.sadd input');
+    await field.focus();
+    expect(await paste(page, '.row.open .sadd input', '1. Pack\n2. Print the tickets\n3. Water the plants')).toBe(true);
+    await expect(page.locator('#toast')).toContainText('Added 3 sub-tasks');
+    await expect(row(page, 'Plan the trip').locator('.sub .st')).toHaveText(['Book the train #travel', 'Find a hotel', 'Pack', 'Print the tickets', 'Water the plants']);
+  });
+});
+
+test('phones: the page can run under the system bars, and keeps clear of them', async ({ page }) => {
+  await page.goto('/');
+  expect(await page.locator('meta[name="viewport"]').getAttribute('content')).toContain('viewport-fit=cover');
+  const pad = await page.locator('header').evaluate(n => getComputedStyle(n).paddingTop);
+  expect(pad).toBe('16px');
+});
+
 test('the leaving day floats above the list instead of joining it', async ({ page }) => {
   await open(page, { motion: 'no-preference' });
   await page.keyboard.press('ArrowRight');

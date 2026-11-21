@@ -1702,6 +1702,21 @@ try {
     else if (t.matches && t.matches('.sadd input')) sugCheck(t);
   });
   $.list.addEventListener('paste', e => {
+    const f = e.target;
+    if (f.matches && f.matches('.sadd input')) {
+      pasteList(e, items => {
+        const li = f.closest('.row'),
+          t0 = li && find(li.dataset.id);
+        if (!t0) return;
+        const room = 100 - (t0.subs ? t0.subs.length : 0),
+          ss = items.slice(0, Math.max(0, room)).map(it => ({ id: uid(), text: it.text.slice(0, 300), done: it.done }));
+        if (!ss.length) return toast('This task has all the sub-tasks it can hold');
+        const t = subDo(li, x => x.subs.push(...ss));
+        if (t) renderSubs(li, t, true);
+        toast(`Added ${ss.length} sub-tasks`, 'undo');
+      });
+      return;
+    }
     const t = e.target.closest && e.target.closest('[contenteditable]');
     if (!t) return;
     e.preventDefault();
@@ -3065,12 +3080,45 @@ try {
     if (b) acceptSug(+b.dataset.i);
   });
 
+  /* A pasted list: one item per line. Bullets, numbers and checkboxes are left out ("- [x]" makes it done);
+     a single line pastes as usual. */
+  const BUL = /^(?:[•◦▪·‣⁃]\s*|(?:[-*+–—]|\d{1,3}[.)]|\(\d{1,3}\)|[a-zA-Z][.)])\s+)/,
+    BOX = /^(?:\[( |x|X)\]|([☐☑✅✔✓]))\s*/;
+  function listItems(txt) {
+    const out = [];
+    for (const raw of String(txt).split(/\r\n|\r|\n/)) {
+      let l = raw.replace(/\s+/g, ' ').trim(),
+        done = false;
+      l = l.replace(BUL, '');
+      const b = BOX.exec(l);
+      if (b) {
+        done = (b[1] && b[1] !== ' ') || (!!b[2] && b[2] !== '☐');
+        l = l.slice(b[0].length);
+      }
+      l = l.trim().slice(0, 500);
+      if (l) out.push({ text: l, done });
+      if (out.length >= 100) break;
+    }
+    return out;
+  }
+  function pasteList(e, add) {
+    const txt = e.clipboardData ? e.clipboardData.getData('text/plain') : '';
+    if (!txt || !/[\r\n]/.test(txt.trim())) return;
+    const items = listItems(txt);
+    if (items.length < 2) return;
+    e.preventDefault();
+    hideSug();
+    add(items);
+  }
+
   /* composer */
   $.input.addEventListener('input', () => {
     $.add.classList.toggle('typing', !!$.input.value.trim());
     sugCheck($.input);
   });
   $.input.addEventListener('blur', hideSug);
+  // A pasted list (one item per line) becomes as many tasks; what was typed stays in the composer.
+  $.input.addEventListener('paste', e => pasteList(e, items => addTasks(items)));
   $.input.addEventListener('keydown', e => {
     if (sugKey(e)) return;
     if (e.key === 'Enter' && !e.isComposing) {
@@ -3130,6 +3178,53 @@ try {
     const was = addDay();
     addTo = k === cur ? null : k;
     renderChip(k !== was);
+  }
+  function addTasks(items) {
+    const k = addDay(),
+      room = 300 - tasks(k).length,
+      list = items.slice(0, Math.max(0, room));
+    if (!list.length) return toast('That day is full');
+    record([k]);
+    const now = Date.now();
+    let first = null;
+    const made = [];
+    for (const it of list) {
+      if (addRule) {
+        const r = cleanRule({ ...addRule, text: it.text, start: k }, 'r' + uid());
+        if (!r) continue;
+        S.rules[r.id] = r;
+        if (occurs(r, k)) {
+          const o = fromRule(r, k);
+          day(k).tasks.push(o);
+          made.push(o.id);
+        }
+        first = first || nextOcc(r, k);
+      } else {
+        const t = { id: uid(), text: it.text, done: it.done };
+        if (it.done) t.at = now;
+        day(k).tasks.push(t);
+        made.push(t.id);
+      }
+    }
+    commit(k);
+    const n = list.length,
+      what = `${n} ${addRule ? 'repeating tasks' : 'tasks'}`,
+      cut = items.length > list.length ? ` (that day is full, ${items.length - list.length} left out)` : '';
+    if (k === cur && made.length) {
+      flip(() => {
+        renderList();
+        renderAux();
+      });
+      const li = rowOf(made[made.length - 1]);
+      if (li) li.scrollIntoView({ block: 'nearest', behavior: RM.matches ? 'auto' : 'smooth' });
+      toast(`Added ${what}${cut}`, 'undo');
+    } else {
+      const to = k !== cur ? k : first || k,
+        d = Math.sign(diff(cur, to)) || 1;
+      if (to !== cur) nudge(d > 0 ? $.next : $.prev, d);
+      toast(`Added ${what} to ${dayName(to)}${cut}`, 'undo');
+    }
+    if (addTo || addRule) resetPick();
   }
   function addElsewhere(text, k) {
     record([k]);
