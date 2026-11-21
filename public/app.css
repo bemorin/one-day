@@ -3366,7 +3366,7 @@ mark {
   .topbar {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-end;
     width: min(640px, calc(100% - 48px));
     margin: 0 0 16px;
     padding: 0 calc(var(--pad) - 4px);
@@ -3386,8 +3386,10 @@ mark {
     background: var(--glass);
     box-shadow: var(--pill);
   }
-  /* the time: plain words, on the card's left edge */
+  /* the time: plain words, on the card's left edge, sitting on the line where the lock's pill ends */
   .clock {
+    height: auto;
+    line-height: 1;
     padding: 0 4px;
     font-size: 14px;
     font-weight: 650;
