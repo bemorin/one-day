@@ -209,13 +209,15 @@ test('the composer can add a task to another day, then goes back to the day on s
   // white on black while the composer has focus, never black on black
   const ink = await page.locator('#dchip').evaluate(n => [getComputedStyle(n).color, getComputedStyle(n).backgroundColor]);
   expect(ink[0]).not.toBe(ink[1]);
+  // the pick survives a click elsewhere, and goes back to the day on screen once the task is added
+  await page.mouse.click(40, 600);
+  await expect(page.locator('#dlabel')).toHaveText('Tomorrow');
   await page.locator('#input').fill('Call the bank');
   await page.locator('#input').press('Enter');
   await expect(page.locator('#toast')).toContainText('Added to tomorrow');
   await expect(row(page, 'Call the bank')).toHaveCount(0);
-  await expect(page.locator('#dlabel')).toHaveText('Tomorrow');
-  await page.mouse.click(40, 600);
   await expect(page.locator('#dlabel')).toHaveText('Today');
+  await page.mouse.click(40, 600);
   await page.keyboard.press('ArrowRight');
   await expect(row(page, 'Call the bank')).toBeVisible();
   // On another day, the composer adds to that day by default.
@@ -309,6 +311,14 @@ test('Repeat opened from the day picker: Cancel goes back to the picker', async 
   await page.locator('#rnone').click();
   await expect(page.locator('#rpop')).not.toHaveClass(/\bon\b/);
   await expect(page.locator('#dpop')).toHaveClass(/\bon\b/);
+});
+
+test('the footer: dogood.day, the croissant in the middle, icons for the rest', async ({ page }) => {
+  await open(page);
+  const [foot, kofi] = await Promise.all([page.locator('#foot').boundingBox(), page.locator('#foot .kofi').boundingBox()]);
+  expect(Math.abs(kofi.x + kofi.width / 2 - (foot.x + foot.width / 2))).toBeLessThan(2);
+  await expect(page.locator('#foot .lg .lbl').first()).toBeHidden();
+  await expect(page.locator('#foot .lg')).toHaveCount(2);
 });
 
 test('send the day from the header on a computer', async ({ page }) => {

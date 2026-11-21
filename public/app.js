@@ -768,8 +768,14 @@ try {
   /* task actions */
   function addTask(text) {
     const k = addDay();
-    if (addRule) return addRepeating(text, k);
-    if (k !== cur) return addElsewhere(text, k);
+    if (addRule) {
+      addRepeating(text, k);
+      return resetPick();
+    }
+    if (k !== cur) {
+      addElsewhere(text, k);
+      return resetPick();
+    }
     record([cur]);
     const t = { id: uid(), text, done: false };
     day(cur).tasks.push(t);
@@ -3083,7 +3089,7 @@ try {
   });
 
   /* the day a new task goes to: the day on screen, unless another one is picked.
-     The pick holds while you keep adding, and goes back to the day on screen once you leave the composer. */
+     The pick holds until the task is added (or the day on screen changes), then goes back to the day on screen. */
   let addTo = null,
     addRule = null,
     DPX = 'add';
@@ -3107,6 +3113,13 @@ try {
     );
     if (pop)
       an($.dchip, [{ transform: 'scale(.9)' }, { transform: 'none' }], { easing: POP.ease, duration: POP.dur });
+  }
+  // Once a task is added, the next one starts from the day on screen again.
+  function resetPick() {
+    if (!addTo && !addRule) return;
+    addTo = null;
+    addRule = null;
+    renderChip(true);
   }
   function setAddTo(k) {
     const was = addDay();
@@ -3167,16 +3180,6 @@ try {
   function composerLeft() {
     later(() => {
       const ae = D().activeElement;
-      if (
-        (addTo || addRule) &&
-        !$.dpop.classList.contains('on') &&
-        !$.rpop.classList.contains('on') &&
-        !(ae && ($.add.contains(ae) || $.dpop.contains(ae) || $.rpop.contains(ae)))
-      ) {
-        addTo = null;
-        addRule = null;
-        renderChip();
-      }
       if (
         app.classList.contains('composing') &&
         !popOn() &&

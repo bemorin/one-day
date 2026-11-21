@@ -337,10 +337,10 @@ async function main() {
   await sleep(370);
   await press('t', ['T'], 'Timer');
   await sleep(520);
-  await click('#seg [data-m="live"]', 'Live');
-  await sleep(520);
   await click('#tstart', 'Start');
-  await sleep(1900);
+  await sleep(1500);
+  await click('#seg [data-m="live"]', 'Live');
+  await sleep(2100);
   await click([1120, 600], null);
   await sleep(520);
 
