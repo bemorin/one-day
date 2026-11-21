@@ -16,7 +16,7 @@ One Day is a single-page web app with no framework, no runtime dependencies, no 
 - **A sheet that fits its content.** On a large screen the day is a card on the page. It grows and shrinks on a spring as tasks come and go. On a phone it fills the screen.
 - **Add to any day.** The composer adds to the day on screen. Its day chip sends a task to another day (Today, Tomorrow, Next week or any date) without leaving the one you are on.
 - **Repeat.** A task can come back every few days, weeks or months: on chosen weekdays, or on a date or a weekday of the month. Each occurrence appears when its day comes; ticking or deleting one leaves the others alone, and missed ones don't pile up as leftovers.
-- **Send a task.** Share a task as a link from its card. The task travels inside the link, after the `#`, which browsers never send to a server; whoever opens it can add it to their own One Day, on the day they choose.
+- **Send a task, or the whole day.** Share a task as a link from its card, or all of the day's open tasks at once (to someone else, or to yourself on another device). The task travels inside the link, after the `#`, which browsers never send to a server; whoever opens it can add it to their own One Day, on the day they choose.
 - **Tasks that feel physical.** Tick, drag to reorder, send to tomorrow, delete. Every action can be undone, and every motion is driven by springs.
 - **Notes and sub-tasks.** Click a task to open it: a rich-text note (bold, italic, strikethrough, code, lists, links) and a checklist. The task's circle fills as the checklist gets done. Click the title of an open task, or double-click any task, to rename it.
 - **Tags.** Type `#anything` in a task or a sub-task. Tags autocomplete, and clicking one searches for it.

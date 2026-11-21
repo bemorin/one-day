@@ -250,6 +250,33 @@ test('the leaving day floats above the list instead of joining it', async ({ pag
   expect(st.ghostTop).toBeLessThan(st.addTop);
 });
 
+test('Repeat opened from the day picker: Cancel goes back to the picker', async ({ page }) => {
+  await open(page);
+  await page.locator('#input').click();
+  await page.locator('#dchip').click();
+  await page.locator('#drep').click();
+  await expect(page.locator('#rpop')).toHaveClass(/\bon\b/);
+  await page.locator('#rnone').click();
+  await expect(page.locator('#rpop')).not.toHaveClass(/\bon\b/);
+  await expect(page.locator('#dpop')).toHaveClass(/\bon\b/);
+});
+
+test('send the day from the header on a computer', async ({ page }) => {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await open(page);
+  await page.locator('#sendd').click();
+  await expect(page.locator('#toast')).toContainText('these tasks');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('#add=');
+});
+
+test('no scrollbar can flash while a day slides in', async ({ page }) => {
+  await open(page, { motion: 'no-preference' });
+  await page.keyboard.press('ArrowRight');
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector('.sc')).overflowY)).toBe('hidden');
+  await expect(page.locator('#app')).not.toHaveClass(/\bcalm\b/, { timeout: 3000 });
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector('.sc')).overflowY)).toBe('auto');
+});
+
 test('one click switches light and dark, kept across visits, and back to the system', async ({ page }) => {
   await open(page);
   await page.locator('#theme').click();
@@ -553,6 +580,50 @@ test.describe('in a narrow window with a mouse', () => {
 
 test.describe('on a touch screen', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test('the timer sheet sits over a scrim; a tap on it closes both', async ({ page }) => {
+    await open(page);
+    await page.locator('#mbTimer').tap();
+    await expect(page.locator('#tpop')).toHaveClass(/\bon\b/);
+    await expect(page.locator('#scrim')).toBeVisible();
+    await page.locator('#scrim').tap({ position: { x: 60, y: 120 } });
+    await expect(page.locator('#tpop')).not.toHaveClass(/\bon\b/);
+    await expect(page.locator('#scrim')).toBeHidden();
+  });
+
+  test('the day picker of the composer sheet stays above the scrim', async ({ page }) => {
+    await open(page);
+    await page.locator('#mbAdd').tap();
+    await page.locator('#dchip').tap();
+    await expect(page.locator('#dpop')).toHaveClass(/\bon\b/);
+    const box = await page.locator('#dgrid').boundingBox();
+    const inside = await page.evaluate(
+      ([x, y]) => !!document.elementFromPoint(x, y)?.closest('#dpop'),
+      [box.x + box.width / 2, box.y + box.height / 2],
+    );
+    expect(inside).toBe(true);
+  });
+
+  test('More closes when dragged down, even from a button, without pressing it', async ({ page }) => {
+    await open(page);
+    await page.locator('#mbMore').tap();
+    await expect(page.locator('#more')).toBeVisible();
+    await expect(page.locator('#more .sbk-b')).toHaveCount(2);
+    const b = await page.locator('#more [data-act="import"]').boundingBox();
+    await page.evaluate(([x, y]) => {
+      window.__picked = false;
+      document.getElementById('impf').addEventListener('click', () => (window.__picked = true));
+      const el = document.querySelector('#more [data-act="import"]'),
+        ev = (type, cy) =>
+          el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 9, pointerType: 'touch', clientX: x, clientY: cy }));
+      ev('pointerdown', y);
+      for (let i = 1; i <= 8; i++) ev('pointermove', y + i * 16);
+      ev('pointerup', y + 128);
+      el.click();
+    }, [b.x + b.width / 2, b.y + b.height / 2]);
+    await expect(page.locator('#more')).toBeHidden();
+    expect(await page.evaluate(() => window.__picked)).toBe(false);
+  });
 
   test('one quiet chevron per task, the other actions inside the open card', async ({ page }) => {
     await open(page);

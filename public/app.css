@@ -772,7 +772,8 @@ header {
 .sc > * {
   flex: none;
 }
-.resizing .sc {
+.resizing .sc,
+.calm .sc {
   overflow-y: hidden;
 }
 .stage {
@@ -1400,7 +1401,7 @@ input::placeholder {
   position: fixed;
   left: 0;
   top: 0;
-  z-index: 40;
+  z-index: 48;
   width: 304px;
   padding: 10px 10px 12px;
   background: var(--bg);
@@ -2289,6 +2290,60 @@ mark {
   background: var(--line2);
   opacity: 0.6;
 }
+.sbk {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  padding: 2px 2px 4px;
+}
+.sbk-b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  height: 52px;
+  border-radius: 16px;
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1.25px var(--line2);
+  transition:
+    background-color 0.15s,
+    transform 0.25s var(--pop);
+}
+.sbk-b:active {
+  background: var(--hover);
+  transform: scale(0.97);
+}
+.sbk-b svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.spromo {
+  display: block;
+  padding: 14px 12px;
+  border-radius: 14px;
+  text-align: center;
+  font-size: 15px;
+  color: var(--ink);
+  text-decoration: none;
+  transition: background-color 0.15s;
+}
+.spromo:active {
+  background: var(--hover);
+}
+.spromo b {
+  font-weight: 700;
+}
+.spromo::after {
+  content: ' \2197';
+  font-size: 0.9em;
+  color: var(--mute);
+}
 .srow {
   display: flex;
   align-items: center;
@@ -2363,12 +2418,17 @@ mark {
 @media (max-width: 719px) and (hover: none) {
   #sb,
   #tmb,
+  #sendd,
   #float {
     display: none !important;
   }
+  /* no stacking context: the timer sheet can rise above the scrim */
+  header {
+    z-index: auto;
+  }
   .mbar {
     position: relative;
-    z-index: 6;
+    z-index: 45;
     flex: none;
     display: grid;
     grid-template-columns: 1fr 1fr 88px 1fr 1fr;
@@ -2467,11 +2527,13 @@ mark {
   }
   .tpop {
     position: fixed;
+    z-index: 48;
     top: auto;
     left: 12px;
     right: 12px;
     bottom: calc(80px + env(safe-area-inset-bottom));
     width: auto;
+    touch-action: none;
     transform-origin: 50% 100%;
     transform: translateY(10px) scale(0.97);
   }

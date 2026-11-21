@@ -9,7 +9,7 @@ try {
     home = document.getElementById('home'),
     q = s => app.querySelector(s),
     $ = {};
-  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inT inTitle inMeta inDay inDayL inNo inYes mbar mbSearch mbTimer mbTimerL mbAdd mbSend mbMore scrim more moreList theme'
+  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inT inTitle inMeta inDay inDayL inNo inYes mbar mbSearch mbTimer mbTimerL mbAdd mbSend mbMore scrim more moreList theme sendd'
     .split(' ')
     .forEach(id => ($[id] = q('#' + id)));
   const fill = q('.rule i'),
@@ -78,6 +78,12 @@ try {
           t.w.clearTimeout(t.id);
         } catch (e) {}
     };
+  let calmT = null;
+  function calm(ms) {
+    app.classList.add('calm');
+    stop(calmT);
+    calmT = later(() => app.classList.remove('calm'), ms);
+  }
   const esc = s =>
     String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
   const norm = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -663,6 +669,7 @@ try {
     return added;
   }
   function flip(mutate, lifted) {
+    calm(SP.dur + 150);
     const rows = [...$.list.children].filter(r => !r.classList.contains('exit'));
     const first = new Map(rows.map(r => [r.dataset.id, r.getBoundingClientRect().top]));
     mutate();
@@ -2051,6 +2058,7 @@ try {
     $.stage.style.transform = '';
     $.stage.style.opacity = '';
     cur = k;
+    calm(SP.dur + 450);
     addTo = null;
     addRule = null;
     ensure(k);
@@ -2217,6 +2225,7 @@ try {
     tmRender(false);
     hideTip(0);
     (TM.st === 'idle' ? $.tstart : $.tpause).focus({ preventScroll: true });
+    syncScrim();
   }
   function closePops(back) {
     const wasM = $.pop.classList.contains('on'),
@@ -2239,6 +2248,7 @@ try {
       else if (wasR && RP && RP.from && RP.from.isConnected) RP.from.focus({ preventScroll: true });
     }
     if ((wasD && DPX === 'add') || (wasR && RP && RP.ctx === 'add')) composerLeft();
+    if (wasT) syncScrim();
   }
   $.meta.onclick = () => ($.pop.classList.contains('on') ? closePops() : openMonth());
   $.tmb.onclick = () => ($.tpop.classList.contains('on') ? closePops() : openTimer());
@@ -3207,7 +3217,7 @@ try {
   $.drep.onclick = () => {
     const a = $.dchip.getBoundingClientRect();
     $.dpop.classList.remove('on');
-    openRpop({ ctx: 'add', start: addDay(), rule: addRule, anchor: a, prefer: 'up', from: $.dchip });
+    openRpop({ ctx: 'add', start: addDay(), rule: addRule, anchor: a, prefer: 'up', from: $.dchip, back: true });
   };
 
   /* the repeat editor, for new tasks (from the composer) or for a task (from its card) */
@@ -3223,6 +3233,7 @@ try {
       anchor: o.anchor,
       prefer: o.prefer,
       from: o.from,
+      back: !!o.back,
       f: {
         freq: b.freq || 'week',
         every: b.every || 1,
@@ -3324,9 +3335,11 @@ try {
     $.rpop.classList.remove('on');
     if (o.from) o.from.setAttribute('aria-expanded', 'false');
     if (o.ctx === 'add') {
-      addRule = on ? f : o.had && !on ? null : addRule;
+      if (on) addRule = f;
+      else if (o.had) addRule = null;
       renderChip(true);
-      $.input.focus({ preventScroll: true });
+      if (!on && o.back) openDpop($.dchip);
+      else $.input.focus({ preventScroll: true });
       return;
     }
     const t = find(o.id);
@@ -3569,11 +3582,15 @@ try {
   function bounce(b) {
     an(b.querySelector('svg'), [{ transform: 'scale(.78)' }, { transform: 'none' }], { easing: POP.ease, duration: POP.dur });
   }
-  // The scrim shows while the composer sheet or More is open; it lets touches through as it fades.
+  // The scrim shows behind the composer sheet, More and the timer sheet; it lets touches through as it fades.
+  const BARQ = '(max-width: 719px) and (hover: none)';
   let moreOpen = false;
   function syncScrim() {
     const el = $.scrim,
-      want = moreOpen || app.classList.contains('composing');
+      want =
+        moreOpen ||
+        app.classList.contains('composing') ||
+        ($.tpop.classList.contains('on') && W().matchMedia(BARQ).matches);
     if (want) {
       el.getAnimations().forEach(x => x.cancel());
       delete el.dataset.out;
@@ -3626,10 +3643,10 @@ try {
       promo = f && f.querySelector('.promo'),
       links = f ? [...f.querySelectorAll('nav a')].map(x => x.cloneNode(true).outerHTML).join('') : '';
     $.moreList.innerHTML =
-      `<button type="button" class="srow" data-act="export">${IC.down}<span>${canTop ? 'Export backup' : 'Copy backup'}</span></button>` +
-      `<button type="button" class="srow" data-act="import">${IC.up}<span>Import backup</span></button><hr>` +
+      `<div class="sbk"><button type="button" class="sbk-b" data-act="import">${IC.up}<span>Import backup</span></button>` +
+      `<button type="button" class="sbk-b" data-act="export">${IC.down}<span>${canTop ? 'Export backup' : 'Copy backup'}</span></button></div><hr>` +
       (promo
-        ? `<a class="srow" href="${esc(promo.href)}" target="_blank" rel="noopener" referrerpolicy="strict-origin">${IC.journal}<span>${promo.innerHTML}</span></a><hr>`
+        ? `<a class="spromo" href="${esc(promo.href)}" target="_blank" rel="noopener" referrerpolicy="strict-origin">${promo.innerHTML}</a><hr>`
         : '') +
       `<p class="slinks">${links}</p>`;
     compose(false);
@@ -3655,31 +3672,79 @@ try {
     if (a.dataset.act === 'export') exportData();
     else $.impf.click();
   };
-  // Drag a sheet down to close it.
-  {
-    let s = null;
-    $.more.addEventListener('pointerdown', e => {
-      if (e.target.closest('a,button')) return;
-      s = { y: e.clientY, id: e.pointerId };
+  // Drag a sheet down to close it, from anywhere on it. A drag never presses what it started on.
+  function dragToClose(el, isOpen, close, cssBack) {
+    let s = null,
+      swallow = 0;
+    el.addEventListener('pointerdown', e => {
+      if (!isOpen() || (e.pointerType === 'mouse' && e.button)) return;
+      s = { x: e.clientX, y: e.clientY, id: e.pointerId, on: false };
     });
-    $.more.addEventListener('pointermove', e => {
+    el.addEventListener('pointermove', e => {
       if (!s || e.pointerId !== s.id) return;
-      $.more.style.transform = `translateY(${Math.max(0, e.clientY - s.y)}px)`;
+      const dy = e.clientY - s.y,
+        dx = e.clientX - s.x;
+      if (!s.on) {
+        if (Math.abs(dx) > 14 || dy < -8) {
+          s = null;
+          return;
+        }
+        if (dy < 8) return;
+        s.on = true;
+        try {
+          el.setPointerCapture(s.id);
+        } catch (err) {}
+      }
+      el.style.transition = 'none';
+      el.style.transform = `translateY(${Math.max(0, dy)}px)`;
     });
     const end = e => {
       if (!s || e.pointerId !== s.id) return;
-      const dy = Math.max(0, e.clientY - s.y);
+      const dy = Math.max(0, e.clientY - s.y),
+        on = s.on;
       s = null;
-      $.more.style.transform = '';
-      if (dy > 70) closeMore(dy);
-      else if (dy) an($.more, [{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { easing: SP.ease, duration: SP.dur });
+      if (!on) return;
+      swallow = performance.now() + 450;
+      el.style.transform = '';
+      el.style.transition = '';
+      if (e.type === 'pointerup' && dy > 64) close(dy);
+      else if (!cssBack) an(el, [{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { easing: SP.ease, duration: SP.dur });
     };
-    $.more.addEventListener('pointerup', end);
-    $.more.addEventListener('pointercancel', end);
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    el.addEventListener(
+      'click',
+      e => {
+        if (performance.now() < swallow) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      },
+      true,
+    );
   }
+  dragToClose($.more, () => moreOpen, closeMore);
+  dragToClose(
+    $.tpop,
+    () => $.tpop.classList.contains('on') && W().matchMedia(BARQ).matches,
+    dy =>
+      then(
+        an($.tpop, [{ transform: `translateY(${dy}px)`, opacity: 1 }, { transform: `translateY(${dy + 180}px)`, opacity: 0 }], {
+          duration: 220,
+          easing: 'ease-in',
+          fill: 'forwards',
+        }),
+        () => {
+          closePops();
+          later(() => $.tpop.getAnimations().forEach(x => x.cancel()), 220);
+        },
+      ),
+    true,
+  );
   $.scrim.onclick = () => {
     closeMore();
     compose(false);
+    closePops();
   };
   $.mbSearch.onclick = () => {
     bounce($.mbSearch);
@@ -3695,8 +3760,10 @@ try {
   };
   $.mbAdd.onclick = () => {
     closeMore();
+    closePops();
     compose(!app.classList.contains('composing'));
   };
+  $.sendd.onclick = () => sendDay($.sendd);
   $.mbSend.onclick = () => {
     bounce($.mbSend);
     closeMore();
@@ -3707,10 +3774,23 @@ try {
     bounce($.mbMore);
     moreOpen ? closeMore() : openMore();
   };
+  // Popovers follow their anchor when the keyboard comes or goes.
+  function replacePops() {
+    if ($.dpop.classList.contains('on')) {
+      const from = DPX === 'in' ? $.inDay : $.dchip;
+      place($.dpop, from.getBoundingClientRect(), DPX === 'in' ? 'down' : 'up');
+    }
+    if ($.rpop.classList.contains('on') && RP)
+      place($.rpop, RP.from && RP.from.isConnected ? RP.from.getBoundingClientRect() : RP.anchor, RP.prefer);
+  }
+  window.addEventListener('resize', replacePops);
   // iOS keeps the layout viewport when the keyboard opens: lift the composer sheet above it.
   if (window.visualViewport) {
     const vv = visualViewport,
-      kb = () => document.documentElement.style.setProperty('--kb', Math.max(0, innerHeight - vv.height - vv.offsetTop) + 'px');
+      kb = () => {
+        document.documentElement.style.setProperty('--kb', Math.max(0, innerHeight - vv.height - vv.offsetTop) + 'px');
+        replacePops();
+      };
     vv.addEventListener('resize', kb);
     vv.addEventListener('scroll', kb);
   }
@@ -4323,6 +4403,7 @@ try {
   tpRender(0);
   function intro() {
     app.classList.remove('pre');
+    calm(2000);
     sheet.init();
     if (RM.matches) return;
     if (sheet.on) {
@@ -4347,7 +4428,7 @@ try {
       fill.style.transform = f;
     }, 720);
     an(q('.rule'), [{ transform: 'scaleX(0)' }, { transform: 'none' }], { ...B, duration: SP.dur * 1.4 });
-    [$.prev, $.next, $.sb, $.tmb, $.float].forEach((b, i) =>
+    [$.prev, $.next, $.sb, $.tmb, $.sendd, $.float, $.theme].forEach((b, i) =>
       an(
         b,
         [
