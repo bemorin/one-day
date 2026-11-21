@@ -156,6 +156,9 @@ test('the composer can add a task to another day, then goes back to the day on s
   await expect(page.locator('#dchip')).toHaveClass(/\bset\b/);
   await expect(page.locator('#dlabel')).toHaveText('Tomorrow');
   await expect(page.locator('#input')).toBeFocused();
+  // white on black while the composer has focus, never black on black
+  const ink = await page.locator('#dchip').evaluate(n => [getComputedStyle(n).color, getComputedStyle(n).backgroundColor]);
+  expect(ink[0]).not.toBe(ink[1]);
   await page.locator('#input').fill('Call the bank');
   await page.locator('#input').press('Enter');
   await expect(page.locator('#toast')).toContainText('Added to tomorrow');
