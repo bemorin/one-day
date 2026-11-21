@@ -10,5 +10,7 @@ Please report it privately through GitHub's **Report a vulnerability** button on
 
 - Allow-list sanitizer for notes; everything else is inserted as text.
 - Imported backups go through the same validation and sanitizer as stored data.
-- Content Security Policy in `index.html` (and in `_headers` where supported): no inline or remote scripts, no outgoing connections.
+- Ids read from storage or backups are checked before they are used in selectors.
+- Content Security Policy in `public/index.html` (and in `public/_headers` on Cloudflare Pages): no inline or remote scripts, no outgoing connections.
 - No runtime dependencies.
+- `npm test` includes a malicious-backup test (script tags, event handlers, `javascript:` links, hostile ids) that must not run code or break the page.
