@@ -3208,57 +3208,15 @@ try {
     const n = diff(todayKey(), k);
     return Math.abs(n) <= 1 ? relLabel(k).toLowerCase() : LONG.format(fromKey(k)) + (k.slice(0, 4) !== todayKey().slice(0, 4) ? ' ' + k.slice(0, 4) : '');
   };
-  // A label that changes like the numbers do, word by word: a word that changes rolls as one block
-  // (up for a later day), the others stay still.
-  function rollText(el, s, d) {
-    const prev = el.dataset.v;
-    if (prev === s) return;
-    el.dataset.v = s;
-    stop(el._rt);
-    if (!d || prev == null || RM.matches) {
-      el.textContent = s;
-      return;
-    }
-    const a = prev.split(' '),
-      b = s.split(' '),
-      L = Math.max(a.length, b.length),
-      o = { duration: 380, easing: SP.ease };
-    el.textContent = '';
-    for (let i = 0; i < L; i++) {
-      if (i && i < b.length) el.append(' ');
-      if (i >= b.length) break;
-      const g = D().createElement('span'),
-        inn = D().createElement('i');
-      g.className = 'rg';
-      inn.textContent = b[i];
-      g.append(inn);
-      el.append(g);
-      if (a[i] === b[i]) continue;
-      if (i < a.length) {
-        const out = D().createElement('i');
-        out.className = 'out';
-        out.textContent = a[i];
-        g.append(out);
-        an(out, [{ transform: 'none' }, { transform: `translateY(${-d * 100}%)` }], { ...o, fill: 'forwards' });
-      }
-      an(inn, [{ transform: `translateY(${d * 100}%)` }, { transform: 'none' }], { ...o, fill: 'backwards' });
-    }
-    // at rest, plain text again
-    el._rt = later(() => {
-      if (el.dataset.v === s) el.textContent = s;
-    }, 440);
-  }
-  // The day chip follows its label: the words that change roll, its width moves on a spring from wherever it is.
+  // The day chip follows its label: the words change at once, its width moves on a spring from wherever it is.
   function renderChip(pop) {
     const k = addDay(),
       r = addRule && cleanRule({ ...addRule, text: 'x', start: k }, 'x'),
       label = r ? ruleText(r, true) : dayLabel(k),
-      was = $.dchip.dataset.k,
-      move = label !== $.dlabel.dataset.v && !RM.matches && $.dchip.getClientRects().length > 0,
+      move = label !== $.dlabel.textContent && !RM.matches && $.dchip.getClientRects().length > 0,
       w0 = move ? $.dchip.getBoundingClientRect().width : 0;
-    $.dchip.dataset.k = k;
     if (move) $.dchip.getAnimations().forEach(a => a.id === 'cw' && a.cancel());
-    rollText($.dlabel, label, move ? (was && k < was ? -1 : 1) : 0);
+    $.dlabel.textContent = label;
     if (move) {
       const w1 = $.dchip.getBoundingClientRect().width;
       if (Math.abs(w1 - w0) > 0.5) {

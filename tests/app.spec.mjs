@@ -498,7 +498,7 @@ test('the wheel: up for the day before, down for the day after, one day per notc
   await expect(page.locator('#wd')).toHaveText(wd(-1));
 });
 
-test('the day chip follows its label with a smooth width', async ({ page }) => {
+test('the day chip follows its label with a smooth width, the words change at once', async ({ page }) => {
   await open(page, { motion: 'no-preference' });
   await expect(page.locator('#dlabel')).toHaveText('Today');
   // watch every frame, however busy the machine: the width animation is short
@@ -513,29 +513,8 @@ test('the day chip follows its label with a smooth width', async ({ page }) => {
   await page.keyboard.press('ArrowRight');
   await expect(page.locator('#dlabel')).toHaveText('Tomorrow');
   await expect.poll(() => page.evaluate(() => window.__cw)).toBe(true);
-  // at rest the label is plain text again
-  await expect.poll(() => page.locator('#dlabel').evaluate(n => n.children.length)).toBe(0);
-  // from a date to the next one, only the words that change roll (the month stays still within a month)
-  await page.waitForTimeout(500);
-  await page.keyboard.press('ArrowRight');
-  await expect(page.locator('#dlabel')).not.toHaveText('Tomorrow');
-  await page.waitForTimeout(600);
-  const before = await page.locator('#dlabel').evaluate(n => n.dataset.v);
-  await page.evaluate(() => {
-    window.__roll = null;
-    const el = document.getElementById('dlabel'),
-      t0 = performance.now();
-    (function look() {
-      if (!window.__roll && el.querySelector('.rg'))
-        window.__roll = { now: el.dataset.v, moving: [...el.querySelectorAll('.rg')].map(g => (g.querySelector('.out') ? 1 : 0)) };
-      if (performance.now() - t0 < 3000) requestAnimationFrame(look);
-    })();
-  });
-  await page.keyboard.press('ArrowRight');
-  await expect.poll(() => page.evaluate(() => !!window.__roll)).toBe(true);
-  const r = await page.evaluate(() => window.__roll);
-  const was = before.split(' ');
-  expect(r.moving).toEqual(r.now.split(' ').map((w, i) => (w === was[i] ? 0 : 1)));
+  // the words themselves change at once: never a roll or a fade on the label
+  expect(await page.locator('#dlabel').evaluate(n => n.children.length + n.getAnimations().length)).toBe(0);
   await expect.poll(() => page.locator('#dchip').evaluate(n => n.getAnimations().some(a => a.id === 'cw'))).toBe(false);
   expect(await page.locator('#dchip').evaluate(n => n.style.overflow)).toBe('');
 });

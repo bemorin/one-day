@@ -786,22 +786,6 @@ header {
     }
   }
 }
-/* the day chip's words roll in their own slots */
-#dlabel .rg {
-  position: relative;
-  display: inline-block;
-  overflow: hidden;
-  vertical-align: top;
-}
-#dlabel .rg i {
-  display: block;
-  font-style: normal;
-}
-#dlabel .rg .out {
-  position: absolute;
-  left: 0;
-  top: 0;
-}
 .resizing .sc,
 .calm .sc {
   overflow-y: hidden;
