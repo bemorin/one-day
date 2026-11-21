@@ -786,7 +786,7 @@ header {
     }
   }
 }
-/* the day chip's letters roll in their own slots */
+/* the day chip's words roll in their own slots */
 #dlabel .rg {
   position: relative;
   display: inline-block;

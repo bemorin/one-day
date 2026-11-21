@@ -3196,7 +3196,8 @@ try {
     const n = diff(todayKey(), k);
     return Math.abs(n) <= 1 ? relLabel(k).toLowerCase() : LONG.format(fromKey(k)) + (k.slice(0, 4) !== todayKey().slice(0, 4) ? ' ' + k.slice(0, 4) : '');
   };
-  // A label that changes like the numbers do: only the letters that change roll, up for a later day.
+  // A label that changes like the numbers do, word by word: a word that changes rolls as one block
+  // (up for a later day), the others stay still.
   function rollText(el, s, d) {
     const prev = el.dataset.v;
     if (prev === s) return;
@@ -3206,33 +3207,36 @@ try {
       el.textContent = s;
       return;
     }
-    const L = Math.max(prev.length, s.length),
-      a = prev.padEnd(L),
-      b = s.padEnd(L),
-      ch = c => (c === ' ' ? '\u00a0' : c);
+    const a = prev.split(' '),
+      b = s.split(' '),
+      L = Math.max(a.length, b.length),
+      o = { duration: 380, easing: SP.ease };
     el.textContent = '';
     for (let i = 0; i < L; i++) {
+      if (i && i < b.length) el.append(' ');
+      if (i >= b.length) break;
       const g = D().createElement('span'),
         inn = D().createElement('i');
       g.className = 'rg';
-      inn.textContent = i < s.length ? ch(b[i]) : '';
+      inn.textContent = b[i];
       g.append(inn);
       el.append(g);
       if (a[i] === b[i]) continue;
-      const out = D().createElement('i');
-      out.className = 'out';
-      out.textContent = i < prev.length ? ch(a[i]) : '';
-      g.append(out);
-      const o = { delay: i * 16, duration: 360, easing: SP.ease };
+      if (i < a.length) {
+        const out = D().createElement('i');
+        out.className = 'out';
+        out.textContent = a[i];
+        g.append(out);
+        an(out, [{ transform: 'none' }, { transform: `translateY(${-d * 100}%)` }], { ...o, fill: 'forwards' });
+      }
       an(inn, [{ transform: `translateY(${d * 100}%)` }, { transform: 'none' }], { ...o, fill: 'backwards' });
-      an(out, [{ transform: 'none' }, { transform: `translateY(${-d * 100}%)` }], { ...o, fill: 'forwards' });
     }
     // at rest, plain text again
     el._rt = later(() => {
       if (el.dataset.v === s) el.textContent = s;
-    }, 360 + L * 16 + 60);
+    }, 440);
   }
-  // The day chip follows its label: the letters that change roll, its width moves on a spring from wherever it is.
+  // The day chip follows its label: the words that change roll, its width moves on a spring from wherever it is.
   function renderChip(pop) {
     const k = addDay(),
       r = addRule && cleanRule({ ...addRule, text: 'x', start: k }, 'x'),
