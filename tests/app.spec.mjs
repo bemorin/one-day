@@ -333,6 +333,14 @@ test('the footer: the croissant sits midway between dogood.day and the links', a
   await expect(page.locator('#foot nav a', { hasText: /^Legal$/ })).toBeVisible();
 });
 
+test('month pickers clip what slides in them; the footer waits for the card', async ({ page }) => {
+  await open(page);
+  expect(await page.locator('#pop').evaluate(n => getComputedStyle(n).overflow)).toBe('hidden');
+  expect(await page.locator('#dpop').evaluate(n => getComputedStyle(n).overflow)).toBe('hidden');
+  await page.evaluate(() => document.getElementById('app').classList.add('pre'));
+  expect(await page.locator('#foot').evaluate(n => getComputedStyle(n).opacity)).toBe('0');
+});
+
 test('send the day from the header on a computer', async ({ page }) => {
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await open(page);
@@ -653,10 +661,20 @@ test.describe('in a narrow window with a mouse', () => {
 test.describe('on a touch screen', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
+  test('search ends above the bottom bar, its links live in More', async ({ page }) => {
+    await open(page);
+    await page.locator('#mbSearch').tap();
+    await expect(page.locator('#srch')).toHaveClass(/\bon\b/);
+    const [s, bar] = await Promise.all([page.locator('#srch').boundingBox(), page.locator('#mbar').boundingBox()]);
+    expect(s.y + s.height).toBeLessThanOrEqual(bar.y + 1);
+    await expect(page.locator('#slist .about')).toBeHidden();
+  });
+
   test('the timer sheet sits over a scrim; a tap on it closes both', async ({ page }) => {
     await open(page);
     await page.locator('#mbTimer').tap();
     await expect(page.locator('#tpop')).toHaveClass(/\bon\b/);
+    await expect(page.locator('#tpop .tgrab')).toBeVisible();
     await expect(page.locator('#scrim')).toBeVisible();
     await page.locator('#scrim').tap({ position: { x: 60, y: 120 } });
     await expect(page.locator('#tpop')).not.toHaveClass(/\bon\b/);

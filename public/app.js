@@ -3143,6 +3143,8 @@ try {
     $.dpT.textContent = MO.format(dpM);
     $.dgrid.innerHTML = gridHTML(dpM, DPX === 'in' && IN ? IN.to : addDay());
     $.drepV.textContent = r ? ruleText(r, true) : 'Never';
+    // a month with one row more or less: keep the picker above its chip
+    if ($.dpop.classList.contains('on')) replacePops();
     if (d)
       an($.dgrid, [
         { opacity: 0, transform: `translateX(${d * 18}px)` },
