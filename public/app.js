@@ -9,7 +9,7 @@ try {
     home = document.getElementById('home'),
     q = s => app.querySelector(s),
     $ = {};
-  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inT inTitle inMeta inDay inDayL inNo inYes mbar mbSearch mbTimer mbTimerL mbAdd mbSend mbMore scrim more moreList theme sendd'
+  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inT inTitle inMeta inDay inDayL inNo inYes mbar mbSearch mbTimer mbTimerL mbAdd mbSend mbMore scrim more moreList theme sendd fx fbtn fname fclr fpop ftags fnone'
     .split(' ')
     .forEach(id => ($[id] = q('#' + id)));
   const fill = q('.rule i'),
@@ -311,7 +311,8 @@ try {
   let cur = todayKey(),
     lastToday = cur,
     IDX = null,
-    TAGC = null;
+    TAGC = null,
+    FX = null; // the tag the day is filtered by, if any (see "filter by tag")
   const tasks = k => (S.days[k] ? S.days[k].tasks : []),
     day = k => S.days[k] || (S.days[k] = { u: 0, tasks: [] });
   const find = id => tasks(cur).find(t => t.id === id),
@@ -645,7 +646,7 @@ try {
   }
   function renderList(fresh) {
     const ae = D().activeElement,
-      want = ordered(cur),
+      want = FX ? ordered(cur).filter(t => hasTag(t, FX)) : ordered(cur),
       map = new Map(),
       added = [];
     for (const n of $.list.children) if (!n.classList.contains('exit')) map.set(n.dataset.id, n);
@@ -723,6 +724,9 @@ try {
   function renderAux() {
     const { n } = status();
     $.empty.hidden = n > 0;
+    const none = !!FX && n > 0 && !tasks(cur).some(t => hasTag(t, FX));
+    $.fnone.hidden = !none;
+    if (none) $.fnone.textContent = `No #${FX} tasks on this day.`;
     if (!n)
       $.empty.textContent =
         cur === todayKey() ? 'Nothing planned for today.' : `Nothing planned for ${WD.format(fromKey(cur))}.`;
@@ -781,6 +785,7 @@ try {
 
   /* task actions */
   function addTask(text) {
+    if (FX && !tagsOf(text).includes(FX)) text += ' #' + FX;
     const k = addDay();
     if (addRule) {
       addRepeating(text, k);
@@ -866,15 +871,13 @@ try {
   }
   function setOrder(ids) {
     const d = day(cur),
-      open = ids.map(id => d.tasks.find(t => t.id === id)).filter(Boolean);
-    if (
-      open.map(t => t.id).join() ===
-      d.tasks
-        .filter(t => !t.done)
-        .map(t => t.id)
-        .join()
-    )
-      return false;
+      full = d.tasks.filter(t => !t.done).map(t => t.id),
+      vis = new Set(ids);
+    // a filtered list moves its tasks among their own places; the tasks it hides stay where they are
+    let i = 0;
+    const order = ids.length < full.length ? full.map(id => (vis.has(id) ? ids[i++] : id)) : ids,
+      open = order.map(id => d.tasks.find(t => t.id === id)).filter(Boolean);
+    if (open.map(t => t.id).join() === full.join()) return false;
     record([cur]);
     d.tasks = [...open, ...d.tasks.filter(t => t.done)];
     commit(cur);
@@ -882,7 +885,7 @@ try {
   }
   function reorder(id, dir) {
     const ids = tasks(cur)
-        .filter(t => !t.done)
+        .filter(t => !t.done && (!FX || hasTag(t, FX)))
         .map(t => t.id),
       i = ids.indexOf(id),
       j = i + dir;
@@ -2193,7 +2196,7 @@ try {
   /* popovers: month and timer */
   let popM = null,
     dpM = null;
-  const popOn = () => ['pop', 'tpop', 'dpop', 'rpop'].some(id => $[id].classList.contains('on'));
+  const popOn = () => ['pop', 'tpop', 'dpop', 'rpop', 'fpop'].some(id => $[id].classList.contains('on'));
   function gridHTML(m0, sel) {
     const y = m0.getFullYear(),
       m = m0.getMonth(),
@@ -2305,6 +2308,10 @@ try {
     syncScrim();
   }
   function closePops(back) {
+    const wasF = $.fpop.classList.contains('on');
+    $.fpop.classList.remove('on');
+    $.fbtn.setAttribute('aria-expanded', 'false');
+    if (back && wasF) $.fbtn.focus({ preventScroll: true });
     const wasM = $.pop.classList.contains('on'),
       wasT = $.tpop.classList.contains('on'),
       wasD = $.dpop.classList.contains('on'),
@@ -2351,7 +2358,7 @@ try {
   function onOutside(e) {
     const t = e.target && e.target.closest ? e.target : null;
     if ($.srch.classList.contains('on') && t && !app.contains(t)) closeSearch(false);
-    if (popOn() && !(t && t.closest('#pop,#meta,#tpop,#tmb,#dpop,#dchip,#rpop,.rbtn,#inDay,#mbTimer'))) closePops();
+    if (popOn() && !(t && t.closest('#pop,#meta,#tpop,#tmb,#dpop,#dchip,#rpop,.rbtn,#inDay,#mbTimer,#fpop,#fx'))) closePops();
     if (t && t.closest('#fmt,#lb,#sug,#toast,.srch,#dpop,#rpop,#inbox,#more,#mbar,#scrim')) return;
     const keep = t && t.closest('.row.open');
     for (const li of $.list.querySelectorAll('.row.open')) if (li !== keep) setOpen(li, false);
@@ -3136,6 +3143,72 @@ try {
     if (b) acceptSug(+b.dataset.i);
   });
 
+  /* filter by tag: the day shows only the tasks with that tag, in the task or in one of its sub-tasks.
+     It stays on from day to day until it is cleared, and a task added meanwhile takes the tag. */
+  function tagsIn(t) {
+    return tagsOf([t.text, ...(t.subs || []).map(s => s.text)].join(' '));
+  }
+  function hasTag(t, g) {
+    return tagsIn(t).includes(g);
+  }
+  function dayTags(k) {
+    const m = new Map();
+    for (const t of tasks(k)) for (const g of tagsIn(t)) m.set(g, (m.get(g) || 0) + 1);
+    return [...m].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }
+  function renderFilter() {
+    $.fx.classList.toggle('on', !!FX);
+    $.fname.textContent = FX ? '#' + FX : '';
+    $.fclr.hidden = !FX;
+    $.fbtn.setAttribute('aria-label', FX ? `Filtered by #${FX}. Change the filter` : 'Filter by tag');
+    $.fbtn.dataset.tip = FX ? 'Change the filter' : 'Filter by tag';
+    $.input.placeholder = FX ? `Add a task to #${FX}` : 'Add a task';
+  }
+  function setFilter(g) {
+    FX = g || null;
+    renderFilter();
+    flip(() => {
+      renderList();
+      renderAux();
+    });
+  }
+  function openFilter() {
+    closePops();
+    const tags = dayTags(cur);
+    if (FX && !tags.some(([g]) => g === FX)) tags.unshift([FX, 0]);
+    $.ftags.innerHTML = tags.length
+      ? `<button type="button" class="ftag" data-tag="" aria-pressed="${!FX}">All tasks<span>${tasks(cur).length}</span></button>` +
+        tags
+          .map(([g, c]) => `<button type="button" class="ftag" data-tag="${esc(g)}" aria-pressed="${g === FX}">#${esc(g)}<span>${c}</span></button>`)
+          .join('')
+      : '<p class="fempty">No tags on this day. Type #something in a task to filter by it.</p>';
+    $.fpop.classList.add('on');
+    $.fbtn.setAttribute('aria-expanded', 'true');
+    hideTip(0);
+    const b = $.ftags.querySelector('[aria-pressed="true"]') || $.ftags.querySelector('button');
+    if (b) b.focus({ preventScroll: true });
+  }
+  $.fbtn.onclick = () => ($.fpop.classList.contains('on') ? closePops() : openFilter());
+  $.fclr.onclick = () => {
+    setFilter(null);
+    $.fbtn.focus({ preventScroll: true });
+  };
+  $.ftags.onclick = e => {
+    const b = e.target.closest('.ftag');
+    if (!b) return;
+    closePops(true);
+    setFilter(b.dataset.tag);
+  };
+  $.ftags.addEventListener('keydown', e => {
+    const bs = [...$.ftags.querySelectorAll('.ftag')],
+      i = bs.indexOf(D().activeElement),
+      d = { ArrowDown: 1, ArrowUp: -1 }[e.key];
+    if (d && i > -1) {
+      e.preventDefault();
+      bs[Math.max(0, Math.min(bs.length - 1, i + d))].focus();
+    }
+  });
+
   /* A pasted list: one item per line. Bullets, numbers and checkboxes are left out ("- [x]" makes it done);
      a single line pastes as usual. */
   const BUL = /^(?:[•◦▪·‣⁃]\s*|(?:[-*+–—]|\d{1,3}[.)]|\(\d{1,3}\)|[a-zA-Z][.)])\s+)/,
@@ -3252,6 +3325,7 @@ try {
     renderChip(k !== was);
   }
   function addTasks(items) {
+    if (FX) items = items.map(it => (tagsOf(it.text).includes(FX) ? it : { ...it, text: it.text + ' #' + FX }));
     const k = addDay(),
       room = 300 - tasks(k).length,
       list = items.slice(0, Math.max(0, room));
@@ -4217,8 +4291,13 @@ try {
       case 'P':
         float();
         break;
+      case 'f':
+      case 'F':
+        $.fpop.classList.contains('on') ? closePops(true) : openFilter();
+        break;
       case 'Escape':
-        if (t.blur) t.blur();
+        if (FX && t === D().body) setFilter(null);
+        else if (t.blur) t.blur();
         break;
       default:
         return;

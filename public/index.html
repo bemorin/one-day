@@ -123,6 +123,28 @@
               <span class="rel" id="rel"></span>
               <span class="sr-only">, choose another day</span>
             </button>
+            <div class="fx" id="fx">
+              <button
+                class="fbtn"
+                id="fbtn"
+                type="button"
+                data-tip="Filter by tag"
+                data-key="F"
+                aria-label="Filter by tag"
+                aria-haspopup="dialog"
+                aria-expanded="false"
+                aria-controls="fpop"
+              >
+                <svg viewBox="0 0 20 20"><path d="M3.5 6h13M6 10h8M8.5 14h3" /></svg><span id="fname"></span>
+              </button>
+              <button class="fclr" id="fclr" type="button" data-tip="Show all tasks" aria-label="Show all tasks" hidden>
+                <svg viewBox="0 0 20 20"><path d="m6.5 6.5 7 7m0-7-7 7" /></svg>
+              </button>
+            </div>
+          </div>
+          <div class="pop fpop" id="fpop" role="dialog" aria-label="Filter by tag">
+            <p class="fh">Filter by tag</p>
+            <div class="ftags" id="ftags"></div>
           </div>
           <div class="pop" id="pop" role="dialog" aria-label="Choose a day">
             <div class="ph">
@@ -194,6 +216,7 @@
               </div>
               <ul id="list" aria-label="Tasks"></ul>
               <p class="empty" id="empty" hidden></p>
+              <p class="fnone" id="fnone" hidden></p>
             </div>
             <div class="add" id="add">
               <span class="plus" aria-hidden="true"

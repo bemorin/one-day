@@ -323,6 +323,72 @@ test('an imported backup cannot run code or break the page', async ({ page }) =>
   await expect(row(page, 'nope')).toHaveCount(0);
 });
 
+test.describe('filter by tag', () => {
+  test('the button at the right of the date lists the day\'s tags; one shows only its tasks', async ({ page }) => {
+    await open(page);
+    await page.locator('#fbtn').click();
+    await expect(page.locator('#fpop')).toHaveClass(/\bon\b/);
+    await expect(page.locator('#ftags .ftag')).toHaveText(['All tasks3', '#travel1', '#work1']);
+    // a tag in a sub-task counts for its task
+    await page.locator('#ftags .ftag', { hasText: '#travel' }).click();
+    await expect(page.locator('#fpop')).not.toHaveClass(/\bon\b/);
+    await expect(page.locator('#list .row')).toHaveCount(1);
+    await expect(row(page, 'Plan the trip')).toHaveCount(1);
+    await expect(page.locator('#fname')).toHaveText('#travel');
+    await expect(page.locator('#input')).toHaveAttribute('placeholder', 'Add a task to #travel');
+    // the filter stays on from day to day
+    await page.keyboard.press('ArrowRight');
+    await expect(page.locator('#fnone')).toHaveText('');
+    await expect(page.locator('#fname')).toHaveText('#travel');
+    await page.keyboard.press('ArrowLeft');
+    await expect(row(page, 'Plan the trip')).toHaveCount(1);
+    await page.locator('#fclr').click();
+    await expect(page.locator('#list .row')).toHaveCount(3);
+    await expect(page.locator('#fclr')).toBeHidden();
+  });
+
+  test('F opens it, Escape clears it; a task added meanwhile takes the tag', async ({ page }) => {
+    await open(page);
+    await page.keyboard.press('f');
+    await expect(page.locator('#fpop')).toHaveClass(/\bon\b/);
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#fname')).toHaveText('#work');
+    await page.locator('#input').fill('Send the slides');
+    await page.locator('#input').press('Enter');
+    await expect(row(page, 'Send the slides')).toHaveCount(1);
+    await expect(row(page, 'Send the slides').locator('.tag')).toHaveText('#work');
+    await page.locator('#input').evaluate(n => n.blur());
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#fx')).not.toHaveClass(/\bon\b/);
+    await expect(page.locator('#list .row')).toHaveCount(4);
+  });
+
+  test('reordering a filtered list keeps the tasks it hides where they are', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.addInitScript(k => {
+      const tasks = [
+        { id: 'a', text: 'A #work', done: false },
+        { id: 'b', text: 'B', done: false },
+        { id: 'c', text: 'C #work', done: false },
+        { id: 'd', text: 'D', done: false },
+      ];
+      localStorage.setItem('oneday.v1', JSON.stringify({ days: { [k]: { u: 1, tasks } }, rules: {} }));
+    }, today());
+    await page.goto('/');
+    await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
+    await page.locator('#fbtn').click();
+    await page.locator('#ftags .ftag', { hasText: '#work' }).click();
+    await expect(page.locator('#list .row')).toHaveCount(2);
+    await row(page, 'A #work').locator('.in .ck').focus();
+    await page.keyboard.press('Alt+ArrowDown');
+    await expect
+      .poll(() => page.evaluate(k => JSON.parse(localStorage.getItem('oneday.v1')).days[k].tasks.map(t => t.id).join(''), today()))
+      .toBe('cbad');
+  });
+});
+
 test.describe('pasting a list', () => {
   const paste = (page, sel, txt) =>
     page.evaluate(
@@ -574,6 +640,7 @@ test('the wheel scrolls a long list first, and never flips the day at its end', 
   await page.mouse.wheel(0, 400);
   await expect(page.locator('#app')).toHaveClass(/\bis-today\b/);
   await expect(page.locator('#app')).not.toHaveClass(/\bcalm\b/);
+  await expect.poll(() => page.locator('.sc').evaluate(n => getComputedStyle(n).overflowY)).not.toBe('hidden');
   await page.waitForTimeout(260);
   for (let i = 0; i < 6; i++) await page.mouse.wheel(0, 400);
   await expect.poll(() => page.locator('.sc').evaluate(n => n.scrollTop)).toBeGreaterThan(200);
@@ -1039,6 +1106,7 @@ test.describe('accessibility (axe, WCAG 2.2 AA)', () => {
       await page.locator('#dchip').click();
       await page.locator('#drep').click();
     },
+    'tag filter': async page => page.keyboard.press('f'),
     'incoming task': async page =>
       page.evaluate(() => {
         location.hash = '#add=j' + btoa(JSON.stringify({ v: 1, t: 'Hello #work', n: '<b>x</b>', s: [['a']] })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
