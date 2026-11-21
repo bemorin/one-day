@@ -486,6 +486,58 @@ test('the wheel: up for the day before, down for the day after, one day per notc
   await expect(page.locator('#wd')).toHaveText(wd(-1));
 });
 
+test('the day chip follows its label with a smooth width', async ({ page }) => {
+  await open(page, { motion: 'no-preference' });
+  await expect(page.locator('#dlabel')).toHaveText('Today');
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('#dlabel')).toHaveText('Tomorrow');
+  expect(await page.locator('#dchip').evaluate(n => n.getAnimations().some(a => a.id === 'cw'))).toBe(true);
+  await expect.poll(() => page.locator('#dchip').evaluate(n => n.getAnimations().some(a => a.id === 'cw'))).toBe(false);
+  expect(await page.locator('#dchip').evaluate(n => n.style.overflow)).toBe('');
+});
+
+test('the wheel works on the page around the card too', async ({ page }) => {
+  await open(page);
+  await page.mouse.move(60, 400);
+  await page.mouse.wheel(0, 100);
+  await expect(page.locator('#app')).not.toHaveClass(/\bis-today\b/);
+  await page.waitForTimeout(260);
+  await page.mouse.wheel(0, -100);
+  await expect(page.locator('#app')).toHaveClass(/\bis-today\b/);
+});
+
+test('search: with few tasks and many tags, the card grows to hold it all', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript(k => {
+    const names = ['aaaa', 'ee', 'eeeee', 'erer', 'erre', 'ffdd', 'gegg', 'reererer', 'rrre', 'tags', 'tttt', 'ty', 'work', 'yoioioo', 'zeze'];
+    const tasks = [{ id: 'x', text: 'One task ' + names.map(g => '#' + g).join(' '), done: false }];
+    localStorage.setItem('oneday.v1', JSON.stringify({ days: { [k]: { u: 1, tasks } }, rules: {} }));
+  }, today());
+  await page.goto('/');
+  await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
+  await page.keyboard.press('/');
+  await expect.poll(() => page.locator('#sres').evaluate(n => n.scrollHeight - n.clientHeight)).toBeLessThanOrEqual(1);
+  const [chips, card] = await Promise.all([page.locator('.sdata .chips').boundingBox(), page.locator('#app').boundingBox()]);
+  expect(card.y + card.height - (chips.y + chips.height)).toBeGreaterThan(20);
+});
+
+test('changing day: the leaving copy of the date keeps its month on one line', async ({ page }) => {
+  await open(page, { motion: 'no-preference' });
+  await page.evaluate(() => {
+    window.__wrap = 0;
+    const t0 = performance.now();
+    (function look() {
+      for (const g of document.querySelectorAll('.date > .ghost .mo')) if (g.offsetHeight > 24) window.__wrap++;
+      if (performance.now() - t0 < 9000) requestAnimationFrame(look);
+    })();
+  });
+  for (let i = 0; i < 70; i++) {
+    await page.keyboard.press('ArrowRight');
+    await page.waitForTimeout(60);
+  }
+  expect(await page.evaluate(() => window.__wrap)).toBe(0);
+});
+
 test('the wheel scrolls a long list first, and never flips the day at its end', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.addInitScript(k => {

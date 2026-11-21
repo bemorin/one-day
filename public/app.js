@@ -443,12 +443,14 @@ try {
     g.classList.add('ghost');
     g.setAttribute('aria-hidden', 'true');
     g.tabIndex = -1;
+    // the exact width, not the rounded one: a line that just fits must not wrap in the copy
     Object.assign(g.style, {
       left: el.offsetLeft + 'px',
       top: el.offsetTop + 'px',
-      width: el.offsetWidth + 'px',
+      width: el.getBoundingClientRect().width + 'px',
       margin: 0,
       background: 'none',
+      whiteSpace: 'nowrap',
     });
     par.append(g);
     mutate();
@@ -2133,34 +2135,39 @@ try {
     }
     return false;
   }
-  app.addEventListener(
+  function onWheel(e) {
+  if (P || e.ctrlKey || $.srch.classList.contains('on') || popOn()) return;
+  const k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? innerHeight : 1,
+    dx = e.deltaX * k,
+    dy = e.deltaY * k,
+    side = Math.abs(dx) > Math.abs(dy),
+    now = performance.now(),
+    gap = now - gLast;
+  gLast = now;
+  if (gap > 200) {
+    gMode = null;
+    gAcc = 0;
+  } else if (!side && gMode === 'done' && Math.abs(dy) >= 80 && gap >= 90 && now - gStep >= 180) {
+    gMode = 'day';
+    gAcc = 0;
+  }
+  if (!gMode) gMode = side || !scrollsY(e.target, dy) ? 'day' : 'scroll';
+  if (gMode === 'scroll') return;
+  e.preventDefault();
+  if (gMode === 'done') return;
+  gAcc += side ? dx : dy;
+  if (Math.abs(gAcc) > 46) {
+    gMode = 'done';
+    gStep = now;
+    step(gAcc > 0 ? 1 : -1);
+  }
+  }
+  app.addEventListener('wheel', onWheel, { passive: false });
+  // around the card too (the page, the footer), while the app is in this window
+  window.addEventListener(
     'wheel',
     e => {
-      if (P || e.ctrlKey || $.srch.classList.contains('on') || popOn()) return;
-      const k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? innerHeight : 1,
-        dx = e.deltaX * k,
-        dy = e.deltaY * k,
-        side = Math.abs(dx) > Math.abs(dy),
-        now = performance.now(),
-        gap = now - gLast;
-      gLast = now;
-      if (gap > 200) {
-        gMode = null;
-        gAcc = 0;
-      } else if (!side && gMode === 'done' && Math.abs(dy) >= 80 && gap >= 90 && now - gStep >= 180) {
-        gMode = 'day';
-        gAcc = 0;
-      }
-      if (!gMode) gMode = side || !scrollsY(e.target, dy) ? 'day' : 'scroll';
-      if (gMode === 'scroll') return;
-      e.preventDefault();
-      if (gMode === 'done') return;
-      gAcc += side ? dx : dy;
-      if (Math.abs(gAcc) > 46) {
-        gMode = 'done';
-        gStep = now;
-        step(gAcc > 0 ? 1 : -1);
-      }
+      if (D() === document && !app.contains(e.target) && !(e.target.closest && e.target.closest('#lock,#lockset'))) onWheel(e);
     },
     { passive: false },
   );
@@ -3183,10 +3190,27 @@ try {
     const n = diff(todayKey(), k);
     return Math.abs(n) <= 1 ? relLabel(k).toLowerCase() : LONG.format(fromKey(k)) + (k.slice(0, 4) !== todayKey().slice(0, 4) ? ' ' + k.slice(0, 4) : '');
   };
+  // The day chip follows its label: its width moves on a spring from wherever it is, the label fades in.
   function renderChip(pop) {
     const k = addDay(),
-      r = addRule && cleanRule({ ...addRule, text: 'x', start: k }, 'x');
-    $.dlabel.textContent = r ? ruleText(r, true) : dayLabel(k);
+      r = addRule && cleanRule({ ...addRule, text: 'x', start: k }, 'x'),
+      label = r ? ruleText(r, true) : dayLabel(k),
+      move = label !== $.dlabel.textContent && !RM.matches && $.dchip.getClientRects().length > 0,
+      w0 = move ? $.dchip.getBoundingClientRect().width : 0;
+    if (move) $.dchip.getAnimations().forEach(a => a.id === 'cw' && a.cancel());
+    $.dlabel.textContent = label;
+    if (move) {
+      const w1 = $.dchip.getBoundingClientRect().width;
+      if (Math.abs(w1 - w0) > 0.5) {
+        const a = $.dchip.animate([{ width: w0 + 'px' }, { width: w1 + 'px' }], { duration: SP.dur, easing: SP.ease });
+        a.id = 'cw';
+        $.dchip.style.overflow = 'hidden';
+        a.onfinish = a.oncancel = () => {
+          if (!$.dchip.getAnimations().some(x => x.id === 'cw' && x !== a)) $.dchip.style.overflow = '';
+        };
+      }
+      $.dlabel.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: 'ease-out' });
+    }
     $.dchip.classList.toggle('set', k !== cur || !!r);
     $.dchip.classList.toggle('rep', !!r);
     $.dchip.setAttribute(
@@ -4467,15 +4491,23 @@ try {
       const m = parseFloat(getComputedStyle(app).maxHeight);
       return isNaN(m) ? Infinity : m;
     },
+    // the day's own height: what the card is without a set height
+    dayH() {
+      return q('header').offsetHeight + $.stage.offsetHeight + $.add.offsetHeight;
+    },
     natural() {
-      let h = q('header').offsetHeight + $.stage.offsetHeight + $.add.offsetHeight;
-      if ($.srch.classList.contains('on'))
-        h = Math.max(h, q('.sbar').offsetHeight + 16 + 40 + $.slist.offsetHeight);
+      let h = this.dayH();
+      if ($.srch.classList.contains('on')) h = Math.max(h, q('.sbar').offsetHeight + 16 + 40 + $.slist.offsetHeight);
       return Math.min(h, this.max());
+    },
+    // At rest the card goes back to its own height, unless search needs more: then it keeps that.
+    rest() {
+      app.style.height = this.on && this.target > Math.min(this.dayH(), this.max()) + 0.5 ? this.target + 'px' : '';
     },
     snap() {
       this.stop();
       this.h = this.target = this.on ? this.natural() : 0;
+      this.rest();
     },
     check() {
       if (!this.on) {
@@ -4521,7 +4553,7 @@ try {
       this.raf = 0;
       this.v = 0;
       this.h = this.target;
-      app.style.height = '';
+      this.rest();
       app.classList.remove('resizing');
     },
     init() {
