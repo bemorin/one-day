@@ -233,6 +233,33 @@ test('an imported backup cannot run code or break the page', async ({ page }) =>
   await expect(row(page, 'nope')).toHaveCount(0);
 });
 
+test('the leaving day floats above the list instead of joining it', async ({ page }) => {
+  await open(page, { motion: 'no-preference' });
+  await page.keyboard.press('ArrowRight');
+  // read it in one go: the ghost only lives for the length of the transition
+  const st = await page.evaluate(() => {
+    const g = document.querySelector('.vp > .ghost');
+    return g && {
+      pos: getComputedStyle(g).position,
+      ghostTop: g.getBoundingClientRect().top,
+      addTop: document.getElementById('add').getBoundingClientRect().top,
+    };
+  });
+  expect(st).not.toBeNull();
+  expect(st.pos).toBe('absolute');
+  expect(st.ghostTop).toBeLessThan(st.addTop);
+});
+
+test('a sideways scroll on a month grid changes the month, not the day', async ({ page }) => {
+  await open(page);
+  await page.locator('#meta').click();
+  const title = await page.locator('#popT').textContent();
+  await page.locator('#grid').hover();
+  await page.mouse.wheel(120, 0);
+  await expect(page.locator('#popT')).not.toHaveText(title);
+  await expect(page.locator('#app')).toHaveClass(/\bis-today\b/);
+});
+
 test('digits stay right after the app comes back from another document (keep on top)', async ({ page }) => {
   await open(page, { motion: 'no-preference' });
   // Same journey as the floating window: the app moves to another document, rolls a day, comes back.
@@ -512,6 +539,33 @@ test.describe('on a touch screen', () => {
     await expect(b.locator('.rm')).toBeVisible();
     await expect(b.locator('.mv')).toBeVisible();
     await expect(b.locator('.t')).not.toHaveAttribute('contenteditable', /.+/);
+    expect(await b.locator('.in').evaluate(n => getComputedStyle(n).webkitTapHighlightColor)).toBe('rgba(0, 0, 0, 0)');
+  });
+
+  test('a swipe on the month picker changes the month', async ({ page }) => {
+    await open(page);
+    await page.locator('#meta').tap();
+    const title = await page.locator('#popT').textContent();
+    const box = await page.locator('#grid').boundingBox();
+    await page.evaluate(([x, y]) => {
+      const g = document.getElementById('grid'),
+        ev = (type, cx) =>
+          g.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 7, pointerType: 'touch', clientX: cx, clientY: y }));
+      ev('pointerdown', x);
+      for (let i = 1; i <= 6; i++) ev('pointermove', x - i * 20);
+      ev('pointerup', x - 120);
+    }, [box.x + box.width * 0.7, box.y + box.height / 2]);
+    await expect(page.locator('#popT')).not.toHaveText(title);
+  });
+
+  test('search shows the about links centred at the bottom', async ({ page }) => {
+    await open(page);
+    await page.locator('#sb').tap();
+    const about = page.locator('#slist .about');
+    await expect(about).toBeVisible();
+    await expect(about.locator('.promo')).toBeVisible();
+    await expect(about.locator('.links a')).toHaveCount(4);
+    expect(await about.evaluate(n => getComputedStyle(n).alignItems)).toBe('center');
   });
 });
 

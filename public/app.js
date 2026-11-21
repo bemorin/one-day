@@ -2131,6 +2131,67 @@
         { opacity: 1, transform: 'none' },
       ]);
   }
+  function swipeMonths(grid, shift) {
+    let s = null,
+      wAcc = 0,
+      wLock = false,
+      wT = null;
+    grid.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'mouse') return;
+      s = { x: e.clientX, y: e.clientY, id: e.pointerId, on: false };
+    });
+    grid.addEventListener('pointermove', e => {
+      if (!s || e.pointerId !== s.id) return;
+      const dx = e.clientX - s.x,
+        dy = e.clientY - s.y;
+      if (!s.on) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        if (Math.abs(dy) > Math.abs(dx)) {
+          s = null;
+          return;
+        }
+        s.on = true;
+        try {
+          grid.setPointerCapture(s.id);
+        } catch (err) {}
+      }
+      grid.style.transform = `translateX(${dx * 0.6}px)`;
+      grid.style.opacity = 1 - Math.min(Math.abs(dx) / 360, 0.5);
+    });
+    const end = e => {
+      if (!s || e.pointerId !== s.id) return;
+      const dx = e.clientX - s.x,
+        on = s.on;
+      s = null;
+      if (!on) return;
+      grid.style.transform = '';
+      grid.style.opacity = '';
+      if (e.type === 'pointerup' && Math.abs(dx) > 48) shift(dx < 0 ? 1 : -1);
+      else an(grid, [{ transform: `translateX(${dx * 0.6}px)` }, { transform: 'none' }]);
+    };
+    grid.addEventListener('pointerup', end);
+    grid.addEventListener('pointercancel', end);
+    grid.addEventListener(
+      'wheel',
+      e => {
+        if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        stop(wT);
+        wT = later(() => {
+          wAcc = 0;
+          wLock = false;
+        }, 220);
+        if (wLock) return;
+        wAcc += e.deltaX;
+        if (Math.abs(wAcc) > 40) {
+          wLock = true;
+          shift(wAcc > 0 ? 1 : -1);
+        }
+      },
+      { passive: false },
+    );
+  }
   function openMonth() {
     closePops();
     const d = fromKey(cur);
@@ -2184,6 +2245,10 @@
     popM = new Date(popM.getFullYear(), popM.getMonth() + 1, 1);
     renderPop(1);
   };
+  swipeMonths($.grid, d => {
+    popM = new Date(popM.getFullYear(), popM.getMonth() + d, 1);
+    renderPop(d);
+  });
   $.grid.onclick = e => {
     const b = e.target.closest('button[data-k]');
     if (b) {
@@ -2590,7 +2655,7 @@
               )
               .join('')}</div>`
           : '') +
-        `<div class="sdata"><p class="shint">${cloud.col ? 'Your tasks are saved in this browser and in your private space on Claude.' : 'Your tasks are stored only in this browser. Nothing is sent anywhere.'}</p><div class="chips"><button type="button" class="chip" data-act="export">${IC.down}${canTop ? 'Export backup' : 'Copy backup'}</button><button type="button" class="chip" data-act="import">${IC.up}Import backup</button></div>${aboutHTML()}</div>`;
+        `<div class="sdata"><p class="shint">${cloud.col ? 'Your tasks are saved in this browser and in your private space on Claude.' : 'Your tasks are stored only in this browser. Nothing is sent anywhere.'}</p><div class="chips"><button type="button" class="chip" data-act="export">${IC.down}${canTop ? 'Export backup' : 'Copy backup'}</button><button type="button" class="chip" data-act="import">${IC.up}Import backup</button></div></div>${aboutHTML()}`;
       moveHl();
       return;
     }
@@ -2647,8 +2712,9 @@
   function aboutHTML() {
     const f = document.getElementById('foot');
     if (!f) return '';
-    const links = [...f.querySelectorAll('a')].map(a => a.cloneNode(true).outerHTML);
-    return `<p class="about">${links.join('')}</p>`;
+    const promo = f.querySelector('.promo'),
+      links = [...f.querySelectorAll('nav a')].map(a => a.cloneNode(true).outerHTML).join('');
+    return `<div class="about">${promo ? promo.cloneNode(true).outerHTML : ''}<p class="links">${links}</p></div>`;
   }
   function moveHl() {
     const b = $.slist.querySelector(`.sr[data-i="${SEL}"]`);
@@ -3096,6 +3162,10 @@
     }, 0);
   }
   $.dchip.onclick = () => ($.dpop.classList.contains('on') ? closePops(true) : openDpop());
+  swipeMonths($.dgrid, d => {
+    dpM = new Date(dpM.getFullYear(), dpM.getMonth() + d, 1);
+    renderDpop(d);
+  });
   $.dgrid.onclick = e => {
     const b = e.target.closest('button[data-k]');
     if (b) pickDay(b.dataset.k);
