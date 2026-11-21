@@ -2136,31 +2136,37 @@ try {
     return false;
   }
   function onWheel(e) {
-  if (P || e.ctrlKey || $.srch.classList.contains('on') || popOn()) return;
-  const k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? innerHeight : 1,
-    dx = e.deltaX * k,
-    dy = e.deltaY * k,
-    side = Math.abs(dx) > Math.abs(dy),
-    now = performance.now(),
-    gap = now - gLast;
-  gLast = now;
-  if (gap > 200) {
-    gMode = null;
-    gAcc = 0;
-  } else if (!side && gMode === 'done' && Math.abs(dy) >= 80 && gap >= 90 && now - gStep >= 180) {
-    gMode = 'day';
-    gAcc = 0;
-  }
-  if (!gMode) gMode = side || !scrollsY(e.target, dy) ? 'day' : 'scroll';
-  if (gMode === 'scroll') return;
-  e.preventDefault();
-  if (gMode === 'done') return;
-  gAcc += side ? dx : dy;
-  if (Math.abs(gAcc) > 46) {
-    gMode = 'done';
-    gStep = now;
-    step(gAcc > 0 ? 1 : -1);
-  }
+    if (P || e.ctrlKey || $.srch.classList.contains('on') || popOn()) return;
+    const k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? innerHeight : 1,
+      dx = e.deltaX * k,
+      dy = e.deltaY * k,
+      side = Math.abs(dx) > Math.abs(dy),
+      now = performance.now(),
+      gap = now - gLast;
+    gLast = now;
+    if (gap > 200) {
+      gMode = null;
+      gAcc = 0;
+    } else if (!side && gMode === 'done' && Math.abs(dy) >= 80 && gap >= 90 && now - gStep >= 180) {
+      gMode = 'day';
+      gAcc = 0;
+    }
+    if (!gMode) {
+      const sc = e.target.closest && e.target.closest('.sc');
+      if (side) gMode = 'day';
+      // over the list: a long one keeps the wheel for itself, and a day still arriving takes no wheel
+      else if (sc && (app.classList.contains('calm') || sc.scrollHeight > sc.clientHeight + 1)) gMode = 'scroll';
+      else gMode = scrollsY(e.target, dy) ? 'scroll' : 'day';
+    }
+    if (gMode === 'scroll') return;
+    e.preventDefault();
+    if (gMode === 'done') return;
+    gAcc += side ? dx : dy;
+    if (Math.abs(gAcc) > 46) {
+      gMode = 'done';
+      gStep = now;
+      step(gAcc > 0 ? 1 : -1);
+    }
   }
   app.addEventListener('wheel', onWheel, { passive: false });
   // around the card too (the page, the footer), while the app is in this window
@@ -2731,7 +2737,7 @@ try {
               )
               .join('')}</div>`
           : '') +
-        `<div class="sdata"><p class="shint">${cloud.col ? 'Your tasks are saved in this browser and in your private space on Claude.' : 'Your tasks are stored only in this browser. Nothing is sent anywhere.'}</p><div class="chips"><button type="button" class="chip" data-act="export">${IC.down}${canTop ? 'Export backup' : 'Copy backup'}</button><button type="button" class="chip" data-act="import">${IC.up}Import backup</button></div></div>${aboutHTML()}`;
+        `<div class="sdata"><p class="shint">${cloud.col ? 'Your tasks are saved in this browser and in your private space on Claude.' : 'Your tasks are stored only in this browser. Nothing is sent anywhere.'}</p><div class="chips"><button type="button" class="chip" data-act="import">${IC.up}Import backup</button><button type="button" class="chip" data-act="export">${IC.down}${canTop ? 'Export backup' : 'Copy backup'}</button></div></div>${aboutHTML()}`;
       moveHl();
       return;
     }
@@ -3190,15 +3196,53 @@ try {
     const n = diff(todayKey(), k);
     return Math.abs(n) <= 1 ? relLabel(k).toLowerCase() : LONG.format(fromKey(k)) + (k.slice(0, 4) !== todayKey().slice(0, 4) ? ' ' + k.slice(0, 4) : '');
   };
-  // The day chip follows its label: its width moves on a spring from wherever it is, the label fades in.
+  // A label that changes like the numbers do: only the letters that change roll, up for a later day.
+  function rollText(el, s, d) {
+    const prev = el.dataset.v;
+    if (prev === s) return;
+    el.dataset.v = s;
+    stop(el._rt);
+    if (!d || prev == null || RM.matches) {
+      el.textContent = s;
+      return;
+    }
+    const L = Math.max(prev.length, s.length),
+      a = prev.padEnd(L),
+      b = s.padEnd(L),
+      ch = c => (c === ' ' ? '\u00a0' : c);
+    el.textContent = '';
+    for (let i = 0; i < L; i++) {
+      const g = D().createElement('span'),
+        inn = D().createElement('i');
+      g.className = 'rg';
+      inn.textContent = i < s.length ? ch(b[i]) : '';
+      g.append(inn);
+      el.append(g);
+      if (a[i] === b[i]) continue;
+      const out = D().createElement('i');
+      out.className = 'out';
+      out.textContent = i < prev.length ? ch(a[i]) : '';
+      g.append(out);
+      const o = { delay: i * 16, duration: 360, easing: SP.ease };
+      an(inn, [{ transform: `translateY(${d * 100}%)` }, { transform: 'none' }], { ...o, fill: 'backwards' });
+      an(out, [{ transform: 'none' }, { transform: `translateY(${-d * 100}%)` }], { ...o, fill: 'forwards' });
+    }
+    // at rest, plain text again
+    el._rt = later(() => {
+      if (el.dataset.v === s) el.textContent = s;
+    }, 360 + L * 16 + 60);
+  }
+  // The day chip follows its label: the letters that change roll, its width moves on a spring from wherever it is.
   function renderChip(pop) {
     const k = addDay(),
       r = addRule && cleanRule({ ...addRule, text: 'x', start: k }, 'x'),
       label = r ? ruleText(r, true) : dayLabel(k),
-      move = label !== $.dlabel.textContent && !RM.matches && $.dchip.getClientRects().length > 0,
+      was = $.dchip.dataset.k,
+      move = label !== $.dlabel.dataset.v && !RM.matches && $.dchip.getClientRects().length > 0,
       w0 = move ? $.dchip.getBoundingClientRect().width : 0;
+    $.dchip.dataset.k = k;
     if (move) $.dchip.getAnimations().forEach(a => a.id === 'cw' && a.cancel());
-    $.dlabel.textContent = label;
+    rollText($.dlabel, label, move ? (was && k < was ? -1 : 1) : 0);
     if (move) {
       const w1 = $.dchip.getBoundingClientRect().width;
       if (Math.abs(w1 - w0) > 0.5) {
@@ -3209,7 +3253,6 @@ try {
           if (!$.dchip.getAnimations().some(x => x.id === 'cw' && x !== a)) $.dchip.style.overflow = '';
         };
       }
-      $.dlabel.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: 'ease-out' });
     }
     $.dchip.classList.toggle('set', k !== cur || !!r);
     $.dchip.classList.toggle('rep', !!r);

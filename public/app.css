@@ -775,6 +775,33 @@ header {
 .sc > * {
   flex: none;
 }
+/* Where the scrollbar takes room (styled, on a computer), its place is kept: nothing shifts when it
+   comes and goes, and the right margin stays what it was. */
+@supports selector(::-webkit-scrollbar) {
+  @media (hover: hover) {
+    .sc,
+    .sres {
+      scrollbar-gutter: stable;
+      padding-right: calc(var(--pad) - 10px);
+    }
+  }
+}
+/* the day chip's letters roll in their own slots */
+#dlabel .rg {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+}
+#dlabel .rg i {
+  display: block;
+  font-style: normal;
+}
+#dlabel .rg .out {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
 .resizing .sc,
 .calm .sc {
   overflow-y: hidden;

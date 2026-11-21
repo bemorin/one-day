@@ -513,6 +513,8 @@ test('the day chip follows its label with a smooth width', async ({ page }) => {
   await page.keyboard.press('ArrowRight');
   await expect(page.locator('#dlabel')).toHaveText('Tomorrow');
   await expect.poll(() => page.evaluate(() => window.__cw)).toBe(true);
+  // only the letters that changed rolled; at rest the label is plain text again
+  await expect.poll(() => page.locator('#dlabel').evaluate(n => n.children.length)).toBe(0);
   await expect.poll(() => page.locator('#dchip').evaluate(n => n.getAnimations().some(a => a.id === 'cw'))).toBe(false);
   expect(await page.locator('#dchip').evaluate(n => n.style.overflow)).toBe('');
 });
@@ -575,6 +577,13 @@ test('the wheel scrolls a long list first, and never flips the day at its end', 
   await page.waitForTimeout(260);
   for (let i = 0; i < 6; i++) await page.mouse.wheel(0, 400);
   await expect.poll(() => page.locator('.sc').evaluate(n => n.scrollTop)).toBeGreaterThan(200);
+  await expect(page.locator('#app')).toHaveClass(/\bis-today\b/);
+  // scrolled to the end, a new gesture over the list still does not flip the day
+  await page.waitForTimeout(260);
+  for (let i = 0; i < 3; i++) await page.mouse.wheel(0, 400);
+  await page.waitForTimeout(260);
+  await page.mouse.wheel(0, 400);
+  await page.waitForTimeout(300);
   await expect(page.locator('#app')).toHaveClass(/\bis-today\b/);
 });
 
