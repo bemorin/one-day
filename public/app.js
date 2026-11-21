@@ -545,10 +545,8 @@ try {
     const subs = t.subs || [],
       sd = subs.filter(s => s.done).length,
       ck = li.querySelector('.in .ck');
-    ck.style.setProperty(
-      '--off',
-      subs.length && !t.done ? (64.4 * (1 - sd / subs.length)).toFixed(2) : '64.4',
-    );
+    const off = subs.length && !t.done ? (64.4 * (1 - sd / subs.length)).toFixed(2) : '64.4';
+    if (ck.style.getPropertyValue('--off') !== off) ck.style.setProperty('--off', off);
     const r = t.rule && S.rules[t.rule],
       mt = li.querySelector('.mt'),
       has = !!(subs.length || t.note || r);
@@ -591,8 +589,8 @@ try {
       }
       n.classList.toggle('done', s.done);
       const c = n.querySelector('.sck');
-      c.setAttribute('aria-checked', s.done);
-      c.setAttribute('aria-label', s.text);
+      attr(c, 'aria-checked', s.done);
+      attr(c, 'aria-label', s.text);
       const st = n.querySelector('.st');
       if (!st.isContentEditable && st.dataset.v !== s.text) {
         st.innerHTML = titleHTML(s.text);
@@ -606,11 +604,16 @@ try {
     for (const n of map.values()) n.remove();
     if (animNew && li.classList.contains('open')) for (const n of added) growIn(n);
   }
+  // set an attribute only when it changes: on a long day, needless writes add up to a slow frame
+  function attr(el, name, v) {
+    v = String(v);
+    if (el.getAttribute(name) !== v) el.setAttribute(name, v);
+  }
   function updateRow(li, t) {
     li.classList.toggle('done', t.done);
     const ck = li.querySelector('.in .ck');
-    ck.setAttribute('aria-checked', t.done);
-    ck.setAttribute('aria-label', t.text);
+    attr(ck, 'aria-checked', t.done);
+    attr(ck, 'aria-label', t.text);
     const sp = li.querySelector('.t');
     if (!sp.isContentEditable && sp.dataset.v !== t.text) {
       sp.innerHTML = titleHTML(t.text);
@@ -646,8 +649,10 @@ try {
       map = new Map(),
       added = [];
     for (const n of $.list.children) if (!n.classList.contains('exit')) map.set(n.dataset.id, n);
-    let prev = null;
-    for (const t of want) {
+    // from the last row up: a task that moves down (ticked) costs one move, not one for every row after it
+    let next = null;
+    for (let i = want.length - 1; i >= 0; i--) {
+      const t = want[i];
       let n = map.get(t.id);
       if (n) map.delete(t.id);
       else {
@@ -655,10 +660,10 @@ try {
         added.push(n);
       }
       updateRow(n, t);
-      let ref = prev ? prev.nextSibling : $.list.firstChild;
-      while (ref && ref.classList.contains('exit')) ref = ref.nextSibling;
-      if (n !== ref) $.list.insertBefore(n, ref);
-      prev = n;
+      let ref = next ? next.previousSibling : $.list.lastChild;
+      while (ref && ref.classList.contains('exit')) ref = ref.previousSibling;
+      if (n !== ref) $.list.insertBefore(n, next);
+      next = n;
     }
     for (const n of map.values()) n.remove();
     if (ae && ae.isConnected && ae !== D().activeElement) ae.focus({ preventScroll: true });
@@ -675,14 +680,21 @@ try {
     const rows = [...$.list.children].filter(r => !r.classList.contains('exit'));
     const first = new Map(rows.map(r => [r.dataset.id, r.getBoundingClientRect().top]));
     mutate();
-    for (const r of $.list.children) {
-      if (r.classList.contains('exit')) continue;
-      const f = first.get(r.dataset.id);
-      r.getAnimations().forEach(a => {
-        if (a.id === 'flip') a.cancel();
-      });
-      if (f == null) continue;
-      const dy = f - r.getBoundingClientRect().top,
+    // Three passes, so the page lays out once: cancel the running moves, read every position, animate.
+    // Only rows that are, or were, in view (with a margin) get an animation.
+    D()
+      .getAnimations()
+      .forEach(a => a.id === 'flip' && a.cancel());
+    const vr = $.sc.getBoundingClientRect(),
+      near = y => y > vr.top - 240 && y < vr.bottom + 240,
+      live = [...$.list.children].filter(r => !r.classList.contains('exit') && first.has(r.dataset.id)),
+      tops = live.map(r => r.getBoundingClientRect().top);
+    for (let i = 0; i < live.length; i++) {
+      const r = live[i],
+        f = first.get(r.dataset.id),
+        top = tops[i];
+      if (!near(f) && !near(top) && !(lifted && r === lifted.li)) continue;
+      const dy = f - top,
         L = lifted && r === lifted.li;
       if (Math.abs(dy) < 0.5 && !L) continue;
       const a = L
