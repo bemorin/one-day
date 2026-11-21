@@ -13,7 +13,7 @@ One Day is a single-page web app with no framework, no runtime dependencies, no 
 ## Features
 
 - **One day on screen.** Move between days with the arrows, a swipe, a trackpad gesture or the month picker. The date rolls like a counter, and the thick rule at the top fills up as you finish the day.
-- **A sheet that fits its content.** On a large screen the day is a card on the page. It grows and shrinks on a spring as tasks come and go. On a phone it fills the screen.
+- **A sheet that fits its content.** On a large screen the day is a card on the page, resting in a thin frame of glass. It grows and shrinks on a spring as tasks come and go. On a phone it fills the screen.
 - **Add to any day.** The composer adds to the day on screen. Its day chip sends a task to another day (Today, Tomorrow, Next week or any date) without leaving the one you are on.
 - **Paste a list.** Paste several lines into the composer, or into a card's sub-task field, and each line becomes a task (or a sub-task). Bullets, numbers and checkboxes are left out, and `- [x]` items come in done. One undo takes them all back.
 - **Repeat.** A task can come back every few days, weeks or months: on chosen weekdays, or on a date or a weekday of the month. Each occurrence appears when its day comes; ticking or deleting one leaves the others alone, and missed ones don't pile up as leftovers.

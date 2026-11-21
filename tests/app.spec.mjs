@@ -728,6 +728,16 @@ test.describe('send a task', () => {
   });
 });
 
+test('on a large screen the card rests in a frame of glass; not on a phone', async ({ page, browser }) => {
+  await open(page);
+  expect(await page.locator('#app').evaluate(n => getComputedStyle(n, '::before').backdropFilter)).toContain('blur');
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const phone = await ctx.newPage();
+  await phone.goto('/');
+  expect(await phone.locator('#app').evaluate(n => getComputedStyle(n, '::before').content)).toBe('none');
+  await ctx.close();
+});
+
 test.describe('on a large screen', () => {
   test('the card grows with its content and the footer follows it', async ({ page }) => {
     await open(page);
