@@ -60,7 +60,10 @@ createServer(async (req, res) => {
     res.setHeader('Content-Type', TYPES[extname(file)] || 'application/octet-stream');
     res.end(body);
   } catch (e) {
+    // Like Cloudflare Pages: a top-level 404.html answers unknown paths with a real 404.
     res.statusCode = e.code === 'ENOENT' ? 404 : 500;
-    res.end(res.statusCode === 404 ? 'Not found' : 'Error');
+    const page = res.statusCode === 404 && (await readFile(join(pub, '404.html')).catch(() => null));
+    if (page) res.setHeader('Content-Type', TYPES['.html']);
+    res.end(page || (res.statusCode === 404 ? 'Not found' : 'Error'));
   }
 }).listen(port, () => console.log(`One Day on http://localhost:${port}`));

@@ -58,6 +58,13 @@ test('loads cleanly: no errors, no third-party requests, strict CSP', async ({ p
   expect(errors).toEqual([]);
 });
 
+test('unknown addresses get a real 404 that leads back to the app', async ({ page }) => {
+  const res = await page.goto('/README.md');
+  expect(res.status()).toBe(404);
+  await page.getByRole('link', { name: 'Open One Day' }).click();
+  await expect(page.locator('#app')).toBeVisible();
+});
+
 test('adds, ticks, keeps, deletes and restores a task', async ({ page }) => {
   await open(page);
   await page.locator('#input').fill('Buy bread #home');

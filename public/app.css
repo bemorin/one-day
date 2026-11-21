@@ -1855,14 +1855,20 @@ mark {
   font-size: 17px;
   color: var(--mute);
 }
-.fl button {
+.fl button,
+.fl a {
+  display: inline-flex;
+  align-items: center;
   height: 44px;
   padding: 0 20px;
   border-radius: 22px;
   font-weight: 600;
+  color: inherit;
+  text-decoration: none;
   box-shadow: inset 0 0 0 1.25px var(--line2);
 }
-.fl button:hover {
+.fl button:hover,
+.fl a:hover {
   background: var(--hover);
 }
 @media (hover: none) {
