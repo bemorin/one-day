@@ -1973,6 +1973,20 @@ mark {
 .about a:hover {
   color: var(--ink);
 }
+/* a generous hit area that only shows itself on hover */
+.foot a:not(.ico),
+.about a:not(.ico) {
+  padding: 6px 8px;
+  margin: -6px -8px;
+  border-radius: 8px;
+  transition:
+    color 0.2s,
+    background-color 0.2s;
+}
+.foot a:not(.ico):hover,
+.about a:not(.ico):hover {
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
 .foot .promo b,
 .about .promo b {
   font-weight: 650;

@@ -184,6 +184,10 @@ test('keyboard: T timer, D today, / search, N new task', async ({ page }) => {
   await expect(page.locator('#srch')).toHaveClass(/\bon\b/);
   await page.keyboard.press('Escape');
   await expect(page.locator('#srch')).not.toHaveClass(/\bon\b/);
+  await page.keyboard.press('Control+k');
+  await expect(page.locator('#srch')).toHaveClass(/\bon\b/);
+  await page.keyboard.press('Control+k');
+  await expect(page.locator('#srch')).not.toHaveClass(/\bon\b/);
   await page.keyboard.press('n');
   await expect(page.locator('#input')).toBeFocused();
 });
@@ -242,6 +246,28 @@ test('digits stay right after the app comes back from another document (keep on 
   });
   await expect(page.locator('#num .dg .out')).toHaveCount(0);
   await expect(page.locator('#num')).toHaveText(String(plus(1).getDate()));
+});
+
+test('keep on top: the floating window is styled and follows the page theme', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await open(page);
+  await page.locator('#float').click();
+  await expect
+    .poll(() => page.evaluate(() => !!documentPictureInPicture.window?.document.getElementById('app')))
+    .toBe(true);
+  const st = await page.evaluate(() => {
+    const w = documentPictureInPicture.window,
+      d = w.document;
+    return {
+      display: w.getComputedStyle(d.getElementById('app')).display,
+      weight: w.getComputedStyle(d.getElementById('num')).fontWeight,
+      theme: d.documentElement.dataset.theme,
+    };
+  });
+  expect(st).toEqual({ display: 'flex', weight: '800', theme: 'dark' });
+  await page.evaluate(() => documentPictureInPicture.window.close());
+  await expect(page.locator('#home > #app')).toBeVisible();
+  await expect(page.locator('#num .dg .out')).toHaveCount(0);
 });
 
 test.describe('on a large screen', () => {

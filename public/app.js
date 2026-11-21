@@ -2991,7 +2991,7 @@
     }
     if (m && kl === 'k' && !(t.closest && t.closest('.note'))) {
       e.preventDefault();
-      openSearch();
+      $.srch.classList.contains('on') ? closeSearch() : openSearch();
       return;
     }
     if (e.altKey && (k === 'ArrowLeft' || k === 'ArrowRight') && !t.isContentEditable) {
@@ -3131,11 +3131,33 @@
       return;
     }
     const pd = pip.document,
-      th = document.documentElement.dataset.theme;
+      scheme = matchMedia('(prefers-color-scheme: dark)'),
+      theme = () => document.documentElement.dataset.theme || (scheme.matches ? 'dark' : 'light');
+    // The floating window follows the page, not the system: Windows can be dark while the browser is light.
+    const syncTheme = () => {
+      pd.documentElement.dataset.theme = theme();
+      pd.documentElement.style.background = theme() === 'dark' ? '#0e0e0e' : '#fff';
+    };
     pd.documentElement.lang = 'en';
-    if (th) pd.documentElement.dataset.theme = th;
     pd.title = 'One Day';
-    document.querySelectorAll('link[rel=stylesheet],style').forEach(n => pd.head.append(n.cloneNode(true)));
+    syncTheme();
+    scheme.addEventListener('change', syncTheme);
+    // The floating document has no base URL of its own, so stylesheets get absolute URLs, and the app
+    // moves in only once they have loaded: no flash of an unstyled page.
+    const loads = [...document.querySelectorAll('link[rel=stylesheet]')].map(n => {
+      const l = pd.createElement('link');
+      l.rel = 'stylesheet';
+      l.href = n.href;
+      pd.head.append(l);
+      return new Promise(r => (l.onload = l.onerror = r));
+    });
+    document.querySelectorAll('style').forEach(n => pd.head.append(n.cloneNode(true)));
+    await Promise.race([Promise.all(loads), new Promise(r => setTimeout(r, 1500))]);
+    if (pip.closed) {
+      pip = null;
+      scheme.removeEventListener('change', syncTheme);
+      return;
+    }
     cancelDrag();
     closePops();
     hideTip(0);
@@ -3151,6 +3173,7 @@
     pip.addEventListener(
       'pagehide',
       () => {
+        scheme.removeEventListener('change', syncTheme);
         // Save any edit in progress while the floating document is still alive.
         const ae = pd.activeElement;
         if (ae && (ae.isContentEditable || ae.tagName === 'INPUT') && ae.blur) ae.blur();
