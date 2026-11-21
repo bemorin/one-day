@@ -2833,4 +2833,12 @@ mark {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+  /* Popovers appear at once, and so does what is inside them: a transition of their inherited visibility,
+     however short, would keep the button they focus from taking the focus. */
+  .pop,
+  .pop *,
+  .dpop,
+  .dpop * {
+    transition: none !important;
+  }
 }
