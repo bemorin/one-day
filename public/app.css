@@ -3380,16 +3380,20 @@ mark {
     display: inline-flex;
     align-items: center;
     height: 34px;
+  }
+  .lpill {
     border-radius: 999px;
     background: var(--glass);
     box-shadow: var(--pill);
   }
+  /* the time: plain words, on the card's left edge */
   .clock {
-    padding: 0 14px;
+    padding: 0 4px;
     font-size: 14px;
     font-weight: 650;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.01em;
+    color: light-dark(#3d4555, #a3adbf);
   }
   .cdg {
     display: flex;
