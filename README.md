@@ -121,7 +121,9 @@ Current Chrome, Edge, Safari and Firefox. Keep-on-top needs Chrome or Edge 116 o
 
 ## Made by
 
-[Benoît Morin](https://bemorin.com) · [@benmorinbm on X](https://x.com/benmorinbm). If you also keep a journal, try [dogood.day](https://dogood.day).
+[Ben Morin](https://bemorin.com) · [@benmorinbm on X](https://x.com/benmorinbm). If you also keep a journal, try [dogood.day](https://dogood.day).
+
+If One Day helps your days, you can [sponsor its development](https://github.com/sponsors/bemorin).
 
 ## License
 

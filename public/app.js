@@ -2929,26 +2929,29 @@
     if (ms) tipH = later(off, ms);
     else off();
   }
-  app.addEventListener('pointerover', e => {
-    if (e.pointerType === 'touch' || P) return;
-    const b = e.target.closest('[data-tip]');
-    if (!b || b === tipFor) return;
-    queueTip(b);
-  });
-  app.addEventListener('pointerout', e => {
-    const b = e.target.closest('[data-tip]');
-    if (!b || (e.relatedTarget && b.contains(e.relatedTarget))) return;
-    stop(tipT);
-    tipT = null;
-    if (tipFor) hideTip(70);
-  });
-  app.addEventListener('pointerdown', () => hideTip(0), true);
-  app.addEventListener('focusin', e => {
-    const b = e.target.closest && e.target.closest('[data-tip]');
-    if (b && b.matches(':focus-visible')) queueTip(b, true);
-  });
-  app.addEventListener('focusout', e => {
-    if (tipFor && e.target === tipFor) hideTip(0);
+  // The same tooltips for the app and for the footer under the card.
+  [app, document.getElementById('foot')].filter(Boolean).forEach(host => {
+    host.addEventListener('pointerover', e => {
+      if (e.pointerType === 'touch' || P) return;
+      const b = e.target.closest('[data-tip]');
+      if (!b || b === tipFor) return;
+      queueTip(b);
+    });
+    host.addEventListener('pointerout', e => {
+      const b = e.target.closest('[data-tip]');
+      if (!b || (e.relatedTarget && b.contains(e.relatedTarget))) return;
+      stop(tipT);
+      tipT = null;
+      if (tipFor) hideTip(70);
+    });
+    host.addEventListener('pointerdown', () => hideTip(0), true);
+    host.addEventListener('focusin', e => {
+      const b = e.target.closest && e.target.closest('[data-tip]');
+      if (b && b.matches(':focus-visible')) queueTip(b, true);
+    });
+    host.addEventListener('focusout', e => {
+      if (tipFor && e.target === tipFor) hideTip(0);
+    });
   });
   $.sc.addEventListener(
     'scroll',
