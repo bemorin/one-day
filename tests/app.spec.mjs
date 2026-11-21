@@ -423,6 +423,18 @@ test('Repeat opened from the day picker: Cancel goes back to the picker', async 
   await expect(page.locator('#dpop')).toHaveClass(/\bon\b/);
 });
 
+test('the dogood.day link says where it comes from; the progress rule has round ends', async ({ page }) => {
+  await open(page);
+  expect(await page.locator('#foot .promo').getAttribute('href')).toBe('https://dogood.day/?utm_source=day.bemorin.com&utm_medium=referral');
+  expect(await page.locator('.rule').evaluate(n => getComputedStyle(n).borderTopLeftRadius)).toBe('3px');
+  // one task done of three: the fill's round end is a third of the way
+  const [rule, fill] = await Promise.all([page.locator('.rule').boundingBox(), page.locator('.rule i').boundingBox()]);
+  await expect.poll(async () => {
+    const f = await page.locator('.rule i').boundingBox();
+    return Math.round(((f.x + f.width - rule.x) / rule.width) * 100);
+  }).toBe(33);
+});
+
 test('the footer: the croissant sits midway between dogood.day and the links', async ({ page }) => {
   await open(page);
   // the pills: the croissant's sits midway between the other two
@@ -517,7 +529,7 @@ test('search: with few tasks and many tags, the card grows to hold it all', asyn
   await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
   await page.keyboard.press('/');
   await expect.poll(() => page.locator('#sres').evaluate(n => n.scrollHeight - n.clientHeight)).toBeLessThanOrEqual(1);
-  const [chips, card] = await Promise.all([page.locator('.sdata .chips').boundingBox(), page.locator('#app').boundingBox()]);
+  const [chips, card] = await Promise.all([page.locator('.sdata .chips').last().boundingBox(), page.locator('#app').boundingBox()]);
   expect(card.y + card.height - (chips.y + chips.height)).toBeGreaterThan(20);
 });
 

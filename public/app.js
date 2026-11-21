@@ -481,7 +481,7 @@ try {
           : dn
             ? `, ${dn} of ${n} done`
             : `, ${n} ${n > 1 ? 'tasks' : 'task'}`);
-    fill.style.transform = `scaleX(${n ? dn / n : 0})`;
+    fill.style.transform = `translateX(${((n ? dn / n : 0) - 1) * 100}%)`;
     return { n, dn };
   }
   function renderHeader(d) {
@@ -4594,7 +4594,7 @@ try {
     const B = { fill: 'backwards' };
     const f = fill.style.transform;
     fill.style.transition = 'none';
-    fill.style.transform = 'scaleX(0)';
+    fill.style.transform = 'translateX(-100%)';
     fill.getBoundingClientRect();
     fill.style.transition = '';
     later(() => {

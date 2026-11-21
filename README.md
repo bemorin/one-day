@@ -53,7 +53,7 @@ On a phone: tap a task to open it, hold then drag to reorder, swipe sideways to 
 ## Privacy
 
 - **Your tasks never leave your device.** They are stored in your browser's `localStorage` for this site. There is no server, database or account behind the app, so whoever hosts it cannot see them.
-- **No cookies, no analytics, no third-party requests.** The font is bundled with the app, and the Content Security Policy only lets the app's own files load. The footer links are plain links: nothing is contacted until you click one. The dogood.day link tells that site you came from One Day (the address of the site only, no page and no identifier); the others send nothing.
+- **No cookies, no analytics, no third-party requests.** The font is bundled with the app, and the Content Security Policy only lets the app's own files load. The footer links are plain links: nothing is contacted until you click one. The dogood.day link tells that site you came from One Day, in its address (`utm_source=day.bemorin.com`) and as the referrer (the site's address only, no page and no identifier); the others send nothing.
 - **The service worker caches the app's files only**, so it opens instantly and works offline. It never reads your tasks.
 - **Sent tasks travel in the link itself**, after the `#`, never through a server. Anyone who has the link can read the task, as with any message.
 - **Works offline, even from a cold start**, once you have opened it online one time. Install it (or add it to your Home Screen) so the browser keeps its storage: Safari can clear the data of sites you have not opened for a week.

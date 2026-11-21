@@ -186,16 +186,18 @@ header {
 }
 .rule {
   height: 5px;
+  border-radius: 3px;
   background: var(--line);
   overflow: hidden;
   transform-origin: left;
 }
+/* the fill is a pill too: it slides in from the left, so its round end marks how far the day has come */
 .rule i {
   display: block;
   height: 100%;
+  border-radius: 3px;
   background: var(--ink);
-  transform: scaleX(0);
-  transform-origin: left;
+  transform: translateX(-100%);
   transition:
     transform var(--sp-d) var(--spring),
     background-color 0.4s;
