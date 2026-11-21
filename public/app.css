@@ -2829,9 +2829,11 @@ mark {
       0 1px 3px light-dark(rgb(0 0 0/0.05), rgb(0 0 0/0.5)),
       0 32px 72px -32px light-dark(rgb(0 0 0/0.24), rgb(0 0 0/0.9));
   }
-  /* the card rests in a thin frame of glass, brighter on the side of the light (the top, a little to the left) */
+  /* the card rests in a thin frame of glass, brighter on the side of the light (the top, a little to the left).
+     It stays above the footer, so its popovers do too. */
   #app {
     isolation: isolate;
+    z-index: 1;
   }
   #app::before,
   #app::after {
