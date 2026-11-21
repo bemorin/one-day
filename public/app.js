@@ -5,13 +5,14 @@
     home = document.getElementById('home'),
     q = s => app.querySelector(s),
     $ = {};
-  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf'
+  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid'
     .split(' ')
     .forEach(id => ($[id] = q('#' + id)));
   const fill = q('.rule i'),
     RM = matchMedia('(prefers-reduced-motion: reduce)'),
     D = () => app.ownerDocument,
     W = () => D().defaultView || window;
+  const TOUCH = matchMedia('(hover: none)').matches;
   const MAC = /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent),
     MOD = MAC ? '⌘' : 'Ctrl+';
   app.querySelectorAll('[data-key]').forEach(b => {
@@ -185,12 +186,16 @@
   /* state */
   const LS = 'oneday.v1',
     uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
+  // Ids end up in attribute selectors, so only plain ones are kept; anything else gets a fresh id.
+  const IDRE = /^[\w-]{1,40}$/,
+    DAYRE = /^\d{4}-\d\d-\d\d$/,
+    okId = id => (IDRE.test(id) ? id : uid());
   const clean = a =>
     (Array.isArray(a) ? a : [])
       .filter(t => t && typeof t.text === 'string' && typeof t.id === 'string')
       .slice(0, 300)
       .map(t => {
-        const o = { id: t.id.slice(0, 40), text: t.text.slice(0, 500), done: !!t.done };
+        const o = { id: okId(t.id), text: t.text.slice(0, 500), done: !!t.done };
         if (t.done && typeof t.at === 'number') o.at = t.at;
         if (typeof t.note === 'string' && t.note) {
           const n = sanitize(t.note.slice(0, 30000));
@@ -200,7 +205,7 @@
           const s = t.subs
             .filter(x => x && typeof x.text === 'string' && typeof x.id === 'string')
             .slice(0, 100)
-            .map(x => ({ id: x.id.slice(0, 40), text: x.text.slice(0, 300), done: !!x.done }));
+            .map(x => ({ id: okId(x.id), text: x.text.slice(0, 300), done: !!x.done }));
           if (s.length) o.subs = s;
         }
         return o;
@@ -228,17 +233,20 @@
           ),
           note: 'Select any text in a note to format it. Links like <a href="https://www.wikipedia.org">wikipedia.org</a> open in a new tab.',
         }),
-        T('Drag a task to change its order'),
-        T('Type #tags in a task, press / to search'),
-        T('Press P to keep this window on top'),
+        T(TOUCH ? 'Tap a task to open it, tap its title to rename it' : 'Click a task to open it, click its title to rename it'),
+        T(TOUCH ? 'Hold a task, then drag it to reorder' : 'Drag a task to change its order'),
+        T(TOUCH ? 'Swipe sideways to change day #tips' : 'Type #tags, press / to search and T for the timer'),
       ],
     };
     S.days[todayKey()].tasks = clean(S.days[todayKey()].tasks);
-  } else
-    for (const k in S.days) {
+  } else {
+    const days = {};
+    for (const k of Object.keys(S.days)) {
       const v = S.days[k];
-      S.days[k] = { u: +v.u || 0, tasks: clean(v.tasks) };
+      if (DAYRE.test(k) && v && typeof v === 'object') days[k] = { u: +v.u || 0, tasks: clean(v.tasks) };
     }
+    S.days = days;
+  }
   let cur = todayKey(),
     lastToday = cur,
     IDX = null,
@@ -246,7 +254,8 @@
   const tasks = k => (S.days[k] ? S.days[k].tasks : []),
     day = k => S.days[k] || (S.days[k] = { u: 0, tasks: [] });
   const find = id => tasks(cur).find(t => t.id === id),
-    rowOf = id => $.list.querySelector(`.row[data-id="${id}"]`);
+    rowOf = id => $.list.querySelector(`.row[data-id="${CSS.escape(id)}"]`),
+    subOf = (li, sid) => li.querySelector(`.sub[data-sid="${CSS.escape(sid)}"]`);
   const ordered = k => {
     const t = tasks(k);
     return [...t.filter(x => !x.done), ...t.filter(x => x.done).sort((a, b) => (a.at || 0) - (b.at || 0))];
@@ -341,13 +350,23 @@
         delay,
         fill: 'backwards',
       });
-      an(out, [{ transform: 'none' }, { transform: `translateY(${-d * 108}%)` }], {
-        delay,
-        fill: 'forwards',
-      });
-      if (c === ' ') an(sp, [{ width: sp.offsetWidth + 'px' }, { width: '0px' }], { delay, fill: 'both' });
-      else if (o === ' ')
-        an(sp, [{ width: '0px' }, { width: sp.offsetWidth + 'px' }], { delay, fill: 'both' });
+      // Once a digit has rolled out, remove it: nothing may rely on a fill that lasts forever
+      // (a fill dies with its document, e.g. when the floating window closes).
+      then(
+        an(out, [{ transform: 'none' }, { transform: `translateY(${-d * 108}%)` }], {
+          delay,
+          fill: 'forwards',
+        }),
+        () => out.remove(),
+      );
+      if (c === ' ')
+        then(an(sp, [{ width: sp.offsetWidth + 'px' }, { width: '0px' }], { delay, fill: 'both' }), () =>
+          sp.remove(),
+        );
+      else if (o === ' ') {
+        const a = an(sp, [{ width: '0px' }, { width: sp.offsetWidth + 'px' }], { delay, fill: 'both' });
+        then(a, () => a && a.cancel());
+      }
     }
   }
   function swap(el, mutate, d) {
@@ -567,8 +586,7 @@
   }
   function flip(mutate, lifted) {
     const rows = [...$.list.children].filter(r => !r.classList.contains('exit'));
-    const first = new Map(rows.map(r => [r.dataset.id, r.getBoundingClientRect().top])),
-      a0 = $.add.getBoundingClientRect().top;
+    const first = new Map(rows.map(r => [r.dataset.id, r.getBoundingClientRect().top]));
     mutate();
     for (const r of $.list.children) {
       if (r.classList.contains('exit')) continue;
@@ -588,8 +606,6 @@
         : an(r, [{ transform: `translateY(${dy}px)` }, { transform: 'none' }]);
       if (a) a.id = 'flip';
     }
-    const dy = a0 - $.add.getBoundingClientRect().top;
-    if (Math.abs(dy) > 0.5) an($.add, [{ transform: `translateY(${dy}px)` }, { transform: 'none' }]);
   }
   let resortT = null;
   function resortSoon(ms) {
@@ -666,6 +682,8 @@
 
   /* task actions */
   function addTask(text) {
+    const k = addDay();
+    if (k !== cur) return addElsewhere(text, k);
     record([cur]);
     const t = { id: uid(), text, done: false };
     day(cur).tasks.push(t);
@@ -809,7 +827,7 @@
       if (s) s.done = !s.done;
     });
     if (!t || !s) return;
-    const n = li.querySelector(`.sub[data-sid="${sid}"]`);
+    const n = subOf(li, sid);
     n.classList.toggle('done', s.done);
     n.querySelector('.sck').setAttribute('aria-checked', s.done);
     if (s.done)
@@ -822,7 +840,7 @@
     const t = subDo(li, t => {
       t.subs = t.subs.filter(x => x.id !== sid);
     });
-    const n = li.querySelector(`.sub[data-sid="${sid}"]`);
+    const n = subOf(li, sid);
     if (n) collapse(n, -1);
     if (t) toast('Sub-task deleted', 'undo');
   }
@@ -1633,8 +1651,20 @@
         openSearch('#' + tg.dataset.tag + ' ');
         return;
       }
-      beginEdit(p.li.querySelector('.t'), e.clientX, e.clientY);
+      tapRow(p.li, p.tgt, e.clientX, e.clientY);
     }
+  }
+  // A click on a task opens its card. A click on the title of an open task, or a double-click, edits the title.
+  let lastTap = null;
+  function tapRow(li, tgt, x, y) {
+    const now = performance.now(),
+      dbl = !!lastTap && lastTap.li === li && now - lastTap.t < 400;
+    lastTap = dbl ? null : { li, t: now };
+    const open = li.classList.contains('open');
+    if (dbl || (open && tgt.closest('.t'))) {
+      if (!open) setOpen(li, true);
+      beginEdit(li.querySelector('.t'), x, y);
+    } else setOpen(li, !open);
   }
   $.vp.addEventListener('pointerup', endPointer);
   $.vp.addEventListener('pointercancel', endPointer);
@@ -1767,7 +1797,6 @@
     stop(resortT);
     hideTip(0);
     hideSug();
-    const before = $.add.getBoundingClientRect().top;
     $.vp.querySelectorAll(':scope>.ghost').forEach(g => g.remove());
     if (!RM.matches) {
       const rv = $.vp.getBoundingClientRect(),
@@ -1798,6 +1827,8 @@
     $.stage.style.transform = '';
     $.stage.style.opacity = '';
     cur = k;
+    addTo = null;
+    renderChip();
     $.sc.scrollTop = 0;
     renderHeader(d);
     $.list.textContent = '';
@@ -1816,8 +1847,6 @@
             { delay: 30 + Math.min(i, 10) * 26, fill: 'backwards' },
           ),
         );
-    const dy = before - $.add.getBoundingClientRect().top;
-    if (Math.abs(dy) > 0.5) an($.add, [{ transform: `translateY(${dy}px)` }, { transform: 'none' }]);
   }
   function step(d) {
     go(addDays(cur, d), d);
@@ -1851,26 +1880,30 @@
   );
 
   /* popovers: month and timer */
-  let popM = null;
-  const popOn = () => $.pop.classList.contains('on') || $.tpop.classList.contains('on');
-  function renderPop(d) {
-    const y = popM.getFullYear(),
-      m = popM.getMonth(),
+  let popM = null,
+    dpM = null;
+  const popOn = () => ['pop', 'tpop', 'dpop'].some(id => $[id].classList.contains('on'));
+  function gridHTML(m0, sel) {
+    const y = m0.getFullYear(),
+      m = m0.getMonth(),
       off = (new Date(y, m, 1).getDay() + 6) % 7,
       dim = new Date(y, m + 1, 0).getDate(),
       cells = Math.ceil((off + dim) / 7) * 7,
       tk = todayKey();
-    $.popT.textContent = MO.format(popM);
     let h = '<b>M</b><b>T</b><b>W</b><b>T</b><b>F</b><b>S</b><b>S</b>';
     for (let i = 0; i < cells; i++) {
       const dt = new Date(y, m, 1 - off + i),
         k = keyOf(dt),
-        cls = [dt.getMonth() !== m && 'o', k === tk && 't', k === cur && 's', hasOpen(k) && 'has']
+        cls = [dt.getMonth() !== m && 'o', k === tk && 't', k === sel && 's', hasOpen(k) && 'has']
           .filter(Boolean)
           .join(' ');
-      h += `<button type="button" data-k="${k}" class="${cls}" aria-label="${FULL.format(dt)}"${k === cur ? ' aria-current="date"' : ''} tabindex="${k === cur ? 0 : -1}">${dt.getDate()}</button>`;
+      h += `<button type="button" data-k="${k}" class="${cls}" aria-label="${FULL.format(dt)}"${k === sel ? ' aria-current="date"' : ''} tabindex="${k === sel ? 0 : -1}">${dt.getDate()}</button>`;
     }
-    $.grid.innerHTML = h;
+    return h;
+  }
+  function renderPop(d) {
+    $.popT.textContent = MO.format(popM);
+    $.grid.innerHTML = gridHTML(popM, cur);
     if (d)
       an($.grid, [
         { opacity: 0, transform: `translateX(${d * 18}px)` },
@@ -1900,15 +1933,20 @@
   }
   function closePops(back) {
     const wasM = $.pop.classList.contains('on'),
-      wasT = $.tpop.classList.contains('on');
+      wasT = $.tpop.classList.contains('on'),
+      wasD = $.dpop.classList.contains('on');
     $.pop.classList.remove('on');
     $.tpop.classList.remove('on');
+    $.dpop.classList.remove('on');
     $.meta.setAttribute('aria-expanded', 'false');
     $.tmb.setAttribute('aria-expanded', 'false');
+    $.dchip.setAttribute('aria-expanded', 'false');
     if (back) {
       if (wasM) $.meta.focus({ preventScroll: true });
       else if (wasT) $.tmb.focus({ preventScroll: true });
+      else if (wasD) $.dchip.focus({ preventScroll: true });
     }
+    if (wasD) composerLeft();
   }
   $.meta.onclick = () => ($.pop.classList.contains('on') ? closePops() : openMonth());
   $.tmb.onclick = () => ($.tpop.classList.contains('on') ? closePops() : openTimer());
@@ -1929,8 +1967,8 @@
   };
   function onOutside(e) {
     const t = e.target && e.target.closest ? e.target : null;
-    if (popOn() && !(t && t.closest('#pop,#meta,#tpop,#tmb'))) closePops();
-    if (t && t.closest('#fmt,#lb,#sug,#toast,.srch')) return;
+    if (popOn() && !(t && t.closest('#pop,#meta,#tpop,#tmb,#dpop,#dchip'))) closePops();
+    if (t && t.closest('#fmt,#lb,#sug,#toast,.srch,#dpop')) return;
     const keep = t && t.closest('.row.open');
     for (const li of $.list.querySelectorAll('.row.open')) if (li !== keep) setOpen(li, false);
     for (const id of [...openIds]) if (!keep || keep.dataset.id !== id) openIds.delete(id);
@@ -2322,7 +2360,7 @@
               )
               .join('')}</div>`
           : '') +
-        `<div class="sdata"><p class="shint">${cloud.col ? 'Your tasks are saved in this browser and in your private space on Claude.' : 'Your tasks are stored only in this browser. Nothing is sent anywhere.'}</p><div class="chips"><button type="button" class="chip" data-act="export">${canTop ? 'Export backup' : 'Copy backup'}</button><button type="button" class="chip" data-act="import">Import backup</button></div></div>`;
+        `<div class="sdata"><p class="shint">${cloud.col ? 'Your tasks are saved in this browser and in your private space on Claude.' : 'Your tasks are stored only in this browser. Nothing is sent anywhere.'}</p><div class="chips"><button type="button" class="chip" data-act="export">${canTop ? 'Export backup' : 'Copy backup'}</button><button type="button" class="chip" data-act="import">Import backup</button></div>${aboutHTML()}</div>`;
       moveHl();
       return;
     }
@@ -2374,6 +2412,13 @@
     }
     prevIds = now;
     moveHl();
+  }
+  // The footer is the single source for these links; small screens show them here instead.
+  function aboutHTML() {
+    const f = document.getElementById('foot');
+    if (!f) return '';
+    const links = [...f.querySelectorAll('a')].map(a => a.cloneNode(true).outerHTML);
+    return `<p class="about">${links.join('')}</p>`;
   }
   function moveHl() {
     const b = $.slist.querySelector(`.sr[data-i="${SEL}"]`);
@@ -2712,6 +2757,103 @@
     }
   });
 
+  /* the day a new task goes to: the day on screen, unless another one is picked.
+     The pick holds while you keep adding, and goes back to the day on screen once you leave the composer. */
+  let addTo = null;
+  const addDay = () => addTo || cur;
+  const LONG = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const dayName = k => {
+    const n = diff(todayKey(), k);
+    return Math.abs(n) <= 1 ? relLabel(k).toLowerCase() : LONG.format(fromKey(k)) + (k.slice(0, 4) !== todayKey().slice(0, 4) ? ' ' + k.slice(0, 4) : '');
+  };
+  function renderChip(pop) {
+    const k = addDay();
+    $.dlabel.textContent = dayLabel(k);
+    $.dchip.classList.toggle('set', k !== cur);
+    $.dchip.setAttribute('aria-label', `${dayLabel(k)}: new tasks go to ${dayName(k)}. Choose another day`);
+    if (pop)
+      an($.dchip, [{ transform: 'scale(.9)' }, { transform: 'none' }], { easing: POP.ease, duration: POP.dur });
+  }
+  function setAddTo(k) {
+    const was = addDay();
+    addTo = k === cur ? null : k;
+    renderChip(k !== was);
+  }
+  function addElsewhere(text, k) {
+    record([k]);
+    day(k).tasks.push({ id: uid(), text, done: false });
+    commit(k);
+    const d = Math.sign(diff(cur, k)) || 1;
+    nudge(d > 0 ? $.next : $.prev, d);
+    an($.dchip, [{ transform: 'scale(1)' }, { transform: 'scale(1.08)' }, { transform: 'scale(1)' }], {
+      duration: 420,
+      easing: 'ease-out',
+    });
+    toast(`Added to ${dayName(k)}`, 'undo');
+  }
+  function renderDpop(d) {
+    $.dpT.textContent = MO.format(dpM);
+    $.dgrid.innerHTML = gridHTML(dpM, addDay());
+    if (d)
+      an($.dgrid, [
+        { opacity: 0, transform: `translateX(${d * 18}px)` },
+        { opacity: 1, transform: 'none' },
+      ]);
+  }
+  function openDpop() {
+    closePops();
+    hideTip(0);
+    hideSug();
+    const d = fromKey(addDay());
+    dpM = new Date(d.getFullYear(), d.getMonth(), 1);
+    renderDpop(0);
+    place($.dpop, $.dchip.getBoundingClientRect(), 'up');
+    $.dchip.setAttribute('aria-expanded', 'true');
+    const s = $.dgrid.querySelector('.s');
+    if (s) s.focus({ preventScroll: true });
+  }
+  function pickDay(k) {
+    setAddTo(k);
+    $.dpop.classList.remove('on');
+    $.dchip.setAttribute('aria-expanded', 'false');
+    $.input.focus({ preventScroll: true });
+  }
+  // Called whenever focus may have left the composer: back to the day on screen.
+  function composerLeft() {
+    later(() => {
+      const ae = D().activeElement;
+      if (addTo && !$.dpop.classList.contains('on') && !(ae && ($.add.contains(ae) || $.dpop.contains(ae)))) {
+        addTo = null;
+        renderChip();
+      }
+    }, 0);
+  }
+  $.dchip.onclick = () => ($.dpop.classList.contains('on') ? closePops(true) : openDpop());
+  $.dgrid.onclick = e => {
+    const b = e.target.closest('button[data-k]');
+    if (b) pickDay(b.dataset.k);
+  };
+  $.dq.onclick = e => {
+    const b = e.target.closest('button[data-d]');
+    if (!b) return;
+    const tk = todayKey(),
+      wd = (fromKey(tk).getDay() + 6) % 7;
+    pickDay(b.dataset.d === 'today' ? tk : b.dataset.d === 'tomorrow' ? addDays(tk, 1) : addDays(tk, 7 - wd));
+  };
+  $.dpPrev.onclick = () => {
+    dpM = new Date(dpM.getFullYear(), dpM.getMonth() - 1, 1);
+    renderDpop(-1);
+  };
+  $.dpNext.onclick = () => {
+    dpM = new Date(dpM.getFullYear(), dpM.getMonth() + 1, 1);
+    renderDpop(1);
+  };
+  $.dpop.addEventListener('pointerdown', e => {
+    if (!e.target.closest('button')) e.preventDefault();
+  });
+  $.add.addEventListener('focusout', composerLeft);
+  $.dpop.addEventListener('focusout', composerLeft);
+
   /* toast */
   let toastTm = null,
     toastAct = null;
@@ -2863,7 +3005,8 @@
         closePops(true);
         return;
       }
-      const bs = [...$.grid.querySelectorAll('button')],
+      const g = t.closest && t.closest('.grid'),
+        bs = g ? [...g.querySelectorAll('button')] : [],
         i = bs.indexOf(t),
         mv = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[k];
       if (i > -1 && mv) {
@@ -2871,7 +3014,12 @@
         bs[Math.max(0, Math.min(bs.length - 1, i + mv))].focus();
         return;
       }
-      if (t.closest('#pop,#tpop')) return;
+      if ((k === 't' || k === 'T') && $.tpop.classList.contains('on')) {
+        e.preventDefault();
+        closePops(true);
+        return;
+      }
+      if (t.closest('#pop,#tpop,#dpop')) return;
     }
     if (row && !t.closest('.more')) {
       if (e.altKey && (k === 'ArrowUp' || k === 'ArrowDown')) {
@@ -2911,9 +3059,14 @@
       case 'ArrowRight':
         step(1);
         break;
+      case 'd':
+      case 'D':
+      case 'Home':
+        go(todayKey());
+        break;
       case 't':
       case 'T':
-        go(todayKey());
+        $.tpop.classList.contains('on') ? closePops(true) : openTimer();
         break;
       case 'n':
       case 'N':
@@ -2992,6 +3145,9 @@
     pip.addEventListener(
       'pagehide',
       () => {
+        // Save any edit in progress while the floating document is still alive.
+        const ae = pd.activeElement;
+        if (ae && (ae.isContentEditable || ae.tagName === 'INPUT') && ae.blur) ae.blur();
         cancelDrag();
         closePops();
         hideToast();
@@ -3000,17 +3156,38 @@
         hideLb();
         hideSug();
         stop(resortT);
-        renderList();
-        home.append(app);
+        stop(noteT);
+        settle();
+        home.prepend(app);
         pip = null;
         document.body.classList.remove('floating');
         setFloatUI(false);
+        repaint();
         tmLoop();
       },
       { once: true },
     );
   }
+  // Animations belong to the document they started in. When the floating window closes, any that ran
+  // there stop applying, so the app is redrawn from its state instead of trusting what is on screen.
+  function settle() {
+    if (app.getAnimations) for (const a of app.getAnimations({ subtree: true })) a.cancel();
+    app.querySelectorAll('.ghost,.exit,.dg .out').forEach(n => n.remove());
+  }
+  function repaint() {
+    settle();
+    for (const el of [$.num, $.tv, $.tbig, $.tpv]) delete el.dataset.v;
+    $.list.textContent = '';
+    renderHeader(0);
+    renderList(true);
+    renderAux();
+    tmSync();
+    tmRender(false);
+    tpRender(0);
+    sheet.snap();
+  }
   $.float.onclick = float;
+  if (!('documentPictureInPicture' in window) || !canTop || TOUCH) $.float.hidden = true;
   document.getElementById('back').onclick = () => pip && pip.close();
 
   /* sync: the hosted page keeps days in a private store; the local file keeps them in this browser */
@@ -3108,18 +3285,124 @@
       renderHeader(0);
       renderAux();
     }
+    renderChip();
   }, 20000);
+
+  /* the sheet: on a large screen the app is a card whose height follows its content on a spring.
+     Content that already animates its own height (cards opening, rows collapsing) is followed closely;
+     sudden changes (another day, a new task, search) are eased in. */
+  const SHEETQ = '(min-width: 720px) and (min-height: 560px)';
+  const sheet = {
+    w: null,
+    mq: null,
+    h: 0,
+    v: 0,
+    target: 0,
+    raf: 0,
+    rw: null,
+    last: 0,
+    get on() {
+      const w = W();
+      if (w !== this.w) {
+        this.w = w;
+        this.mq = w.matchMedia(SHEETQ);
+      }
+      return this.mq.matches;
+    },
+    max() {
+      const m = parseFloat(getComputedStyle(app).maxHeight);
+      return isNaN(m) ? Infinity : m;
+    },
+    natural() {
+      let h = q('header').offsetHeight + $.stage.offsetHeight + $.add.offsetHeight;
+      if ($.srch.classList.contains('on'))
+        h = Math.max(h, q('.sbar').offsetHeight + 16 + 40 + $.slist.offsetHeight);
+      return Math.min(h, this.max());
+    },
+    snap() {
+      this.stop();
+      this.h = this.target = this.on ? this.natural() : 0;
+    },
+    check() {
+      if (!this.on) {
+        if (this.raf || app.style.height) this.stop();
+        return;
+      }
+      const t = this.natural();
+      if (Math.abs(t - this.target) < 0.5) return;
+      this.target = t;
+      if (RM.matches || !this.h) return this.snap();
+      if (this.raf) return;
+      app.style.height = this.h + 'px';
+      app.classList.toggle('resizing', t < this.max() - 0.5);
+      this.last = performance.now();
+      this.rw = W();
+      this.raf = this.rw.requestAnimationFrame(n => this.tick(n));
+    },
+    tick(now) {
+      this.raf = 0;
+      const dt = Math.min(1 / 30, Math.max(1 / 240, (now - this.last) / 1000)),
+        n = Math.ceil(dt * 240),
+        st = dt / n,
+        k = 330,
+        c = 34;
+      this.last = now;
+      let h = this.h,
+        v = this.v;
+      for (let i = 0; i < n; i++) {
+        v += (-k * (h - this.target) - c * v) * st;
+        h += v * st;
+      }
+      this.h = h;
+      this.v = v;
+      if (Math.abs(h - this.target) < 0.5 && Math.abs(v) < 6) return this.stop();
+      app.style.height = h.toFixed(2) + 'px';
+      this.raf = this.rw.requestAnimationFrame(t => this.tick(t));
+    },
+    stop() {
+      if (this.raf)
+        try {
+          this.rw.cancelAnimationFrame(this.raf);
+        } catch (e) {}
+      this.raf = 0;
+      this.v = 0;
+      this.h = this.target;
+      app.style.height = '';
+      app.classList.remove('resizing');
+    },
+    init() {
+      if (!window.ResizeObserver) return;
+      const ro = new ResizeObserver(() => this.check());
+      [q('header'), $.stage, $.add, $.slist].forEach(n => ro.observe(n));
+      window.addEventListener('resize', () => (this.on ? this.check() : this.stop()));
+      this.snap();
+    },
+  };
 
   /* first paint: one orchestrated entrance, held until the type has loaded */
   renderHeader(0);
   renderList(true);
   renderAux();
+  renderChip();
   tmSync();
   tmRender(false);
   tpRender(0);
   function intro() {
     app.classList.remove('pre');
+    sheet.init();
     if (RM.matches) return;
+    if (sheet.on) {
+      an(app, [{ opacity: 0, transform: 'translateY(16px) scale(.985)' }, { opacity: 1, transform: 'none' }], {
+        duration: SP.dur * 1.2,
+        fill: 'backwards',
+      });
+      an(document.getElementById('foot'), [{ opacity: 0 }, { opacity: 1 }], {
+        duration: 500,
+        delay: 700,
+        easing: 'ease',
+        fill: 'backwards',
+      });
+    }
     const B = { fill: 'backwards' };
     const f = fill.style.transform;
     fill.style.transition = 'none';
