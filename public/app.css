@@ -2936,21 +2936,35 @@ mark {
   position: fixed;
   inset: 0;
   z-index: 95;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   padding: 20px;
   overflow: auto;
   background: var(--page);
 }
+/* the dialog's scrim dims the page and softens it, so the card is the one thing in focus */
 .modal {
   z-index: 96;
-  background: rgb(0 0 0 / 0.36);
+  background: light-dark(rgb(0 0 0 / 0.3), rgb(0 0 0 / 0.55));
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.modal.out {
+  pointer-events: none;
+}
+@media (prefers-reduced-transparency: reduce) {
+  .modal {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 .lcard {
   display: flex;
   flex-direction: column;
   gap: 12px;
   width: min(380px, 100%);
+  margin-block: auto;
   padding: 30px 24px 22px;
   border-radius: var(--r);
   background: var(--bg);
@@ -2971,12 +2985,14 @@ mark {
   font-size: 26px;
   line-height: 1.1;
   letter-spacing: -0.025em;
+  text-wrap: balance;
 }
 .lsub {
   margin: 0 0 4px;
   font-size: 14.5px;
   line-height: 1.45;
   color: var(--mute);
+  text-wrap: pretty;
 }
 .lcard input[type='password'] {
   height: 48px;
@@ -2993,6 +3009,10 @@ mark {
 .lcard input[type='password']:focus {
   outline: 0;
   box-shadow: inset 0 0 0 2px var(--ink);
+}
+/* the field that is wrong keeps a red ring until it is typed in again */
+.lcard input[type='password'][aria-invalid='true'] {
+  box-shadow: inset 0 0 0 2px var(--red);
 }
 .lcard .wide {
   width: 100%;
@@ -3017,6 +3037,26 @@ mark {
 .lcard .pbtn:disabled {
   opacity: 0.6;
 }
+/* at work (the key takes a moment to draw): a light sweeps across the button */
+.lcard .pbtn.busy {
+  opacity: 1;
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--bg) 26%, transparent) 50%,
+    transparent 70%
+  );
+  background-size: 250% 100%;
+  animation: lbusy 1.15s linear infinite;
+}
+@keyframes lbusy {
+  from {
+    background-position: 130% 0;
+  }
+  to {
+    background-position: -130% 0;
+  }
+}
 .lcard .pbtn.danger {
   background: var(--red);
   color: light-dark(#fff, #0e0e0e);
@@ -3026,39 +3066,136 @@ mark {
   font-size: 13.5px;
   font-weight: 600;
   color: var(--red);
+  text-wrap: pretty;
 }
 .lerr:empty {
   display: none;
 }
 .lwarn {
-  margin: 0;
-  padding: 11px 13px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--red) 9%, transparent);
+  --warn: light-dark(#e4002b, #e0102f);
+  display: block;
+  margin: 2px 0 0;
+  border-radius: 16px;
+  background: var(--warn);
+  color: #fff;
+  text-align: left;
+  cursor: var(--c-ptr);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.2),
+    0 14px 30px -18px color-mix(in srgb, var(--warn) 90%, transparent);
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.lwarn:active {
+  transform: scale(0.985);
+}
+.lwt {
+  display: block;
+  padding: 13px 15px 12px;
   font-size: 13.5px;
   line-height: 1.45;
-  text-align: left;
+  text-wrap: pretty;
 }
-.lchk {
+.lwt b {
+  font-weight: 700;
+}
+.lok {
   display: flex;
   align-items: center;
   gap: 10px;
+  padding: 11px 15px 12px;
+  border-top: 1px solid rgb(255 255 255 / 0.24);
   font-size: 14px;
-  text-align: left;
-  cursor: var(--c-ptr);
+  font-weight: 650;
 }
-.lchk input {
+.lwt[hidden] + .lok {
+  border-top: 0;
+}
+.lchk {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 20px;
+  text-align: left;
+  text-wrap: pretty;
+  cursor: var(--c-ptr);
+  -webkit-tap-highlight-color: transparent;
+}
+/* a box that fills, and a tick that draws itself in */
+.ckb {
+  position: relative;
   flex: none;
-  width: 18px;
-  height: 18px;
+  display: grid;
+  width: 20px;
+  height: 20px;
+}
+.ckb input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
   margin: 0;
-  accent-color: var(--ink);
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--line2);
+  cursor: inherit;
+  transition:
+    background-color 0.18s,
+    box-shadow 0.18s,
+    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.ckb input:checked {
+  background: var(--ink);
+  box-shadow: inset 0 0 0 1.5px var(--ink);
+}
+.lchk:active .ckb input,
+.lwarn:active .ckb input {
+  transform: scale(0.88);
+}
+.ckb input:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.ckb svg {
+  position: absolute;
+  inset: 0;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: var(--bg);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1 2;
+  stroke-dashoffset: 1;
+  pointer-events: none;
+  transition: stroke-dashoffset 0.1s ease-in;
+}
+.ckb input:checked + svg {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.26s cubic-bezier(0.65, 0, 0.35, 1) 0.05s;
+}
+.lwarn .ckb input {
+  box-shadow: inset 0 0 0 1.75px rgb(255 255 255 / 0.85);
+}
+.lwarn .ckb input:checked {
+  background: #fff;
+  box-shadow: inset 0 0 0 1.75px #fff;
+}
+.lwarn .ckb input:focus-visible {
+  outline-color: #fff;
+}
+.lwarn .ckb svg {
+  stroke: var(--warn);
 }
 .lhint {
   margin: 4px 0 0;
   font-size: 12.5px;
   line-height: 1.5;
   color: var(--mute);
+  text-wrap: pretty;
 }
 .lnk {
   padding: 0;
@@ -3081,6 +3218,37 @@ mark {
   .lock .lcard {
     padding-inline: 4px;
     box-shadow: none;
+  }
+}
+@media (max-width: 719px) and (hover: none) {
+  .modal {
+    align-items: stretch;
+    padding: 0 0 var(--kb, 0px);
+  }
+  .modal .lcard {
+    width: 100%;
+    margin-block: auto 0;
+    padding-bottom: calc(22px + env(safe-area-inset-bottom));
+    border-radius: var(--r) var(--r) 0 0;
+    box-shadow:
+      0 0 0 1px var(--edge),
+      0 -24px 60px -28px var(--shadow);
+  }
+  /* two buttons the thumb finds: side by side, the width of the sheet */
+  .modal .racts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .modal .racts button {
+    height: 48px;
+    border-radius: 24px;
+    font-size: 15px;
+  }
+  .modal .racts .tbtn {
+    background: var(--hover);
+    color: var(--ink);
   }
 }
 

@@ -566,11 +566,19 @@
           placeholder="The same passphrase again"
           aria-label="The same passphrase again"
         />
-        <label class="lchk" id="lsBioL"><input type="checkbox" id="lsBio" /><span>Also unlock with fingerprint, face or device PIN</span></label>
-        <p class="lwarn" id="lsWarn">
-          If you forget the passphrase, your tasks are gone for good: nobody can recover them. Export a backup first.
-        </p>
-        <label class="lchk" id="lsOkL"><input type="checkbox" id="lsOk" /><span>I understand</span></label>
+        <label class="lchk" id="lsBioL">
+          <span class="ckb"><input type="checkbox" id="lsBio" /><svg viewBox="0 0 20 20" aria-hidden="true"><path pathLength="1" d="m5.6 10.4 3 3 5.9-6.6" /></svg></span>
+          <span>Also unlock with fingerprint, face or device PIN</span>
+        </label>
+        <label class="lwarn" id="lsOkL">
+          <span class="lwt" id="lsWarn"
+            ><b>If you forget the passphrase, your tasks are gone for good:</b> nobody can recover them. Export a backup first.</span
+          >
+          <span class="lok">
+            <span class="ckb"><input type="checkbox" id="lsOk" aria-labelledby="lsOkT" aria-describedby="lsWarn" /><svg viewBox="0 0 20 20" aria-hidden="true"><path pathLength="1" d="m5.6 10.4 3 3 5.9-6.6" /></svg></span>
+            <span id="lsOkT">I understand</span>
+          </span>
+        </label>
         <p class="lerr" id="lsErr" role="alert"></p>
         <div class="racts">
           <button class="tbtn" id="lsCancel" type="button">Cancel</button

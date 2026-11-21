@@ -1536,6 +1536,46 @@ test.describe('the lock', () => {
     await expect(page.locator('#lock')).toBeVisible();
   });
 
+  test('the warning holds its consent in one red block; a wrong field turns red, fixing it clears the message', async ({ page }) => {
+    await openLock(page);
+    await page.locator('#lpill').click();
+    await expect(page.locator('#lockset')).toBeVisible();
+    // one block: a tap on its words ticks the box, another unticks it
+    await expect(page.locator('#lsOkL #lsWarn')).toBeVisible();
+    await expect(page.locator('#lsOkL #lsOk')).toBeVisible();
+    await page.locator('#lsWarn').click();
+    await expect(page.locator('#lsOk')).toBeChecked();
+    await page.locator('#lsWarn').click();
+    await expect(page.locator('#lsOk')).not.toBeChecked();
+    await expect(page.locator('#lsOk')).toHaveAccessibleName('I understand');
+    // the words wrap with no lone last word
+    expect(
+      await page.locator('#lsSub').evaluate(n => {
+        const c = getComputedStyle(n);
+        return c.textWrapStyle || c.textWrap;
+      }),
+    ).toContain('pretty');
+    // too short: that field turns red and the message says why; typing again clears both
+    await page.locator('#lsPass').fill('short');
+    await page.locator('#lsGo').click();
+    await expect(page.locator('#lsErr')).toHaveText('Use 8 characters or more');
+    await expect(page.locator('#lsPass')).toHaveAttribute('aria-invalid', 'true');
+    await page.locator('#lsPass').pressSequentially('a longer one');
+    await expect(page.locator('#lsErr')).toHaveText('');
+    await expect(page.locator('#lsPass')).not.toHaveAttribute('aria-invalid', 'true');
+    // not ticked: the box takes the focus, and ticking it clears the message
+    await page.locator('#lsPass').fill(PASS);
+    await page.locator('#lsPass2').fill(PASS);
+    await page.locator('#lsGo').click();
+    await expect(page.locator('#lsErr')).toHaveText('Tick “I understand” first');
+    await expect(page.locator('#lsOk')).toBeFocused();
+    await page.locator('#lsOk').check();
+    await expect(page.locator('#lsErr')).toHaveText('');
+    await page.locator('#lsCancel').click();
+    await expect(page.locator('#lockset')).toBeHidden();
+    expect((await stored(page)).vault).toBeNull();
+  });
+
   test('forgot the passphrase: erase and start over', async ({ page }) => {
     await openLock(page);
     await turnOn(page);
@@ -1557,6 +1597,11 @@ test.describe('the lock', () => {
       await openLock(page);
       await page.locator('#mbMore').tap();
       await page.locator('#more [data-act="lock"]').tap();
+      // a sheet from the bottom of the screen, its two buttons side by side
+      await expect.poll(() => page.locator('#lsForm').evaluate(n => Math.round(innerHeight - n.getBoundingClientRect().bottom))).toBe(0);
+      const [c, g] = await Promise.all([page.locator('#lsCancel').boundingBox(), page.locator('#lsGo').boundingBox()]);
+      expect(Math.abs(c.y - g.y)).toBeLessThan(1);
+      expect(Math.abs(c.width - g.width)).toBeLessThan(1);
       await fillOn(page);
       await page.locator('#lsGo').tap();
       await expect(page.locator('#lockset')).toBeHidden({ timeout: 20000 });

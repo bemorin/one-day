@@ -4712,7 +4712,7 @@ try {
      fingerprint, face or device PIN). It all happens in this browser: nothing is sent anywhere, and nobody
      can open the tasks without the passphrase or the passkey. */
   const L = {};
-  'lock lockForm lockPass lockErr lockGo lockBio lockForgot lockset lsForm lsT lsSub lsOld lsPass lsPass2 lsBio lsBioL lsWarn lsOk lsOkL lsErr lsCancel lsGo'
+  'lock lockForm lockPass lockErr lockGo lockBio lockForgot lockset lsForm lsT lsSub lsOld lsPass lsPass2 lsBio lsBioL lsWarn lsOk lsOkL lsOkT lsErr lsCancel lsGo'
     .split(' ')
     .forEach(id => (L[id] = document.getElementById(id)));
   const CAN_LOCK = !!(L.lock && window.isSecureContext && window.crypto && crypto.subtle && !window.claude),
@@ -4852,14 +4852,40 @@ try {
     return { id: toB64(id), salt: toB64(salt), ...(await sealWith(await prfKey(secret, salt), raw)) };
   }
 
-  function wrong(form, out, field, msg) {
+  // A message comes or goes without a jump: the card's height follows on a spring, from wherever it is.
+  function say(card, out, msg) {
+    if (out.textContent === msg) return;
+    if (RM.matches || !card.getClientRects().length) {
+      out.textContent = msg;
+      return;
+    }
+    const h0 = card.offsetHeight;
+    card.getAnimations().forEach(a => a.id === 'lh' && a.cancel());
     out.textContent = msg;
+    const h1 = card.offsetHeight;
+    if (msg) an(out, [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'ease-out' });
+    if (Math.abs(h1 - h0) < 1) return;
+    const a = card.animate([{ height: h0 + 'px' }, { height: h1 + 'px' }], { duration: SNAP.dur, easing: SNAP.ease });
+    a.id = 'lh';
+    card.style.overflow = 'hidden';
+    a.onfinish = a.oncancel = () => {
+      if (!card.getAnimations().some(x => x.id === 'lh' && x !== a)) card.style.overflow = '';
+    };
+  }
+  // Something is wrong: the message says what, the field that is wrong turns red and takes the focus,
+  // and what is wrong shakes (the field, the box to tick, or the whole card for a wrong passphrase).
+  function wrong(form, out, field, msg, at) {
+    say(form, out, msg);
+    form.querySelectorAll('[aria-invalid]').forEach(i => i.removeAttribute('aria-invalid'));
     if (field) {
+      if (field.type === 'password') field.setAttribute('aria-invalid', 'true');
       field.focus({ preventScroll: true });
       if (field.select) field.select();
     }
-    an(
-      form,
+    const el = at || form;
+    el.getAnimations().forEach(a => a.id === 'shake' && a.cancel());
+    const a = an(
+      el,
       [
         { transform: 'none' },
         { transform: 'translateX(-9px)' },
@@ -4867,16 +4893,47 @@ try {
         { transform: 'translateX(-4px)' },
         { transform: 'none' },
       ],
-      { duration: 380, easing: 'ease-out' },
+      { duration: 380, easing: 'ease-out', composite: 'add' },
     );
+    if (a) a.id = 'shake';
   }
+  // A button at work says so, and its width follows its new words.
   function busy(b, label) {
+    const w0 = b.offsetWidth;
     b.disabled = !!label;
     if (label) {
-      b.dataset.label = b.textContent;
+      if (!b.classList.contains('busy')) b.dataset.label = b.textContent;
       b.textContent = label;
-    } else if (b.dataset.label) b.textContent = b.dataset.label;
+    } else if (b.dataset.label) {
+      b.textContent = b.dataset.label;
+      delete b.dataset.label;
+    }
+    b.classList.toggle('busy', !!label);
+    if (RM.matches || !w0) return;
+    const w1 = b.offsetWidth;
+    if (Math.abs(w1 - w0) > 0.5) b.animate([{ width: w0 + 'px' }, { width: w1 + 'px' }], { duration: SNAP.dur, easing: SNAP.ease });
   }
+  // What was pressed last: the dialog grows from it (Safari does not focus a button that is clicked).
+  let TAP = null;
+  document.addEventListener(
+    'pointerdown',
+    e => {
+      const el = e.target.closest && e.target.closest('button, a, label, [role="button"]');
+      TAP = el ? { el, t: Date.now() } : null;
+    },
+    true,
+  );
+  // A message goes away as soon as what it was about is being fixed.
+  [L.lockForm, L.lsForm].forEach(f =>
+    f.addEventListener('input', e => {
+      if (e.target.type !== 'password') return;
+      e.target.removeAttribute('aria-invalid');
+      say(f, f.querySelector('.lerr'), '');
+    }),
+  );
+  L.lsOk.addEventListener('change', () => {
+    if (L.lsOk.checked && /^Tick/.test(L.lsErr.textContent)) say(L.lsForm, L.lsErr, '');
+  });
 
   /* the unlock screen */
   function showLock() {
@@ -4929,7 +4986,7 @@ try {
     if (!locked || !vault || L.lockGo.disabled) return;
     const pass = L.lockPass.value;
     if (!pass) return wrong(L.lockForm, L.lockErr, L.lockPass, 'Enter your passphrase');
-    L.lockErr.textContent = '';
+    say(L.lockForm, L.lockErr, '');
     busy(L.lockGo, 'Unlocking…');
     const raw = await byPass(pass, vault);
     busy(L.lockGo);
@@ -5093,26 +5150,81 @@ try {
     L.lsBioL.hidden = !(mode === 'on' && bioOK);
     L.lsWarn.hidden = mode !== 'on';
     L.lsOkL.hidden = !(mode === 'on' || mode === 'reset');
-    L.lsOkL.lastElementChild.textContent = mode === 'reset' ? 'Erase my tasks in this browser' : 'I understand';
-    for (const i of [L.lsOld, L.lsPass, L.lsPass2]) i.value = '';
+    L.lsOkT.textContent = mode === 'reset' ? 'Erase my tasks in this browser' : 'I understand';
+    if (mode === 'on') L.lsOk.setAttribute('aria-describedby', 'lsWarn');
+    else L.lsOk.removeAttribute('aria-describedby');
+    for (const i of [L.lsOld, L.lsPass, L.lsPass2]) {
+      i.value = '';
+      i.removeAttribute('aria-invalid');
+    }
     L.lsBio.checked = false;
     L.lsOk.checked = false;
     L.lsErr.textContent = '';
+    L.lsGo.classList.remove('busy');
+    delete L.lsGo.dataset.label;
     L.lsGo.disabled = false;
-    L.lockset.hidden = false;
     home.inert = true;
-    an(L.lsForm, [
-      { opacity: 0, transform: 'translateY(14px) scale(.98)' },
-      { opacity: 1, transform: 'none' },
-    ]);
+    modalIn(TAP && TAP.el.isConnected && Date.now() - TAP.t < 1500 ? TAP.el : LSM.from);
     (old ? L.lsOld : mode === 'on' ? L.lsPass : L.lsOk).focus({ preventScroll: true });
     return true;
+  }
+  /* The dialog's motion. On a computer it grows from what opened it, over a scrim that dims and softens the
+     page, and its parts settle in one after the other; on a phone it is a sheet that rises from the bottom.
+     It leaves the way it came, faster, and can be caught on the way: opening again starts from where it is. */
+  function modalIn(from) {
+    const m = L.lockset,
+      card = L.lsForm,
+      sheet = W().matchMedia(BARQ).matches;
+    m.getAnimations({ subtree: true }).forEach(a => a.cancel());
+    m.classList.remove('out');
+    m.hidden = false;
+    card.style.transformOrigin = '';
+    if (!sheet && from && from.isConnected) {
+      const r = from.getBoundingClientRect(),
+        c = card.getBoundingClientRect();
+      if (r.width) card.style.transformOrigin = `${Math.round(r.left + r.width / 2 - c.left)}px ${Math.round(r.top + r.height / 2 - c.top)}px`;
+    }
+    an(m, [{ backgroundColor: 'rgb(0 0 0 / 0)', backdropFilter: 'blur(0px)' }, {}], { duration: 300, easing: 'ease-out' });
+    an(card, [{ opacity: 0 }, { opacity: 1 }], { duration: sheet ? 120 : 200, easing: 'ease-out' });
+    if (sheet) {
+      an(card, [{ transform: 'translateY(100%)' }, { transform: 'none' }], { duration: SNAP.dur, easing: SNAP.ease });
+      return;
+    }
+    an(card, [{ transform: 'scale(.9)' }, { transform: 'none' }], { duration: SNAP.dur, easing: SNAP.ease });
+    [...card.children]
+      .filter(c => c.getClientRects().length)
+      .forEach((c, i) =>
+        an(c, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], {
+          duration: 300,
+          delay: 50 + i * 18,
+          easing: 'cubic-bezier(.2,.8,.2,1)',
+          fill: 'backwards',
+        }),
+      );
+  }
+  function modalOut() {
+    const m = L.lockset,
+      card = L.lsForm,
+      sheet = W().matchMedia(BARQ).matches,
+      o = { easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' };
+    m.classList.add('out');
+    // no first keyframe: each part leaves from where it is now, even halfway in
+    an(m, [{ backgroundColor: 'rgb(0 0 0 / 0)', backdropFilter: 'blur(0px)' }], { ...o, duration: 240 });
+    const a = sheet
+      ? an(card, [{ transform: 'translateY(100%)' }], { ...o, duration: 280 })
+      : an(card, [{ opacity: 0, transform: 'scale(.94)' }], { ...o, duration: 190 });
+    then(a, () => {
+      if (!m.classList.contains('out')) return;
+      m.hidden = true;
+      m.classList.remove('out');
+      m.getAnimations({ subtree: true }).forEach(x => x.cancel());
+    });
   }
   function closeLockset(res) {
     const m = LSM;
     if (!m) return;
     LSM = null;
-    L.lockset.hidden = true;
+    modalOut();
     for (const i of [L.lsOld, L.lsPass, L.lsPass2]) i.value = '';
     if (!locked) home.inert = false;
     if (m.from && m.from.isConnected && !m.from.closest('[inert]')) m.from.focus({ preventScroll: true });
@@ -5203,15 +5315,15 @@ try {
     const old = L.lsOld.value,
       p1 = L.lsPass.value,
       p2 = L.lsPass2.value,
-      no = (msg, el) => wrong(L.lsForm, L.lsErr, el, msg);
-    if (!L.lsOld.hidden && !old) return no('Enter the passphrase', L.lsOld);
+      no = (msg, el, at) => wrong(L.lsForm, L.lsErr, el, msg, at);
+    if (!L.lsOld.hidden && !old) return no('Enter the passphrase', L.lsOld, L.lsOld);
     if (!L.lsPass.hidden) {
-      if (p1.length < 8) return no('Use 8 characters or more', L.lsPass);
-      if (p1 !== p2) return no('The two passphrases are not the same', L.lsPass2);
+      if (p1.length < 8) return no('Use 8 characters or more', L.lsPass, L.lsPass);
+      if (p1 !== p2) return no('The two passphrases are not the same', L.lsPass2, L.lsPass2);
     }
     if (!L.lsOkL.hidden && !L.lsOk.checked)
-      return no(m.mode === 'reset' ? 'Tick the box to erase them' : 'Tick “I understand” first', L.lsOk);
-    L.lsErr.textContent = '';
+      return no(m.mode === 'reset' ? 'Tick the box to erase them' : 'Tick “I understand” first', L.lsOk, L.lsOkL);
+    say(L.lsForm, L.lsErr, '');
     busy(L.lsGo, { on: 'Locking…', change: 'Changing…', off: 'Turning off…', ask: 'Opening…', reset: 'Erasing…' }[m.mode]);
     let res;
     try {
