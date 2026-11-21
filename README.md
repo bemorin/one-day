@@ -4,7 +4,7 @@ A calm, minimalist task list that shows **one day at a time**, floats above your
 
 **[Open One Day →](https://day.bemorin.com)**
 
-![One Day in motion: adding a task, opening one, sending a task to tomorrow, making it repeat, sending it as a link, search, the timer, light and dark](docs/demo.webp)
+![One Day in motion: adding a task, opening one, sending a task to tomorrow, making it repeat, sending it as a link, search, the timer, light and dark, then the same app on a phone](docs/demo.webp)
 
 [Watch the demo in HD (MP4, 1080p)](https://github.com/bemorin/one-day/releases/download/v1.2.0/one-day-demo.mp4)
 

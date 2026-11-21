@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // Records the One Day demo video, with a cursor, click ripples, a keystroke bar and scene titles.
+// It ends on a phone: that part is recorded first in a phone-sized touch browser, then played in a phone frame.
 //   node scripts/demo-video.mjs            -> dist/one-day-demo.mp4 (1080p60) and dist/one-day-demo-720p.mp4
 // Needs the dev dependencies (npm install) and ffmpeg on PATH.
 import { chromium } from 'playwright';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -15,6 +16,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const key = d =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const today = key(new Date());
+const tomorrow = key(new Date(new Date().setDate(new Date().getDate() + 1)));
 
 const seed = {
   days: {
@@ -39,11 +41,32 @@ const seed = {
   },
   rules: {},
 };
+const phoneSeed = {
+  days: {
+    [today]: {
+      u: 1,
+      tasks: [
+        { id: 'p1', text: 'Morning run', done: true, at: 1 },
+        { id: 'p2', text: 'Pick up the parcel', done: false },
+        { id: 'p3', text: 'Book the train to Lyon #travel', done: false },
+        { id: 'p4', text: 'Call mum', done: false },
+      ],
+    },
+    [tomorrow]: {
+      u: 1,
+      tasks: [
+        { id: 'p5', text: 'Send the invoices #work', done: false },
+        { id: 'p6', text: 'Water the plants #home', done: false },
+      ],
+    },
+  },
+  rules: {},
+};
 
 // The overlay lives in the page, above the app: cursor, ripples, keystroke bar, titles, progress rule.
 function overlay() {
   const css = `
-  #vo{position:fixed;inset:0;z-index:2147483647;pointer-events:none;font-family:Archivo,system-ui,sans-serif}
+  #vo{position:fixed;inset:0;z-index:2147483647;pointer-events:none;overflow:hidden;font-family:Archivo,system-ui,sans-serif}
   #vo .cur{position:absolute;left:0;top:0;width:30px;height:30px;transform:translate3d(-60px,-60px,0);filter:drop-shadow(0 3px 6px rgb(0 0 0/.28))}
   #vo .cur svg{width:30px;height:30px;transition:transform .32s cubic-bezier(.34,1.56,.64,1);transform-origin:6px 4px}
   #vo .cur.down svg{transform:scale(.82)}
@@ -72,6 +95,18 @@ function overlay() {
   #vo .cap.out h2,#vo .cap.out p{opacity:0;transform:translateY(-12px);transition-duration:.25s;transition-delay:0s}
   #vo .bar{position:absolute;left:0;bottom:0;height:4px;width:100%;background:#e4002b;transform-origin:0 50%;transform:scaleX(0)}
   #vo .fade{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  #vo .dim{position:absolute;inset:0;background:rgb(0 0 0/.66);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);opacity:0;transition:opacity .9s cubic-bezier(.22,1,.36,1)}
+  #vo .dim.on{opacity:1}
+  #vo .ph{position:absolute;left:50%;top:50%;width:308px;height:645px;margin:-322.5px 0 0 -154px;padding:10px;border-radius:52px;background:#1c1c1e;
+    box-shadow:inset 0 0 0 1.5px rgb(255 255 255/.17),0 0 0 1px rgb(0 0 0/.75),0 60px 110px -34px rgb(0 0 0/.95);
+    transform:translateY(calc(50vh + 360px));transition:transform 1.05s cubic-bezier(.22,1,.36,1)}
+  #vo .ph.on{transform:none}
+  #vo .scr{position:relative;width:100%;height:100%;overflow:hidden;border-radius:42px;background:#0e0e0e}
+  #vo .scr video{position:absolute;left:0;top:34px;width:100%;height:auto;display:block}
+  #vo .sbar{position:absolute;left:0;right:0;top:0;height:34px;display:flex;align-items:center;justify-content:space-between;padding:3px 26px 0 30px;
+    color:#f2f2f2;font-weight:650;font-size:12.5px;letter-spacing:.01em}
+  #vo .sbar svg{width:23px;height:12px}
+  #vo .hind{position:absolute;left:50%;bottom:6px;width:104px;height:4px;margin-left:-52px;border-radius:2px;background:rgb(255 255 255/.6)}
   `;
   const make = () => {
     if (document.getElementById('vo')) return;
@@ -141,6 +176,38 @@ function overlay() {
       b.style.transition = 'transform 1.4s cubic-bezier(.22,1,.36,1)';
       b.style.transform = 'scaleX(1)';
     };
+    // The phone part, recorded beforehand, plays in a phone frame over the dimmed app.
+    window.__phoneLoad = async b64 => {
+      const bin = atob(b64),
+        u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      const v = document.createElement('video');
+      v.muted = true;
+      v.playsInline = true;
+      v.preload = 'auto';
+      const ready = new Promise((ok, no) => {
+        v.oncanplaythrough = ok;
+        v.onerror = () => no(new Error('phone video: ' + (v.error && v.error.message)));
+      });
+      v.src = URL.createObjectURL(new Blob([u8], { type: 'video/webm' }));
+      await ready;
+      const ph = document.createElement('div');
+      ph.className = 'ph';
+      ph.innerHTML = `<div class="scr"><div class="sbar"><span>8:30</span><svg viewBox="0 0 24 12"><rect x=".75" y=".75" width="19.5" height="10.5" rx="3.2" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.2"/><rect x="2.6" y="2.6" width="12.8" height="6.8" rx="1.7" fill="currentColor"/><path d="M21.9 4.1v3.8c.8-.3 1.3-1.1 1.3-1.9s-.5-1.6-1.3-1.9z" fill="currentColor" fill-opacity=".45"/></svg></div><div class="hind"></div></div>`;
+      ph.querySelector('.scr').prepend(v);
+      const dim = document.createElement('div');
+      dim.className = 'dim';
+      vo.prepend(ph);
+      vo.prepend(dim);
+    };
+    window.__phone = wait => {
+      const cur = vo.querySelector('.cur');
+      cur.style.transition = 'opacity .3s';
+      cur.style.opacity = '0';
+      vo.querySelector('.dim').classList.add('on');
+      vo.querySelector('.ph').classList.add('on');
+      setTimeout(() => vo.querySelector('.ph video').play(), wait);
+    };
     window.__dark = on => {
       const st = vo.style;
       for (const [k, v] of Object.entries(
@@ -155,6 +222,176 @@ function overlay() {
   else make();
 }
 
+// On the phone, a fingertip instead of a cursor.
+function touchDots() {
+  const css = `
+  .vtd{position:fixed;left:0;top:0;z-index:2147483647;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;pointer-events:none;
+    background:rgb(255 255 255/.24);box-shadow:0 0 0 1.5px rgb(255 255 255/.6),0 8px 22px rgb(0 0 0/.4);animation:vtdin .16s cubic-bezier(.2,.8,.2,1) both}
+  .vtd.up{animation:vtdout .45s cubic-bezier(.2,.8,.2,1) forwards}
+  @keyframes vtdin{from{transform:scale(.4);opacity:0}}
+  @keyframes vtdout{to{transform:scale(1.4);opacity:0}}`;
+  const make = () => {
+    const s = new CSSStyleSheet();
+    s.replaceSync(css);
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, s];
+    const dots = new Map();
+    const at = (d, e) => {
+      d.style.left = e.clientX + 'px';
+      d.style.top = e.clientY + 'px';
+    };
+    addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'touch') return;
+      const d = document.createElement('i');
+      d.className = 'vtd';
+      at(d, e);
+      document.documentElement.append(d);
+      dots.set(e.pointerId, d);
+    }, true);
+    addEventListener('pointermove', e => {
+      const d = dots.get(e.pointerId);
+      if (d) at(d, e);
+    }, true);
+    const up = e => {
+      const d = dots.get(e.pointerId);
+      if (!d) return;
+      dots.delete(e.pointerId);
+      d.classList.add('up');
+      setTimeout(() => d.remove(), 500);
+    };
+    addEventListener('pointerup', up, true);
+    addEventListener('pointercancel', up, true);
+  };
+  if (document.readyState === 'loading') addEventListener('DOMContentLoaded', make);
+  else make();
+}
+
+// Frames have their own timing: give each one its real duration (the last one `tail` seconds).
+// With `from` (seconds since 1970, like the frame timestamps), the clip starts on what was on screen then.
+// Returns the clip's length in seconds.
+async function frameList(dir, shots, tail, from = 0) {
+  const name = i => `file f${String(i).padStart(5, '0')}.jpg`;
+  let first = 0;
+  shots.forEach((t, i) => {
+    if (t <= from) first = i;
+  });
+  const start = Math.max(shots[first], from),
+    list = ['ffconcat version 1.0'];
+  for (let i = first; i < shots.length; i++) {
+    const d = i + 1 < shots.length ? Math.max(0.001, shots[i + 1] - (i === first ? start : shots[i])) : tail;
+    list.push(name(i), `duration ${d.toFixed(4)}`);
+  }
+  list.push(name(shots.length - 1));
+  await writeFile(join(dir, 'frames.txt'), list.join('\n') + '\n');
+  return shots[shots.length - 1] - start + tail;
+}
+
+// The phone part: a phone-sized touch browser in dark mode, with its own tasks.
+// Returns the clip as base64 WebM (VP9, which Playwright's Chromium plays) and its length in ms.
+async function recordPhone(browser) {
+  const dir = await mkdtemp(join(tmpdir(), 'one-day-phone-'));
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 778 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+    colorScheme: 'dark',
+    reducedMotion: 'no-preference',
+    bypassCSP: true,
+  });
+  await ctx.addInitScript(data => {
+    if (!localStorage.getItem('oneday.v1')) localStorage.setItem('oneday.v1', JSON.stringify(data));
+  }, phoneSeed);
+  await ctx.addInitScript(touchDots);
+  const page = await ctx.newPage();
+  const cdp = await ctx.newCDPSession(page);
+  const shots = [],
+    writes = [];
+  cdp.on('Page.screencastFrame', f => {
+    const i = shots.length;
+    shots.push(f.metadata.timestamp);
+    writes.push(writeFile(join(dir, `f${String(i).padStart(5, '0')}.jpg`), Buffer.from(f.data, 'base64')));
+    cdp.send('Page.screencastFrameAck', { sessionId: f.sessionId }).catch(() => {});
+  });
+  const touch = (type, x, y) =>
+    cdp.send('Input.dispatchTouchEvent', {
+      type,
+      touchPoints: type === 'touchEnd' ? [] : [{ x, y, id: 1, radiusX: 6, radiusY: 6, force: 1 }],
+    });
+  async function tap(target) {
+    let x, y;
+    if (Array.isArray(target)) [x, y] = target;
+    else {
+      const b = await target.boundingBox();
+      [x, y] = [b.x + b.width / 2, b.y + b.height / 2];
+    }
+    await touch('touchStart', x, y);
+    await sleep(120);
+    await touch('touchEnd', x, y);
+  }
+  const ease = t => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+  async function swipe(x0, x1, y, ms = 300) {
+    await touch('touchStart', x0, y);
+    await sleep(40);
+    const n = Math.round(ms / 16);
+    for (let i = 1; i <= n; i++) {
+      await touch('touchMove', x0 + (x1 - x0) * ease(i / n), y);
+      await sleep(ms / n);
+    }
+    await touch('touchEnd', x1, y);
+  }
+  const row = text => page.locator('#list .row', { hasText: text }).first();
+
+  await page.goto(`http://localhost:${PORT}/`);
+  await page.waitForFunction(() => !document.getElementById('app').classList.contains('pre'));
+  await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 92, maxWidth: 780, maxHeight: 1556, everyNthFrame: 1 });
+  await page
+    .waitForFunction(
+      () => document.querySelectorAll('#list .row').length >= 4 && document.getAnimations().every(a => a.playState !== 'running'),
+      null,
+      { timeout: 6000 },
+    )
+    .catch(() => {});
+  await sleep(300);
+  const from = Date.now() / 1000;
+  await sleep(650);
+  await tap(row('Pick up the parcel').locator('.in .ck'));
+  await sleep(850);
+  await tap(page.locator('#mbAdd'));
+  await sleep(600);
+  for (const ch of 'Buy croissants 🥐') {
+    await page.keyboard.type(ch);
+    await sleep(34 + Math.random() * 26);
+  }
+  await sleep(280);
+  await page.keyboard.press('Enter');
+  await sleep(700);
+  await tap([60, 130]);
+  await sleep(750);
+  await swipe(290, 70, 430);
+  await sleep(1250);
+  await swipe(70, 290, 430);
+  await sleep(1000);
+  await cdp.send('Page.stopScreencast');
+  await Promise.all(writes);
+  await ctx.close();
+
+  // the frame clock and ours are both seconds since 1970; if they disagree, keep the whole clip
+  const ok = from > shots[0] - 1 && from < shots[shots.length - 1];
+  if (!ok) console.warn('Phone clip: frame clock looks off, keeping its entrance');
+  const secs = await frameList(dir, shots, 0.1, ok ? from : 0);
+  const r = spawnSync(
+    'ffmpeg',
+    ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', 'frames.txt', '-vf', 'fps=60', '-c:v', 'libvpx-vp9', '-crf', '16', '-b:v', '0', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '3', '-pix_fmt', 'yuv420p', '-an', 'phone.webm'],
+    { cwd: dir, stdio: 'inherit' },
+  );
+  if (r.status !== 0) throw new Error('ffmpeg failed for the phone clip');
+  const b64 = (await readFile(join(dir, 'phone.webm'))).toString('base64');
+  const dur = Math.round(secs * 1000);
+  await rm(dir, { recursive: true, force: true });
+  console.log(`Phone clip: ${(dur / 1000).toFixed(1)} s, ${Math.round((b64.length * 3) / 4 / 1024)} KB`);
+  return { b64, dur };
+}
+
 const ICON_CLICK =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9l10.5 4-4.6 1.4L13.5 19z"/><path d="M5.5 5.5 4 4M9 3.5V2M3.5 9H2"/></svg>';
 
@@ -162,7 +399,8 @@ async function main() {
   const server = spawn(process.execPath, [join(root, 'scripts', 'serve.mjs'), String(PORT)], { stdio: 'ignore' });
   await sleep(700);
   const frames = await mkdtemp(join(tmpdir(), 'one-day-video-'));
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
+  const phone = await recordPhone(browser);
   const ctx = await browser.newContext({
     viewport: { width: 1280, height: 720 },
     deviceScaleFactor: 1.5,
@@ -233,9 +471,11 @@ async function main() {
 
   await page.goto(`http://localhost:${PORT}/`);
   await page.waitForFunction(() => window.__hud && !document.getElementById('app').classList.contains('pre'));
+  await page.evaluate(b64 => window.__phoneLoad(b64), phone.b64);
   await page.mouse.move(mx, my);
   await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 92, maxWidth: 1920, maxHeight: 1080, everyNthFrame: 1 });
-  const TOTAL = 64000;
+  const PHONE_IN = 800;
+  const TOTAL = 64000 + PHONE_IN + phone.dur + 450;
   await page.evaluate(ms => window.__bar(ms), TOTAL);
 
   // 1. Intro
@@ -372,7 +612,12 @@ async function main() {
   });
   await sleep(1780);
 
-  // 10. Outro
+  // 10. Also on a phone
+  await cap('Also on your phone', 'Add it to your Home Screen. It works offline, too.');
+  await page.evaluate(ms => window.__phone(ms), PHONE_IN);
+  await sleep(PHONE_IN + phone.dur + 450);
+
+  // 11. Outro
   await cap('day.bemorin.com', 'Free, private and open source.');
   await page.evaluate(() => window.__barEnd());
   await sleep(2520);
@@ -382,14 +627,8 @@ async function main() {
   await browser.close();
   server.kill();
 
-  // Frames have their own timing: give each one its real duration, then resample to 60 fps.
-  const list = ['ffconcat version 1.0'];
-  shots.forEach((t, i) => {
-    const d = i + 1 < shots.length ? Math.max(0.001, shots[i + 1] - t) : 1.2;
-    list.push(`file f${String(i).padStart(5, '0')}.jpg`, `duration ${d.toFixed(4)}`);
-  });
-  list.push(`file f${String(shots.length - 1).padStart(5, '0')}.jpg`);
-  await writeFile(join(frames, 'frames.txt'), list.join('\n') + '\n');
+  // Each frame keeps its real duration, then the whole is resampled to 60 fps.
+  await frameList(frames, shots, 1.2);
   await mkdir(join(root, 'dist'), { recursive: true });
   const enc = (out, vf, crf) => {
     const r = spawnSync(
