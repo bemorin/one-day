@@ -8,7 +8,8 @@
     "start": "node scripts/serve.mjs",
     "test": "playwright test",
     "icons": "node scripts/icons.mjs",
-    "build:standalone": "node scripts/build-standalone.mjs"
+    "build:standalone": "node scripts/build-standalone.mjs",
+    "video": "node scripts/demo-video.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

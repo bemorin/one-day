@@ -113,6 +113,7 @@ scripts/
   serve.mjs             local server that applies _headers
   icons.mjs             draws the icon and writes every size
   build-standalone.mjs  one self-contained HTML file (dist/one-day.html)
+  demo-video.mjs        the demo video, 1080p60 and 720p (npm run video, needs ffmpeg)
 tests/                  Playwright tests
 ```
 

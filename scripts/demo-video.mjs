@@ -52,7 +52,8 @@ function overlay() {
   #vo .hud{position:absolute;left:50%;bottom:34px;display:flex;align-items:center;gap:12px;padding:10px 20px 10px 12px;border-radius:24px;
     background:var(--vh,rgb(255 255 255/.78));backdrop-filter:blur(18px) saturate(1.4);-webkit-backdrop-filter:blur(18px) saturate(1.4);
     box-shadow:0 0 0 1px var(--ve,rgb(0 0 0/.06)),0 18px 50px -14px rgb(0 0 0/.35);color:var(--vt,#111);
-    transform:translate(-50%,24px) scale(.9);opacity:0;filter:blur(6px);transition:transform .55s cubic-bezier(.34,1.4,.64,1),opacity .25s,filter .35s}
+    transform:translate(-50%,24px) scale(.9);opacity:0;filter:blur(6px);transition:transform .55s cubic-bezier(.34,1.4,.64,1),opacity .25s,filter .35s,bottom .6s cubic-bezier(.34,1.3,.64,1)}
+  #vo .hud.up{bottom:94px}
   #vo .hud.on{transform:translate(-50%,0) scale(1);opacity:1;filter:none}
   #vo .k{display:grid;place-items:center;min-width:46px;height:46px;padding:0 12px;border-radius:12px;font-weight:650;font-size:21px;
     background:var(--vk,#fff);box-shadow:inset 0 -2px 0 var(--vks,rgb(0 0 0/.1)),0 0 0 1px var(--ve,rgb(0 0 0/.08)),0 6px 14px -6px rgb(0 0 0/.3)}
@@ -94,6 +95,10 @@ function overlay() {
       setTimeout(() => r.remove(), 700);
     }, true);
     addEventListener('mouseup', () => cur.classList.remove('down'), true);
+    // The keystroke bar lifts above the app's toast instead of covering it.
+    const toast = document.getElementById('toast'),
+      lift = () => vo.querySelector('.hud').classList.toggle('up', !!toast && toast.classList.contains('on'));
+    if (toast) new MutationObserver(lift).observe(toast, { attributes: true, attributeFilter: ['class'] });
     let ht = null;
     window.__hud = (keys, label) => {
       const h = vo.querySelector('.hud');
@@ -110,8 +115,12 @@ function overlay() {
       setTimeout(() => {
         c.classList.remove('on', 'out');
         if (!title) return;
-        c.querySelector('h2').textContent = title;
+        const h = c.querySelector('h2');
+        h.textContent = title;
         c.querySelector('p').textContent = sub || '';
+        // long titles (a domain name) shrink to fit the margin beside the card
+        h.style.fontSize = '';
+        for (let fs = 38; h.scrollWidth > h.clientWidth + 1 && fs > 20; fs--) h.style.fontSize = fs - 1 + 'px';
         void c.offsetWidth;
         c.classList.add('on');
       }, title && c.classList.contains('on') ? 260 : 0);
