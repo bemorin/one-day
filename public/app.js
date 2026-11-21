@@ -3183,12 +3183,24 @@ try {
     return [...m].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   }
   function renderFilter() {
+    const move = !RM.matches && $.fx.getClientRects().length > 0,
+      w0 = move ? $.fx.getBoundingClientRect().width : 0;
+    if (move) $.fx.getAnimations().forEach(a => a.id === 'fw' && a.cancel());
     $.fx.classList.toggle('on', !!FX);
     $.fname.textContent = FX ? '#' + FX : '';
     $.fclr.hidden = !FX;
     $.fbtn.setAttribute('aria-label', FX ? `Filtered by #${FX}. Change the filter` : 'Filter by tag');
     $.fbtn.dataset.tip = FX ? 'Change the filter' : 'Filter by tag';
     $.input.placeholder = FX ? `Add a task to #${FX}` : 'Add a task';
+    if (!move) return;
+    const w1 = $.fx.getBoundingClientRect().width;
+    if (Math.abs(w1 - w0) < 0.5) return;
+    $.fx.style.overflow = 'hidden';
+    const a = $.fx.animate([{ width: w0 + 'px' }, { width: w1 + 'px' }], { duration: SP.dur, easing: SP.ease });
+    a.id = 'fw';
+    a.onfinish = a.oncancel = () => {
+      if (!$.fx.getAnimations().some(x => x.id === 'fw' && x !== a)) $.fx.style.overflow = '';
+    };
   }
   function setFilter(g) {
     FX = g || null;
@@ -3290,9 +3302,9 @@ try {
     (e.key === 'ArrowDown' ? bs[0] : bs[bs.length - 1]).focus();
   });
   $.fbtn.onclick = () => ($.fpop.classList.contains('on') ? closePops() : openFilter());
-  $.fclr.onclick = () => {
+  $.fclr.onclick = e => {
     setFilter(null);
-    $.fbtn.focus({ preventScroll: true });
+    if (!e.detail) $.fbtn.focus({ preventScroll: true });
   };
   $.ftags.onclick = e => {
     const b = e.target.closest('.ftag');
@@ -4694,7 +4706,8 @@ try {
     },
     natural() {
       let h = this.dayH();
-      if ($.srch.classList.contains('on')) h = Math.max(h, q('.sbar').offsetHeight + 16 + 40 + $.slist.offsetHeight);
+      if ($.srch.classList.contains('on'))
+        h = Math.max(h, q('.sbar').offsetHeight + 16 + 40 + $.slist.offsetHeight + ($.spicks.hidden ? 0 : $.spicks.offsetHeight + 18));
       return Math.min(h, this.max());
     },
     // At rest the card goes back to its own height, unless search needs more: then it keeps that.

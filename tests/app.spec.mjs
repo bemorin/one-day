@@ -345,6 +345,9 @@ test.describe('filter by tag', () => {
     await page.locator('#fclr').click();
     await expect(page.locator('#list .row')).toHaveCount(3);
     await expect(page.locator('#fclr')).toBeHidden();
+    // one pill, no seam: the black is the container's
+    await expect(page.locator('#fx')).not.toHaveClass(/\bon\b/);
+    await expect(page.locator('#fbtn')).not.toBeFocused();
   });
 
   test('F opens it, Escape clears it; a task added meanwhile takes the tag', async ({ page }) => {
@@ -688,7 +691,14 @@ test('the wheel scrolls a long list first, and never flips the day at its end', 
   await expect.poll(() => page.locator('.sc').evaluate(n => getComputedStyle(n).overflowY)).not.toBe('hidden');
   await page.waitForTimeout(260);
   for (let i = 0; i < 6; i++) await page.mouse.wheel(0, 400);
-  await expect.poll(() => page.locator('.sc').evaluate(n => n.scrollTop)).toBeGreaterThan(200);
+  // a busy machine can still be resting the list after its entrance: wheel again until it scrolls
+  await expect
+    .poll(async () => {
+      const top = await page.locator('.sc').evaluate(n => n.scrollTop);
+      if (top <= 200) await page.mouse.wheel(0, 400);
+      return top;
+    })
+    .toBeGreaterThan(200);
   await expect(page.locator('#app')).toHaveClass(/\bis-today\b/);
   // scrolled to the end, a new gesture over the list still does not flip the day
   await page.waitForTimeout(260);

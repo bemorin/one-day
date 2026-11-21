@@ -448,6 +448,10 @@ header {
   align-items: center;
   align-self: flex-end;
   margin: 0 -8px -6px auto;
+  border-radius: 16px;
+  transition:
+    background-color 0.25s,
+    color 0.25s;
 }
 .fbtn,
 .fclr {
@@ -488,19 +492,24 @@ header {
 }
 .fx.on {
   margin-right: 0;
-}
-.fx.on .fbtn,
-.fx.on .fclr {
   background: var(--ink);
   color: var(--bg);
 }
+.fx.on .fbtn,
+.fx.on .fclr {
+  background: transparent;
+  color: inherit;
+}
+.fx.on .fbtn:hover,
+.fx.on .fclr:hover,
+.fx.on .fbtn[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--bg) 16%, transparent);
+}
 .fx.on .fbtn {
   padding: 0 4px 0 10px;
-  border-radius: 16px 0 0 16px;
 }
 .fx.on .fclr {
   padding: 0 7px 0 3px;
-  border-radius: 0 16px 16px 0;
 }
 .fx.on .fclr svg {
   width: 16px;
