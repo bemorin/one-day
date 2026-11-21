@@ -313,12 +313,24 @@ test('Repeat opened from the day picker: Cancel goes back to the picker', async 
   await expect(page.locator('#dpop')).toHaveClass(/\bon\b/);
 });
 
-test('the footer: dogood.day, the croissant in the middle, icons for the rest', async ({ page }) => {
+test('the footer: the croissant sits midway between dogood.day and the links', async ({ page }) => {
   await open(page);
-  const [foot, kofi] = await Promise.all([page.locator('#foot').boundingBox(), page.locator('#foot .kofi').boundingBox()]);
-  expect(Math.abs(kofi.x + kofi.width / 2 - (foot.x + foot.width / 2))).toBeLessThan(2);
-  await expect(page.locator('#foot .lg .lbl').first()).toBeHidden();
-  await expect(page.locator('#foot .lg')).toHaveCount(2);
+  // measure the words, not the enlarged hit areas around them
+  const [left, right] = await page.evaluate(() => {
+    const text = sel => {
+      const el = document.querySelector(sel),
+        r = el.getBoundingClientRect(),
+        cs = getComputedStyle(el);
+      return { l: r.left + parseFloat(cs.paddingLeft), r: r.right - parseFloat(cs.paddingRight) };
+    };
+    const p = text('#foot .promo'),
+      k = text('#foot .kofi'),
+      n = text('#foot nav a');
+    return [k.l - p.r, n.l - k.r];
+  });
+  expect(Math.abs(left - right)).toBeLessThan(2);
+  await expect(page.locator('#foot nav a', { hasText: 'Privacy' })).toBeVisible();
+  await expect(page.locator('#foot nav a', { hasText: /^Legal$/ })).toBeVisible();
 });
 
 test('send the day from the header on a computer', async ({ page }) => {
