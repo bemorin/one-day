@@ -3166,7 +3166,7 @@ mark {
 }
 /* Under the card, three pills of glass. A link lights up inside its pill, three pixels in from the edge,
    like the selected part of a segmented control. */
-#foot {
+#home {
   --glass: linear-gradient(
     161deg,
     light-dark(rgb(255 255 255 / 0.5), rgb(255 255 255 / 0.11)),
@@ -3290,12 +3290,15 @@ mark {
     background: light-dark(rgb(255 255 255 / 0.72), rgb(44 44 48 / 0.92)) !important;
   }
 }
+.topbar {
+  display: none;
+}
 /* the sheet: on a large screen the app is a card on the page, as tall as its content */
 @media (min-width: 720px) and (min-height: 560px) {
   :root {
     --page: light-dark(#f5f5f7, #000);
     --bg: light-dark(#fff, #141414);
-    --top: clamp(20px, 7.5vh, 88px);
+    --top: clamp(14px, 4.5vh, 56px);
   }
   #home {
     display: flex;
@@ -3307,7 +3310,7 @@ mark {
     width: min(640px, calc(100% - 48px));
     max-width: none;
     height: auto;
-    max-height: calc(100dvh - var(--top) - 76px);
+    max-height: calc(100dvh - var(--top) - 76px - 50px);
     margin: 0;
     background: var(--bg);
     border-radius: var(--r);
@@ -3358,6 +3361,91 @@ mark {
   }
   #foot {
     padding-top: 27px;
+  }
+  /* above the card, the time on the left and the lock on the right; the lock leaves the card's header */
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: min(640px, calc(100% - 48px));
+    margin: 0 0 16px;
+    padding: 0 calc(var(--pad) - 4px);
+    transition: opacity 0.5s ease 0.3s;
+  }
+  #lockb {
+    display: none !important;
+  }
+  .clock,
+  .lpill {
+    display: inline-flex;
+    align-items: center;
+    height: 34px;
+    border-radius: 999px;
+    background: var(--glass);
+    box-shadow: var(--pill);
+  }
+  .clock {
+    padding: 0 14px;
+    font-size: 14px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+  }
+  .cdg {
+    display: flex;
+  }
+  .cdg .dg {
+    padding: 0.05em 0.04em 0;
+    margin: 0 -0.04em;
+  }
+  .cdg .dg .out {
+    left: 0.04em;
+  }
+  .lpill {
+    position: relative;
+    isolation: isolate;
+    justify-content: center;
+    width: 34px;
+    color: light-dark(#3d4555, #c9c9ce);
+    transition: color 0.2s;
+  }
+  .lpill::before {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    z-index: -1;
+    border-radius: inherit;
+    background: var(--lit);
+    box-shadow:
+      0 0 0 0.5px light-dark(rgb(0 0 0 / 0.06), transparent),
+      0 1px 3px light-dark(rgb(0 0 0 / 0.12), rgb(0 0 0 / 0.4));
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .lpill:hover {
+    color: var(--ink);
+  }
+  .lpill:hover::before {
+    opacity: 1;
+  }
+  .lpill svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+  }
+  .lpill .lk-shut,
+  .lpill.on .lk-open {
+    display: none;
+  }
+  .lpill.on .lk-shut {
+    display: block;
+  }
+  #app.pre ~ .topbar,
+  .topbar:has(~ #app.pre) {
+    opacity: 0;
   }
   .vp {
     border-radius: 0 0 var(--r) var(--r);

@@ -1374,7 +1374,8 @@ test.describe('the lock', () => {
     expect(s.vault).not.toContain('passports');
     await expect(page.locator('#slist .sdata .shint')).toHaveText('Your tasks are encrypted and stored only in this browser.');
     await expect(page.locator('#slist [data-act="locknow"]')).toBeVisible();
-    await expect(page.locator('#lockb')).toBeVisible();
+    await expect(page.locator('#lpill')).toHaveClass(/\bon\b/);
+    await expect(page.locator('#lpill')).toHaveAttribute('aria-label', 'Lock now');
 
     await page.reload();
     await expect(page.locator('#lock')).toBeVisible();
@@ -1387,6 +1388,23 @@ test.describe('the lock', () => {
     await unlock(page);
     await expect(row(page, 'Plan the trip')).toBeVisible();
     await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
+  });
+
+  test('above the card: the time on the left, the lock on the right', async ({ page }) => {
+    await openLock(page);
+    await expect(page.locator('#clock')).toHaveAttribute('aria-label', /^Time: /);
+    const shown = await page.locator('#clock').getAttribute('aria-label');
+    // the time as the browser writes it, this minute or the one before
+    const ok = await page.evaluate(() => {
+      const hm = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }),
+        now = Date.now();
+      return [hm.format(now), hm.format(now - 60e3)];
+    });
+    expect(ok).toContain(shown.replace('Time: ', ''));
+    await expect(page.locator('#lpill')).toHaveAttribute('aria-label', 'Lock with a passphrase');
+    await page.locator('#lpill').click();
+    await expect(page.locator('#lockset')).toBeVisible();
+    await expect(page.locator('#lsT')).toHaveText('Lock One Day');
   });
 
   test('changes stay encrypted; L locks at once and leaves nothing on screen', async ({ page }) => {
@@ -1579,7 +1597,7 @@ test.describe('accessibility (axe, WCAG 2.2 AA)', () => {
       await page.locator('#lsGo').click();
       await expect(page.locator('#lockset')).toBeHidden({ timeout: 20000 });
       await page.keyboard.press('Escape');
-      await page.locator('#lockb').click();
+      await page.locator('#lpill').click();
       await expect(page.locator('#lock')).toBeVisible();
     },
     'incoming task': async page =>

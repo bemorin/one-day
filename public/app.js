@@ -4886,7 +4886,7 @@ try {
     L.lock.getAnimations().forEach(a => a.cancel());
     L.lock.hidden = false;
     home.inert = true;
-    $.lockb.hidden = true;
+    lockUI();
     an(L.lockForm, [
       { opacity: 0, transform: 'translateY(14px) scale(.98)' },
       { opacity: 1, transform: 'none' },
@@ -4895,7 +4895,7 @@ try {
   }
   function hideLock() {
     home.inert = false;
-    $.lockb.hidden = false;
+    lockUI();
     then(an(L.lock, [{ opacity: 1 }, { opacity: 0 }], { duration: 280, easing: 'ease', fill: 'forwards' }), () => {
       if (locked) return;
       L.lock.hidden = true;
@@ -4993,6 +4993,42 @@ try {
     showLock();
   }
   $.lockb.onclick = () => lockNow();
+  /* above the card: the lock, as one icon that tells its state (open: lock with a passphrase; shut: lock now) */
+  const LP = document.getElementById('lpill');
+  function lockUI() {
+    $.lockb.hidden = !vault || locked;
+    if (!LP) return;
+    LP.hidden = !CAN_LOCK;
+    const on = !!vault;
+    LP.classList.toggle('on', on);
+    const t = on ? 'Lock now' : 'Lock with a passphrase';
+    LP.dataset.tip = t;
+    LP.setAttribute('aria-label', t);
+    if (on) LP.dataset.key = 'L';
+    else delete LP.dataset.key;
+  }
+  if (LP)
+    LP.onclick = () => {
+      if (locked) return;
+      if (vault) lockNow();
+      else openLockset('on', lockDone);
+    };
+  lockUI();
+  /* and the time, its digits rolling like the timer's */
+  const CLK = document.getElementById('cdg'),
+    CLF = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
+  function clockTick(d) {
+    if (!CLK) return;
+    const now = new Date(),
+      s = CLF.format(now);
+    roll(CLK, s, d);
+    CLK.parentElement.setAttribute('aria-label', 'Time: ' + s);
+  }
+  clockTick(0);
+  later(() => {
+    clockTick(1);
+    setInterval(() => clockTick(1), 60e3);
+  }, 60e3 - (Date.now() % 60e3) + 30);
   // away for five minutes: locked (not while the app floats on top)
   let awayAt = 0,
     awayT = null;
@@ -5121,7 +5157,7 @@ try {
       vault = v;
       DEK = dek;
       RAW = raw;
-      $.lockb.hidden = false;
+      lockUI();
       return {
         toast: bioFailed
           ? 'The lock is on. Fingerprint or face couldn’t be set up, so use your passphrase.'
@@ -5148,7 +5184,7 @@ try {
       DEK = null;
       if (RAW) RAW.fill(0);
       RAW = null;
-      $.lockb.hidden = true;
+      lockUI();
       return { toast: 'The lock is off. Your tasks are no longer encrypted.' };
     },
     async reset() {
