@@ -338,7 +338,8 @@ test('month pickers clip what slides in them; the footer waits for the card', as
   expect(await page.locator('#pop').evaluate(n => getComputedStyle(n).overflow)).toBe('hidden');
   expect(await page.locator('#dpop').evaluate(n => getComputedStyle(n).overflow)).toBe('hidden');
   await page.evaluate(() => document.getElementById('app').classList.add('pre'));
-  expect(await page.locator('#foot').evaluate(n => getComputedStyle(n).opacity)).toBe('0');
+  // even with reduced motion, the change goes through a transition of one frame
+  await expect.poll(() => page.locator('#foot').evaluate(n => getComputedStyle(n).opacity)).toBe('0');
 });
 
 test('send the day from the header on a computer', async ({ page }) => {
