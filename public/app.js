@@ -2738,7 +2738,12 @@ try {
     const promo = f.querySelector('.promo'),
       kofi = f.querySelector('.kofi'),
       links = [...f.querySelectorAll('nav a')].map(a => a.cloneNode(true).outerHTML).join('');
-    return `<div class="about">${promo ? promo.cloneNode(true).outerHTML : ''}${kofi ? kofi.cloneNode(true).outerHTML : ''}<p class="links">${links}</p></div>`;
+    return `<div class="about">${promo ? promo.cloneNode(true).outerHTML : ''}${kofi ? freeLine(kofi, 'kofi') : ''}<p class="links">${links}</p></div>`;
+  }
+  // Under the card the croissant speaks for itself; small screens have room for the whole sentence.
+  function freeLine(k, cls) {
+    const label = k.getAttribute('aria-label') || k.textContent.trim();
+    return `<a class="${cls}" href="${esc(k.href)}" target="_blank" rel="noopener" aria-label="${esc(`This app is free. ${label} if you want.`)}">This app is free. <b>${esc(k.textContent.trim())}</b> if you want.</a>`;
   }
   function moveHl() {
     const b = $.slist.querySelector(`.sr[data-i="${SEL}"]`);
@@ -3655,9 +3660,8 @@ try {
       (promo
         ? `<a class="spromo" href="${esc(promo.href)}" target="_blank" rel="noopener" referrerpolicy="strict-origin">${promo.innerHTML}</a>`
         : '') +
-      (kofi
-        ? `<a class="spromo kofi" href="${esc(kofi.href)}" target="_blank" rel="noopener" aria-label="${esc(kofi.getAttribute('aria-label') || '')}">${kofi.innerHTML}</a>`
-        : '') +
+      (promo && kofi ? '<hr>' : '') +
+      (kofi ? freeLine(kofi, 'spromo kofi') : '') +
       '<hr>' +
       `<p class="slinks">${links}</p>`;
     compose(false);

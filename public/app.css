@@ -2362,7 +2362,7 @@ mark {
   border-radius: 14px;
   text-align: center;
   font-size: 15px;
-  color: var(--ink);
+  color: var(--mute);
   text-decoration: none;
   transition: background-color 0.15s;
 }
@@ -2371,21 +2371,19 @@ mark {
 }
 .spromo b {
   font-weight: 700;
+  color: var(--ink);
 }
 .spromo::after {
   content: ' \2197';
   font-size: 0.9em;
   color: var(--mute);
 }
-.spromo.kofi {
-  margin-top: -6px;
-  color: var(--mute);
-}
 .spromo.kofi::after {
   content: none;
 }
-.about .kofi {
-  margin-top: -6px;
+.about .kofi b {
+  font-weight: 650;
+  color: var(--ink);
 }
 .srow {
   display: flex;

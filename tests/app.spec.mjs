@@ -654,6 +654,7 @@ test.describe('in a narrow window with a mouse', () => {
     const about = page.locator('#slist .about');
     await expect(about).toBeVisible();
     await expect(about.locator('.links a')).toHaveCount(4);
+    await expect(about.locator('.kofi')).toHaveText('This app is free. Buy me a 🥐 if you want.');
     expect(await about.evaluate(n => getComputedStyle(n).alignItems)).toBe('center');
   });
 });
@@ -766,6 +767,9 @@ test.describe('on a touch screen', () => {
     await expect(page.locator('#more')).toBeVisible();
     await expect(page.locator('#more [data-act="export"]')).toBeVisible();
     await expect(page.locator('#more .slinks a')).toHaveCount(4);
+    // the croissant says why it is there, on a row of its own under dogood.day
+    await expect(page.locator('#more .spromo.kofi')).toHaveText('This app is free. Buy me a 🥐 if you want.');
+    await expect(page.locator('#more .spromo:not(.kofi) + hr + .spromo.kofi')).toHaveCount(1);
     await page.locator('#scrim').tap({ position: { x: 60, y: 120 } });
     await expect(page.locator('#more')).toBeHidden();
 
