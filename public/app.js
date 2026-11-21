@@ -3261,7 +3261,43 @@ try {
         fill: 'backwards',
       }),
     );
+    ftEdges();
   }
+  // The popover never leaves the window: it stops above the bottom edge (or the bottom bar, or the keyboard),
+  // the title and the field stay, and the list scrolls inside it, its cut edges fading. Where the list is cut,
+  // the cut goes through the middle of a tag: a half-shown row says there is more, even with no scrollbar.
+  function fitFilter() {
+    const vv = W().visualViewport,
+      bar = $.mbar.getClientRects().length ? $.mbar.getBoundingClientRect().top : Infinity,
+      bottom = Math.min(vv ? vv.offsetTop + vv.height : W().innerHeight, bar),
+      top = $.fpop.offsetParent.getBoundingClientRect().top + $.fpop.offsetTop,
+      h = Math.max(150, Math.floor(bottom - 12 - top)),
+      t = $.ftags,
+      // positions inside the popover, from the layout: its opening scale does not count
+      y = el => {
+        let v = 0;
+        for (let n = el; n && n !== $.fpop; n = n.offsetParent) v += n.offsetTop;
+        return v;
+      };
+    $.fpop.style.maxHeight = h + 'px';
+    if (t.scrollHeight > t.clientHeight + 1) {
+      const cut = y(t) + t.clientHeight;
+      let mid = 0;
+      for (const r of t.children) {
+        const m = y(r) + r.offsetHeight / 2;
+        if (m > cut) break;
+        mid = m;
+      }
+      if (mid && cut - mid > 1) $.fpop.style.maxHeight = h - Math.round(cut - mid) + 'px';
+    }
+    ftEdges();
+  }
+  function ftEdges() {
+    const t = $.ftags;
+    t.classList.toggle('st', t.scrollTop > 1);
+    t.classList.toggle('sb', t.scrollTop + t.clientHeight < t.scrollHeight - 1);
+  }
+  $.ftags.addEventListener('scroll', ftEdges, { passive: true });
   function openFilter() {
     closePops();
     const n = allTags().length,
@@ -3270,6 +3306,8 @@ try {
     $.fq.value = '';
     $.fq.placeholder = `Find a tag among ${n}`;
     renderFtags('');
+    $.ftags.scrollTop = 0;
+    fitFilter();
     $.fpop.classList.add('on');
     $.fbtn.setAttribute('aria-expanded', 'true');
     hideTip(0);
@@ -4145,6 +4183,7 @@ try {
   };
   // Popovers follow their anchor when the keyboard comes or goes.
   function replacePops() {
+    if ($.fpop.classList.contains('on')) fitFilter();
     if ($.dpop.classList.contains('on')) {
       const from = DPX === 'in' ? $.inDay : $.dchip;
       place($.dpop, from.getBoundingClientRect(), DPX === 'in' ? 'down' : 'up');

@@ -392,6 +392,54 @@ test.describe('filter by tag', () => {
     await expect(page.locator('#list .row')).toHaveCount(1);
   });
 
+  test('in a short window the popover stops above the bottom edge and its list scrolls', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize({ width: 1100, height: 600 });
+    await page.addInitScript(k => {
+      const tags = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel', 'india', 'juliet', 'kilo', 'lima'];
+      const tasks = tags.map((g, i) => ({ id: 't' + i, text: `Task ${i} #${g}`, done: false }));
+      localStorage.setItem('oneday.v1', JSON.stringify({ days: { [k]: { u: 1, tasks } }, rules: {} }));
+    }, today());
+    await page.goto('/');
+    await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
+    await page.keyboard.press('f');
+    await expect(page.locator('#fq')).toBeFocused();
+    await expect(page.locator('#ftags .ftag')).toHaveCount(9);
+    const fit = () =>
+      page.evaluate(() => {
+        const p = document.getElementById('fpop').getBoundingClientRect(),
+          t = document.getElementById('ftags'),
+          q = document.getElementById('fq').getBoundingClientRect();
+        // the row the bottom edge cuts: how much of it shows
+        const cut = [...t.children].map(c => c.getBoundingClientRect()).find(c => c.top < p.bottom && c.bottom > p.bottom);
+        return {
+          bottom: p.bottom,
+          vh: innerHeight,
+          scrolls: t.scrollHeight > t.clientHeight + 1,
+          field: q.top >= p.top && q.bottom <= p.bottom,
+          sb: t.classList.contains('sb'),
+          half: cut ? (p.bottom - cut.top) / cut.height : 0,
+        };
+      });
+    let r = await fit();
+    expect(r.bottom).toBeLessThanOrEqual(r.vh - 8);
+    expect(r.scrolls).toBe(true);
+    expect(r.field).toBe(true);
+    expect(r.sb).toBe(true);
+    // the edge goes through the middle of a tag, so the list reads as one that goes on
+    expect(r.half).toBeGreaterThan(0.3);
+    expect(r.half).toBeLessThan(0.7);
+    // the last tag is reachable: the keyboard brings it into view
+    await page.keyboard.press('ArrowDown');
+    for (let i = 0; i < 8; i++) await page.keyboard.press('Tab');
+    const last = page.locator('#ftags .ftag').last();
+    await expect(last).toBeFocused();
+    await expect(last).toBeInViewport({ ratio: 1 });
+    // a taller window gives it its full height back
+    await page.setViewportSize({ width: 1100, height: 900 });
+    await expect.poll(async () => (await fit()).scrolls).toBe(false);
+  });
+
   test('search shows a dozen tags; after a # it offers the ones that start with what is typed', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.addInitScript(k => {

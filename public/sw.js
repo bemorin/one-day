@@ -1,6 +1,6 @@
 /* One Day service worker: makes the app open instantly and work offline, even from a cold start.
    It only caches the app's own files. It never sees your tasks, which live in localStorage. */
-const CACHE = 'one-day-v24';
+const CACHE = 'one-day-v25';
 const SHELL = [
   './',
   './app.css',
