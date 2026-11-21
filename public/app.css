@@ -848,7 +848,13 @@ ul {
   cursor: var(--c-ptr);
   transition: border-color 0.2s;
 }
+/* In an open card the title is easy to hit: a little above, below and after the words, not the whole line.
+   The strike-through stays on the words. */
 .row.open .t {
+  padding: 9px 32px 9px 0;
+  margin-right: -32px;
+  background-origin: content-box;
+  background-clip: content-box;
   cursor: var(--c-txt);
 }
 .row.open .in,

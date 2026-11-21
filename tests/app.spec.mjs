@@ -154,6 +154,34 @@ test('a click opens the card, the title of an open card edits, a double-click ed
   await expect(a.locator('.t')).not.toHaveAttribute('contenteditable', /.+/);
 });
 
+test('an open card: its title is easy to hit, a little above and after the words', async ({ page }) => {
+  await open(page);
+  const r = row(page, 'Plan the trip');
+  await r.locator('.mt').click();
+  await expect(r).toHaveClass(/\bopen\b/);
+  const words = () =>
+    r.locator('.t').evaluate(n => {
+      const g = document.createRange();
+      g.selectNodeContents(n);
+      const b = g.getBoundingClientRect();
+      return { l: b.left, r: b.right, t: b.top, b: b.bottom };
+    });
+  let w = await words();
+  await page.mouse.click(w.r + 22, (w.t + w.b) / 2);
+  await expect(r).toHaveClass(/\bediting\b/);
+  await page.keyboard.press('Escape');
+  await expect(r).not.toHaveClass(/\bediting\b/);
+  await expect(r).toHaveClass(/\bopen\b/);
+  w = await words();
+  await page.mouse.click(w.l + 8, w.t - 6);
+  await expect(r).toHaveClass(/\bediting\b/);
+  await page.keyboard.press('Escape');
+  // further right, the line still closes the card
+  const acts = await r.locator('.in .acts').boundingBox();
+  await page.mouse.click(Math.min(w.r + 100, acts.x - 12), (w.t + w.b) / 2);
+  await expect(r).not.toHaveClass(/\bopen\b/);
+});
+
 test('a click outside closes the card, the calendar and the timer', async ({ page }) => {
   await open(page);
   const b = row(page, 'Plan the trip');
