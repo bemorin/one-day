@@ -425,19 +425,10 @@ test('Repeat opened from the day picker: Cancel goes back to the picker', async 
 
 test('the footer: the croissant sits midway between dogood.day and the links', async ({ page }) => {
   await open(page);
-  // measure the words, not the enlarged hit areas around them
-  const [left, right] = await page.evaluate(() => {
-    const text = sel => {
-      const el = document.querySelector(sel),
-        r = el.getBoundingClientRect(),
-        cs = getComputedStyle(el);
-      return { l: r.left + parseFloat(cs.paddingLeft), r: r.right - parseFloat(cs.paddingRight) };
-    };
-    const p = text('#foot .promo'),
-      k = text('#foot .kofi'),
-      n = text('#foot nav a');
-    return [k.l - p.r, n.l - k.r];
-  });
+  // the pills: the croissant's sits midway between the other two
+  const [p, k, n] = await Promise.all(['#foot .promo', '#foot .kofi', '#foot nav'].map(x => page.locator(x).boundingBox()));
+  const left = k.x - (p.x + p.width),
+    right = n.x - (k.x + k.width);
   expect(Math.abs(left - right)).toBeLessThan(2);
   await expect(page.locator('#foot nav a', { hasText: 'Privacy' })).toBeVisible();
   await expect(page.locator('#foot nav a', { hasText: /^Legal$/ })).toBeVisible();
