@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { spawn } from 'node:child_process';
 import AxeBuilder from '@axe-core/playwright';
 
 const key = d =>
@@ -63,6 +64,49 @@ test('unknown addresses get a real 404 that leads back to the app', async ({ pag
   expect(res.status()).toBe(404);
   await page.getByRole('link', { name: 'Open One Day' }).click();
   await expect(page.locator('#app')).toBeVisible();
+});
+
+test('works offline from a cold start once visited, whatever the address', async ({ browser }) => {
+  const port = 4175,
+    url = `http://localhost:${port}/`,
+    up = async () => {
+      try {
+        return (await fetch(url)).ok;
+      } catch (e) {
+        return false;
+      }
+    };
+  const srv = spawn(process.execPath, ['scripts/serve.mjs', String(port)], { stdio: 'ignore' });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  try {
+    await expect.poll(up, { timeout: 8000 }).toBe(true);
+    const page = await ctx.newPage();
+    await page.goto(url);
+    await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
+    await page.locator('#input').fill('Written before going offline');
+    await page.locator('#input').press('Enter');
+    // the service worker controls the page and has cached the whole app
+    await page.waitForFunction(async () => {
+      if (!navigator.serviceWorker.controller) return false;
+      const keys = await caches.keys();
+      return keys.length === 1 && (await (await caches.open(keys[0])).keys()).length >= 11;
+    });
+    await page.close();
+  } finally {
+    srv.kill();
+  }
+  await expect.poll(up, { timeout: 8000 }).toBe(false);
+  const cold = await ctx.newPage(),
+    errors = [];
+  cold.on('pageerror', e => errors.push(e.message));
+  for (const address of [url, url + '?from=home', url + 'index.html']) {
+    await cold.goto(address);
+    await expect(cold.locator('#app')).not.toHaveClass(/\bpre\b/);
+    await expect(cold.locator('#list .row', { hasText: 'Written before going offline' })).toBeVisible();
+    expect(await cold.evaluate(() => document.fonts.check('800 40px Archivo'))).toBe(true);
+  }
+  expect(errors).toEqual([]);
+  await ctx.close();
 });
 
 test('adds, ticks, keeps, deletes and restores a task', async ({ page }) => {

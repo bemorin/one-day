@@ -2730,8 +2730,9 @@ try {
     const f = document.getElementById('foot');
     if (!f) return '';
     const promo = f.querySelector('.promo'),
+      kofi = f.querySelector('.kofi'),
       links = [...f.querySelectorAll('nav a')].map(a => a.cloneNode(true).outerHTML).join('');
-    return `<div class="about">${promo ? promo.cloneNode(true).outerHTML : ''}<p class="links">${links}</p></div>`;
+    return `<div class="about">${promo ? promo.cloneNode(true).outerHTML : ''}${kofi ? kofi.cloneNode(true).outerHTML : ''}<p class="links">${links}</p></div>`;
   }
   function moveHl() {
     const b = $.slist.querySelector(`.sr[data-i="${SEL}"]`);
@@ -3641,13 +3642,16 @@ try {
   function openMore() {
     const f = document.getElementById('foot'),
       promo = f && f.querySelector('.promo'),
+      kofi = f && f.querySelector('.kofi'),
       links = f ? [...f.querySelectorAll('nav a')].map(x => x.cloneNode(true).outerHTML).join('') : '';
     $.moreList.innerHTML =
       `<div class="sbk"><button type="button" class="sbk-b" data-act="import">${IC.up}<span>Import backup</span></button>` +
       `<button type="button" class="sbk-b" data-act="export">${IC.down}<span>${canTop ? 'Export backup' : 'Copy backup'}</span></button></div><hr>` +
       (promo
-        ? `<a class="spromo" href="${esc(promo.href)}" target="_blank" rel="noopener" referrerpolicy="strict-origin">${promo.innerHTML}</a><hr>`
+        ? `<a class="spromo" href="${esc(promo.href)}" target="_blank" rel="noopener" referrerpolicy="strict-origin">${promo.innerHTML}</a>`
         : '') +
+      (kofi ? `<a class="spromo kofi" href="${esc(kofi.href)}" target="_blank" rel="noopener">${kofi.innerHTML}</a>` : '') +
+      '<hr>' +
       `<p class="slinks">${links}</p>`;
     compose(false);
     closePops();
@@ -4511,4 +4515,9 @@ try {
     document.querySelector('link[rel=manifest]')
   )
     navigator.serviceWorker.register('sw.js').catch(() => {});
+  if (navigator.storage && navigator.storage.persist && matchMedia('(display-mode: standalone)').matches)
+    navigator.storage
+      .persisted()
+      .then(p => p || navigator.storage.persist())
+      .catch(() => {});
 }

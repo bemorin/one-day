@@ -332,20 +332,24 @@ async function main() {
   await press('Control+k', ['Ctrl', 'K'], 'Close');
   await sleep(590);
 
-  // 8. Timer
-  await cap('A calm timer', 'Minutes, with a line that fills each minute.');
+  // 8. Timer, live
+  await cap('Calm or live', 'A timer that rolls like the date.');
   await sleep(370);
   await press('t', ['T'], 'Timer');
-  await sleep(590);
+  await sleep(520);
+  await click('#seg [data-m="live"]', 'Live');
+  await sleep(520);
   await click('#tstart', 'Start');
-  await sleep(1260);
+  await sleep(1900);
   await click([1120, 600], null);
   await sleep(520);
 
-  // 9. Light and dark, crossfaded
-  await cap('Light and dark', 'It follows your system.');
+  // 9. Light and dark, in one click, crossfaded
+  await cap('Light and dark', 'It follows your system, or switches in one click.');
   await sleep(670);
-  await glide(1180, 650, 400);
+  const [tx, ty] = await at('#theme');
+  await glide(tx, ty, 450);
+  await sleep(150);
   const still = (await page.screenshot({ type: 'jpeg', quality: 95 })).toString('base64');
   await page.evaluate(src => {
     const img = document.createElement('img');
@@ -354,8 +358,12 @@ async function main() {
     document.getElementById('vo').prepend(img);
   }, still);
   await sleep(120);
-  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.evaluate(([i, l]) => window.__hud([i], l), [ICON_CLICK, 'Dark mode']);
+  await page.mouse.down();
+  await sleep(90);
+  await page.mouse.up();
   await page.evaluate(() => window.__dark(true));
+  await glide(1180, 650, 500);
   await sleep(200);
   await page.evaluate(() => {
     const img = document.querySelector('#vo .fade');

@@ -42,6 +42,11 @@ function parseHeaders(text) {
 createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
+    // Like Cloudflare Pages: /index.html redirects to /.
+    if (url.pathname.endsWith('/index.html')) {
+      res.writeHead(308, { Location: url.pathname.slice(0, -'index.html'.length) + url.search });
+      return res.end();
+    }
     let path = decodeURIComponent(url.pathname);
     if (path.endsWith('/')) path += 'index.html';
     const file = normalize(join(pub, path));

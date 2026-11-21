@@ -55,6 +55,7 @@ On a phone: tap a task to open it, hold then drag to reorder, swipe sideways to 
 - **No cookies, no analytics, no third-party requests.** The font is bundled with the app, and the Content Security Policy only lets the app's own files load. The footer links are plain links: nothing is contacted until you click one. The dogood.day link tells that site you came from One Day (the address of the site only, no page and no identifier); the others send nothing.
 - **The service worker caches the app's files only**, so it opens instantly and works offline. It never reads your tasks.
 - **Sent tasks travel in the link itself**, after the `#`, never through a server. Anyone who has the link can read the task, as with any message.
+- **Works offline, even from a cold start**, once you have opened it online one time. Install it (or add it to your Home Screen) so the browser keeps its storage: Safari can clear the data of sites you have not opened for a week.
 - **Backups are yours.** Search → _Export backup_ downloads a JSON file. _Import backup_ merges one back without overwriting existing tasks.
 - **Erasing everything:** clear this site's data in your browser settings.
 
@@ -132,7 +133,7 @@ Current Chrome, Edge, Safari and Firefox. Keep-on-top needs Chrome or Edge 116 o
 
 [Ben Morin](https://bemorin.com) · [@benmorinbm on X](https://x.com/benmorinbm). If you also keep a journal, try [dogood.day](https://dogood.day).
 
-If One Day helps your days, you can [sponsor its development](https://github.com/sponsors/bemorin).
+If One Day helps your days, you can [buy me a croissant](https://ko-fi.com/bemorin) 🥐 or [sponsor it on GitHub](https://github.com/sponsors/bemorin).
 
 ## License
 
