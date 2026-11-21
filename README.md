@@ -4,7 +4,9 @@ A calm, minimalist task list that shows **one day at a time**, floats above your
 
 **[Open One Day →](https://day.bemorin.com)**
 
-![One Day in light mode with an open task card, and in dark mode with the timer running](docs/hero.png)
+![One Day in motion: adding a task, opening one, sending a task to tomorrow, making it repeat, sending it as a link, search, the timer, light and dark](docs/demo.webp)
+
+[Watch the demo in HD (MP4, 1080p)](https://github.com/bemorin/one-day/releases/download/v1.1.0/one-day-demo.mp4)
 
 One Day is a single-page web app with no framework, no runtime dependencies, no account and no tracking. Open it, write down what today is for, tick things off, and move on to tomorrow.
 
@@ -23,6 +25,8 @@ One Day is a single-page web app with no framework, no runtime dependencies, no 
 - **Keep on top.** Pop the app into a small window that stays above everything else (Chrome and Edge on desktop).
 - **Leftovers.** Unfinished tasks from earlier days can be brought to today in one click.
 - **Light and dark**, following your system. **Works offline** once installed, and installs as an app.
+
+![One Day in light mode with an open task card, and in dark mode with the timer running](docs/hero.png)
 
 ## Keyboard
 
