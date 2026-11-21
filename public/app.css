@@ -1384,7 +1384,9 @@ input::placeholder {
   transform: scale(0.94);
 }
 .dchip.set,
-.dchip.set:hover {
+.dchip.set:hover,
+.add:focus-within .dchip.set,
+.dchip.set[aria-expanded='true'] {
   background: var(--ink);
   color: var(--bg);
   box-shadow: none;
