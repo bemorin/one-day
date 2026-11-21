@@ -1343,7 +1343,7 @@ test.describe('the lock', () => {
   }
   async function fillOn(page, pass = PASS) {
     await expect(page.locator('#lockset')).toBeVisible();
-    await expect(page.locator('#lsT')).toHaveText('Lock One Day');
+    await expect(page.locator('#lsT')).toHaveText('Protect One Day');
     await page.locator('#lsPass').fill(pass);
     await page.locator('#lsPass2').fill(pass);
     await page.locator('#lsOk').check();
@@ -1354,7 +1354,7 @@ test.describe('the lock', () => {
     await fillOn(page, pass);
     await page.locator('#lsGo').click();
     await expect(page.locator('#lockset')).toBeHidden({ timeout: 20000 });
-    await expect(page.locator('#toast')).toContainText('The lock is on');
+    await expect(page.locator('#toast')).toContainText('One Day is protected');
   }
   async function unlock(page, pass = PASS) {
     await page.locator('#lockPass').fill(pass);
@@ -1401,10 +1401,10 @@ test.describe('the lock', () => {
       return [hm.format(now), hm.format(now - 60e3)];
     });
     expect(ok).toContain(shown.replace('Time: ', ''));
-    await expect(page.locator('#lpill')).toHaveAttribute('aria-label', 'Lock with a passphrase');
+    await expect(page.locator('#lpill')).toHaveAttribute('aria-label', 'Protect with a passphrase');
     await page.locator('#lpill').click();
     await expect(page.locator('#lockset')).toBeVisible();
-    await expect(page.locator('#lsT')).toHaveText('Lock One Day');
+    await expect(page.locator('#lsT')).toHaveText('Protect One Day');
   });
 
   test('changes stay encrypted; L locks at once and leaves nothing on screen', async ({ page }) => {
@@ -1507,7 +1507,7 @@ test.describe('the lock', () => {
     await page.locator('#lsBio').check();
     await page.locator('#lsGo').click();
     await expect(page.locator('#lockset')).toBeHidden({ timeout: 20000 });
-    await expect(page.locator('#toast')).toHaveText(/The lock is on\. Your tasks are encrypted\./);
+    await expect(page.locator('#toast')).toHaveText(/One Day is protected\. Your tasks are encrypted\./);
     expect(JSON.parse((await stored(page)).vault).bio).toBeTruthy();
 
     await page.reload();

@@ -5058,7 +5058,7 @@ try {
     LP.hidden = !CAN_LOCK;
     const on = !!vault;
     LP.classList.toggle('on', on);
-    const t = on ? 'Lock now' : 'Lock with a passphrase';
+    const t = on ? 'Lock now' : 'Protect with a passphrase';
     LP.dataset.tip = t;
     LP.setAttribute('aria-label', t);
     if (on) LP.dataset.key = 'L';
@@ -5115,12 +5115,12 @@ try {
   /* the lock's settings: turn on, change, turn off, open an encrypted backup, start over */
   const LST = {
     on: [
-      'Lock One Day',
+      'Protect One Day',
       'Choose a passphrase. Your tasks will be encrypted in this browser, and One Day will ask for it when it opens.',
-      'Lock',
+      'Protect',
     ],
     change: ['Change the passphrase', 'Your tasks stay encrypted. Backups made before keep the passphrase they were made with.', 'Change'],
-    off: ['Turn off the lock', 'Your tasks will be stored in this browser without encryption again.', 'Turn off'],
+    off: ['Turn off protection', 'Your tasks will be stored in this browser without encryption again.', 'Turn off'],
     ask: ['Encrypted backup', 'Enter the passphrase this backup was made with.', 'Open'],
     reset: [
       'Forgot the passphrase?',
@@ -5272,8 +5272,8 @@ try {
       lockUI();
       return {
         toast: bioFailed
-          ? 'The lock is on. Fingerprint or face couldn’t be set up, so use your passphrase.'
-          : 'The lock is on. Your tasks are encrypted.',
+          ? 'One Day is protected. Fingerprint or face couldn’t be set up, so use your passphrase.'
+          : 'One Day is protected. Your tasks are encrypted.',
       };
     },
     async change(old, pass) {
@@ -5297,7 +5297,7 @@ try {
       if (RAW) RAW.fill(0);
       RAW = null;
       lockUI();
-      return { toast: 'The lock is off. Your tasks are no longer encrypted.' };
+      return { toast: 'Protection is off. Your tasks are no longer encrypted.' };
     },
     async reset() {
       localStorage.removeItem(VK);
@@ -5324,7 +5324,7 @@ try {
     if (!L.lsOkL.hidden && !L.lsOk.checked)
       return no(m.mode === 'reset' ? 'Tick the box to erase them' : 'Tick “I understand” first', L.lsOk, L.lsOkL);
     say(L.lsForm, L.lsErr, '');
-    busy(L.lsGo, { on: 'Locking…', change: 'Changing…', off: 'Turning off…', ask: 'Opening…', reset: 'Erasing…' }[m.mode]);
+    busy(L.lsGo, { on: 'Protecting…', change: 'Changing…', off: 'Turning off…', ask: 'Opening…', reset: 'Erasing…' }[m.mode]);
     let res;
     try {
       res = await (m.mode === 'ask' ? m.check(old) : LOCKDO[m.mode](old, p1));
@@ -5390,7 +5390,7 @@ try {
   }
   function lockActs() {
     if (!CAN_LOCK) return [];
-    if (!vault) return [['lock', IC.lock, 'Lock with a passphrase']];
+    if (!vault) return [['lock', IC.lock, 'Protect with a passphrase']];
     return [
       ['locknow', IC.lock, 'Lock now'],
       ['lockchange', IC.key, 'Change passphrase'],
@@ -5399,7 +5399,7 @@ try {
         : bioOK
           ? ['bioon', IC.finger, 'Use fingerprint or face']
           : null,
-      ['lockoff', IC.unlock, 'Turn off the lock'],
+      ['lockoff', IC.unlock, 'Turn off protection'],
     ].filter(Boolean);
   }
   function lockChips() {
