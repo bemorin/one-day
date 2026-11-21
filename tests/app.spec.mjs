@@ -288,15 +288,24 @@ test('an imported backup cannot run code or break the page', async ({ page }) =>
 test('the leaving day floats above the list instead of joining it', async ({ page }) => {
   await open(page, { motion: 'no-preference' });
   await page.keyboard.press('ArrowRight');
-  // read it in one go: the ghost only lives for the length of the transition
-  const st = await page.evaluate(() => {
-    const g = document.querySelector('.vp > .ghost');
-    return g && {
-      pos: getComputedStyle(g).position,
-      ghostTop: g.getBoundingClientRect().top,
-      addTop: document.getElementById('add').getBoundingClientRect().top,
-    };
-  });
+  // the ghost only lives for the length of the transition: read it on the first frame it exists
+  const st = await page.evaluate(
+    () =>
+      new Promise(done => {
+        const t0 = performance.now();
+        (function look() {
+          const g = document.querySelector('.vp > .ghost');
+          if (g)
+            return done({
+              pos: getComputedStyle(g).position,
+              ghostTop: g.getBoundingClientRect().top,
+              addTop: document.getElementById('add').getBoundingClientRect().top,
+            });
+          if (performance.now() - t0 > 3000) return done(null);
+          requestAnimationFrame(look);
+        })();
+      }),
+  );
   expect(st).not.toBeNull();
   expect(st.pos).toBe('absolute');
   expect(st.ghostTop).toBeLessThan(st.addTop);
@@ -363,8 +372,7 @@ test('one click switches light and dark, kept across visits, and back to the sys
   await page.locator('#theme').click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.locator('#theme')).toHaveAttribute('aria-label', 'Switch to light mode');
-  const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-  expect(bg).toBe('rgb(0, 0, 0)');
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(0, 0, 0)');
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.locator('#theme').click();
