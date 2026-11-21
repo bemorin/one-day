@@ -4114,11 +4114,7 @@ try {
     $.moreList.innerHTML =
       `<div class="sbk"><button type="button" class="sbk-b" data-act="import">${IC.up}<span>Import backup</span></button>` +
       `<button type="button" class="sbk-b" data-act="export">${IC.down}<span>${canTop ? 'Export backup' : 'Copy backup'}</span></button></div>` +
-      (CAN_LOCK
-        ? lockActs()
-            .map(([k, i, l]) => `<button type="button" class="srow" data-act="${k}">${i}<span>${l}</span></button>`)
-            .join('')
-        : '') +
+      (CAN_LOCK ? lockBtns() : '') +
       (promo
         ? `<a class="spromo" href="${esc(promo.href)}" target="_blank" rel="noopener" referrerpolicy="strict-origin">${promo.innerHTML}</a>`
         : '') +
@@ -5401,6 +5397,13 @@ try {
           : null,
       ['lockoff', IC.unlock, 'Turn off protection'],
     ].filter(Boolean);
+  }
+  // In More on a phone: centred buttons like the backups'. Several stack in one rounded group, like an action sheet.
+  function lockBtns() {
+    const a = lockActs();
+    return `<div class="slk${a.length > 1 ? ' grp' : ''}">${a
+      .map(([k, i, l]) => `<button type="button" class="sbk-b" data-act="${k}">${i}<span>${l}</span></button>`)
+      .join('')}</div>`;
   }
   function lockChips() {
     const a = lockActs();

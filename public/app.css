@@ -2643,6 +2643,49 @@ mark {
   background: var(--hover);
   transform: scale(0.97);
 }
+.sbk-b span {
+  text-align: center;
+  text-wrap: balance;
+  line-height: 1.2;
+}
+/* the lock's actions under the backups: one is a button like theirs; several share one outline, a hairline between
+   them, and a press lights the row instead of shrinking it */
+.slk {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  margin: 6px 2px 4px;
+}
+.slk .sbk-b {
+  padding: 0 16px;
+}
+.slk.grp::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1.25px var(--line2);
+  pointer-events: none;
+}
+.slk.grp .sbk-b {
+  border-radius: 0;
+  box-shadow: none;
+}
+.slk.grp .sbk-b + .sbk-b {
+  box-shadow: inset 0 1px var(--line);
+}
+.slk.grp .sbk-b:first-child {
+  border-radius: 16px 16px 0 0;
+}
+.slk.grp .sbk-b:last-child {
+  border-radius: 0 0 16px 16px;
+}
+.slk.grp .sbk-b:active {
+  transform: none;
+}
+.slk.grp .sbk-b:focus-visible {
+  outline-offset: -3px;
+}
 .sbk-b svg {
   width: 19px;
   height: 19px;
