@@ -2,6 +2,8 @@
 
 A calm, minimalist task list that shows **one day at a time**, floats above your other windows, and keeps your data on your device.
 
+**[Open One Day →](https://day.bemorin.com)**
+
 ![One Day in light mode with an open task card, and in dark mode with the timer running](docs/hero.png)
 
 One Day is a single-page web app with no framework, no runtime dependencies, no account and no tracking. Open it, write down what today is for, tick things off, and move on to tomorrow.
@@ -43,7 +45,7 @@ On a phone: tap a task to open it, hold then drag to reorder, swipe sideways to 
 ## Privacy
 
 - **Your tasks never leave your device.** They are stored in your browser's `localStorage` for this site. There is no server, database or account behind the app, so whoever hosts it cannot see them.
-- **No cookies, no analytics, no third-party requests.** The font is bundled with the app, and the Content Security Policy only lets the app's own files load. The footer links are plain links: nothing is contacted until you click one.
+- **No cookies, no analytics, no third-party requests.** The font is bundled with the app, and the Content Security Policy only lets the app's own files load. The footer links are plain links: nothing is contacted until you click one. The dogood.day link tells that site you came from One Day (the address of the site only, no page and no identifier); the others send nothing.
 - **The service worker caches the app's files only**, so it opens instantly and works offline. It never reads your tasks.
 - **Backups are yours.** Search → _Export backup_ downloads a JSON file. _Import backup_ merges one back without overwriting existing tasks.
 - **Erasing everything:** clear this site's data in your browser settings.
@@ -116,6 +118,10 @@ After changing any file the service worker caches, bump `CACHE` in `public/sw.js
 ## Browser support
 
 Current Chrome, Edge, Safari and Firefox. Keep-on-top needs Chrome or Edge 116 or later on desktop. Spring easing uses CSS `linear()` and falls back to standard curves in older browsers; continuous card corners use `corner-shape` where it exists.
+
+## Made by
+
+[Benoît Morin](https://bemorin.com) · [@benmorinbm on X](https://x.com/benmorinbm). If you also keep a journal, try [dogood.day](https://dogood.day).
 
 ## License
 
