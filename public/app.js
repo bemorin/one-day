@@ -3149,7 +3149,7 @@
     };
     $.rnone.textContent = o.ctx === 'task' ? (RP.had ? 'Stop repeating' : 'Cancel') : RP.had ? "Don't repeat" : 'Cancel';
     delete $.rnum.dataset.v;
-    $.rpop.classList.add('on');
+    // Lay it out first, then place() shows it where it belongs: no flight from the corner.
     renderRp(false);
     place($.rpop, o.anchor, o.prefer);
     if (o.from) o.from.setAttribute('aria-expanded', 'true');
