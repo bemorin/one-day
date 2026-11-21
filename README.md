@@ -24,7 +24,8 @@ One Day is a single-page web app with no framework, no runtime dependencies, no 
 - **Timer.** A countdown in two moods: _Calm_ (minutes, with a line that fills each minute) or _Live_ (rolling minutes and seconds).
 - **Keep on top.** Pop the app into a small window that stays above everything else (Chrome and Edge on desktop).
 - **Leftovers.** Unfinished tasks from earlier days can be brought to today in one click.
-- **Light and dark**, following your system. **Works offline** once installed, and installs as an app.
+- **On a phone**, a bottom bar puts search, the timer, a big add button, sending the day and the rest under your thumb. The add button opens the composer as a sheet above the keyboard.
+- **Light and dark**, following your system, or switched in one click (the sun and moon at the top right). **Works offline** once installed, and installs as an app.
 
 ![One Day in light mode with an open task card, and in dark mode with the timer running](docs/hero.png)
 

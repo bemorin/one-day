@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
@@ -86,6 +86,19 @@
               <svg viewBox="0 0 20 20">
                 <rect x="2.5" y="4" width="15" height="12" rx="2.5" />
                 <rect x="10" y="9" width="5" height="4.5" rx="1" fill="currentColor" stroke="none" />
+              </svg>
+            </button>
+            <button class="ib" id="theme" type="button" data-tip="Dark mode" aria-label="Switch to dark mode">
+              <svg class="sm" viewBox="0 0 20 20">
+                <mask id="smMask">
+                  <rect width="20" height="20" fill="#fff" />
+                  <circle class="mm" cx="24" cy="1" r="6.5" fill="#000" />
+                </mask>
+                <circle class="core" cx="10" cy="10" r="4" mask="url(#smMask)" fill="currentColor" stroke="none" />
+                <path
+                  class="rays"
+                  d="M10 1.75v1.6M10 16.65v1.6M18.25 10h-1.6M3.35 10h-1.6M15.83 4.17l-1.13 1.13M5.3 14.7l-1.13 1.13M15.83 15.83 14.7 14.7M5.3 5.3 4.17 4.17"
+                />
               </svg>
             </button>
           </div>
@@ -216,6 +229,35 @@
             </div>
           </div>
         </main>
+        <nav class="mbar" id="mbar" aria-label="Actions">
+          <button type="button" class="mb" id="mbSearch">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></svg
+            ><span>Search</span>
+          </button>
+          <button type="button" class="mb" id="mbTimer" aria-haspopup="dialog" aria-controls="tpop">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13.5" r="7.25" /><path d="M12 10v3.7l2.4 1.6M9.8 3.25h4.4" /></svg
+            ><span id="mbTimerL">Timer</span>
+          </button>
+          <button type="button" class="mplus" id="mbAdd" aria-label="Add a task" aria-expanded="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+          </button>
+          <button type="button" class="mb" id="mbSend">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 14.5V3.5M8 7.25 12 3.25l4 4M8 10H6.5A1.75 1.75 0 0 0 4.75 11.75v6.5c0 .97.78 1.75 1.75 1.75h11c.97 0 1.75-.78 1.75-1.75v-6.5c0-.97-.78-1.75-1.75-1.75H16" />
+            </svg
+            ><span>Send day</span>
+          </button>
+          <button type="button" class="mb" id="mbMore" aria-haspopup="dialog" aria-controls="more" aria-expanded="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="12" r="1.2" /><circle cx="12" cy="12" r="1.2" /><circle cx="18.5" cy="12" r="1.2" /></svg
+            ><span>More</span>
+          </button>
+        </nav>
+        <div class="scrim" id="scrim" hidden></div>
+        <div class="sheet" id="more" role="dialog" aria-label="More" hidden>
+          <div class="grab" aria-hidden="true"></div>
+          <div id="moreList"></div>
+        </div>
+        <input type="file" id="impf" accept="application/json,.json" hidden />
         <div class="dpop" id="dpop" role="dialog" aria-label="Add the task to">
           <div class="dq" id="dq">
             <button type="button" class="chip" data-d="today">Today</button
@@ -337,8 +379,7 @@
           <div class="sres" id="sres">
             <div class="hl" id="hl"></div>
             <div id="slist" role="listbox" aria-label="Results"></div>
-            <span class="sr-only" id="scount" role="status" aria-live="polite"></span
-            ><input type="file" id="impf" accept="application/json,.json" hidden />
+            <span class="sr-only" id="scount" role="status" aria-live="polite"></span>
           </div>
         </div>
         <div class="toast" id="toast" role="status" aria-live="polite">

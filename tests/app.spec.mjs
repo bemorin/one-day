@@ -250,6 +250,20 @@ test('the leaving day floats above the list instead of joining it', async ({ pag
   expect(st.ghostTop).toBeLessThan(st.addTop);
 });
 
+test('one click switches light and dark, kept across visits, and back to the system', async ({ page }) => {
+  await open(page);
+  await page.locator('#theme').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('#theme')).toHaveAttribute('aria-label', 'Switch to light mode');
+  const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  expect(bg).toBe('rgb(0, 0, 0)');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.locator('#theme').click();
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.+/);
+  expect(await page.evaluate(() => localStorage.getItem('oneday.theme'))).toBeNull();
+});
+
 test('a sideways scroll on a month grid changes the month, not the day', async ({ page }) => {
   await open(page);
   await page.locator('#meta').click();
@@ -524,6 +538,19 @@ test.describe('on a large screen', () => {
   });
 });
 
+test.describe('in a narrow window with a mouse', () => {
+  test.use({ viewport: { width: 600, height: 860 } });
+  test('search shows the about links centred at the bottom', async ({ page }) => {
+    await open(page);
+    await expect(page.locator('#mbar')).toBeHidden();
+    await page.locator('#sb').click();
+    const about = page.locator('#slist .about');
+    await expect(about).toBeVisible();
+    await expect(about.locator('.links a')).toHaveCount(4);
+    expect(await about.evaluate(n => getComputedStyle(n).alignItems)).toBe('center');
+  });
+});
+
 test.describe('on a touch screen', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
@@ -558,14 +585,53 @@ test.describe('on a touch screen', () => {
     await expect(page.locator('#popT')).not.toHaveText(title);
   });
 
-  test('search shows the about links centred at the bottom', async ({ page }) => {
+  test('the bottom bar: add, more, timer, search, and sending the day', async ({ page, browser }) => {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
     await open(page);
-    await page.locator('#sb').tap();
-    const about = page.locator('#slist .about');
-    await expect(about).toBeVisible();
-    await expect(about.locator('.promo')).toBeVisible();
-    await expect(about.locator('.links a')).toHaveCount(4);
-    expect(await about.evaluate(n => getComputedStyle(n).alignItems)).toBe('center');
+    await expect(page.locator('#mbar')).toBeVisible();
+    await expect(page.locator('#sb')).toBeHidden();
+    await expect(page.locator('#add')).toBeHidden();
+
+    await page.locator('#mbAdd').tap();
+    await expect(page.locator('#add')).toBeVisible();
+    await expect(page.locator('#input')).toBeFocused();
+    await page.locator('#input').fill('Buy flowers');
+    await page.locator('#input').press('Enter');
+    await expect(row(page, 'Buy flowers')).toBeVisible();
+    await page.locator('#scrim').tap({ position: { x: 60, y: 120 } });
+    await expect(page.locator('#add')).toBeHidden();
+
+    await page.locator('#mbMore').tap();
+    await expect(page.locator('#more')).toBeVisible();
+    await expect(page.locator('#more [data-act="export"]')).toBeVisible();
+    await expect(page.locator('#more .slinks a')).toHaveCount(4);
+    await page.locator('#scrim').tap({ position: { x: 60, y: 120 } });
+    await expect(page.locator('#more')).toBeHidden();
+
+    await page.locator('#mbTimer').tap();
+    await expect(page.locator('#tpop')).toHaveClass(/\bon\b/);
+    await page.locator('#mbTimer').tap();
+    await expect(page.locator('#tpop')).not.toHaveClass(/\bon\b/);
+
+    await page.locator('#mbSearch').tap();
+    await expect(page.locator('#srch')).toHaveClass(/\bon\b/);
+    await page.locator('#sx').tap();
+    await expect(page.locator('#srch')).not.toHaveClass(/\bon\b/);
+
+    // no share sheet in a headless browser: the link goes to the clipboard
+    await page.evaluate(() => Object.defineProperty(navigator, 'share', { value: undefined }));
+    await page.locator('#mbSend').tap();
+    await expect(page.locator('#toast')).toContainText('these tasks');
+    const link = await page.evaluate(() => navigator.clipboard.readText());
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    const other = await ctx.newPage();
+    await other.emulateMedia({ reducedMotion: 'reduce' });
+    await other.goto(link);
+    await expect(other.locator('#inT')).toHaveText('3 tasks for you');
+    await other.locator('#inYes').tap();
+    await expect(other.locator('#list .row', { hasText: 'Buy flowers' })).toBeVisible();
+    await expect(other.locator('#list .row', { hasText: 'Plan the trip' })).toBeVisible();
+    await ctx.close();
   });
 });
 

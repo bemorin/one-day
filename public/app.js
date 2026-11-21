@@ -1,11 +1,15 @@
 /*! One Day — a calm, one-day-at-a-time task list. MIT License. */
 'use strict';
+try {
+  const th = localStorage.getItem('oneday.theme');
+  if (th === 'light' || th === 'dark') document.documentElement.dataset.theme = th;
+} catch (e) {}
 {
   const app = document.getElementById('app'),
     home = document.getElementById('home'),
     q = s => app.querySelector(s),
     $ = {};
-  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inTitle inMeta inDay inDayL inNo inYes'
+  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inT inTitle inMeta inDay inDayL inNo inYes mbar mbSearch mbTimer mbTimerL mbAdd mbSend mbMore scrim more moreList theme'
     .split(' ')
     .forEach(id => ($[id] = q('#' + id)));
   const fill = q('.rule i'),
@@ -498,6 +502,7 @@
     list: '<svg viewBox="0 0 14 14"><path d="m2 4 1.3 1.3L5.6 3M7.5 4.2H12M2 9.4l1.3 1.3 2.3-2.3M7.5 9.6H12"/></svg>',
     note: '<svg viewBox="0 0 14 14"><path d="M2.5 3.5h9M2.5 7h9M2.5 10.5h5.5"/></svg>',
     rep: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.75 7.25a5.25 5.25 0 0 1 9.1-3.3l1.4 1.3M13.25 2.25v3h-3M13.25 8.75a5.25 5.25 0 0 1-9.1 3.3l-1.4-1.3M2.75 13.75v-3h3"/></svg>',
+    journal: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.75h10.75c.55 0 1 .45 1 1v14.5c0 .55-.45 1-1 1H6.5a1.75 1.75 0 0 1-1.75-1.75V5.5c0-.97.78-1.75 1.75-1.75Z"/><path d="M9 8h6M9 11.5h4"/></svg>',
     send: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 9.75V2.25M5.25 5 8 2.25 10.75 5M5.5 7H4.5c-.83 0-1.5.67-1.5 1.5v4c0 .83.67 1.5 1.5 1.5h7c.83 0 1.5-.67 1.5-1.5v-4c0-.83-.67-1.5-1.5-1.5h-1"/></svg>',
     down: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7.5M4.75 7 8 10.25 11.25 7M2.75 11.5v.75c0 .69.56 1.25 1.25 1.25h8c.69 0 1.25-.56 1.25-1.25v-.75"/></svg>',
     up: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.25V2.75M4.75 6 8 2.75 11.25 6M2.75 11.5v.75c0 .69.56 1.25 1.25 1.25h8c.69 0 1.25-.56 1.25-1.25v-.75"/></svg>',
@@ -2259,8 +2264,8 @@
   function onOutside(e) {
     const t = e.target && e.target.closest ? e.target : null;
     if ($.srch.classList.contains('on') && t && !app.contains(t)) closeSearch(false);
-    if (popOn() && !(t && t.closest('#pop,#meta,#tpop,#tmb,#dpop,#dchip,#rpop,.rbtn,#inDay'))) closePops();
-    if (t && t.closest('#fmt,#lb,#sug,#toast,.srch,#dpop,#rpop,#inbox')) return;
+    if (popOn() && !(t && t.closest('#pop,#meta,#tpop,#tmb,#dpop,#dchip,#rpop,.rbtn,#inDay,#mbTimer'))) closePops();
+    if (t && t.closest('#fmt,#lb,#sug,#toast,.srch,#dpop,#rpop,#inbox,#more,#mbar,#scrim')) return;
     const keep = t && t.closest('.row.open');
     for (const li of $.list.querySelectorAll('.row.open')) if (li !== keep) setOpen(li, false);
     for (const id of [...openIds]) if (!keep || keep.dataset.id !== id) openIds.delete(id);
@@ -2357,6 +2362,8 @@
       $.tprog.style.transform = `scaleX(${TM.dur ? 1 - r / TM.dur : 0})`;
     }
     $.tpause.textContent = TM.st === 'pause' ? 'Resume' : TM.st === 'done' ? 'Restart' : 'Pause';
+    $.mbTimerL.textContent = on ? (TM.st === 'done' ? 'Done' : live ? fmtMS(r) : Math.ceil(r / 6e4) + ' min') : 'Timer';
+    $.mbTimer.classList.toggle('on', on);
   }
   function tmShowRun(run, anim = true) {
     const show = run ? $.trun : $.tset,
@@ -3159,6 +3166,12 @@
         addRule = null;
         renderChip();
       }
+      if (
+        app.classList.contains('composing') &&
+        !popOn() &&
+        !(ae && ($.add.contains(ae) || $.dpop.contains(ae) || $.rpop.contains(ae)))
+      )
+        compose(false);
     }, 0);
   }
   $.dchip.onclick = () => ($.dpop.classList.contains('on') ? closePops(true) : openDpop());
@@ -3380,10 +3393,33 @@
     }
     return out;
   }
-  async function linkFor(t) {
-    const pl = { v: 1, t: t.text };
-    if (t.note) pl.n = t.note;
-    if (t.subs) pl.s = t.subs.map(x => (x.done ? [x.text, 1] : [x.text]));
+  const packTask = t => {
+    const o = { t: t.text };
+    if (t.note) o.n = t.note;
+    if (t.subs) o.s = t.subs.map(x => (x.done ? [x.text, 1] : [x.text]));
+    return o;
+  };
+  function unpackTask(o) {
+    if (!o || typeof o.t !== 'string' || !o.t.trim()) return null;
+    const subs = Array.isArray(o.s)
+      ? o.s
+          .filter(x => Array.isArray(x) && typeof x[0] === 'string')
+          .map(x => ({ id: uid(), text: x[0].replace(/\s+/g, ' ').trim(), done: !!x[1] }))
+          .filter(x => x.text)
+      : [];
+    const [t] = clean([
+      {
+        id: uid(),
+        text: o.t.replace(/\s+/g, ' ').trim(),
+        done: false,
+        note: typeof o.n === 'string' ? o.n : undefined,
+        subs: subs.length ? subs : undefined,
+      },
+    ]);
+    return t || null;
+  }
+  async function linkFor(list) {
+    const pl = list.length === 1 ? { v: 1, ...packTask(list[0]) } : { v: 1, d: list.map(packTask) };
     let u8 = new TextEncoder().encode(JSON.stringify(pl)),
       kind = 'j';
     if (window.CompressionStream)
@@ -3393,34 +3429,44 @@
       } catch (e) {}
     return location.href.split('#')[0] + '#add=' + kind + b64.enc(u8);
   }
-  async function sendTask(t, b) {
-    if (!t) return;
+  async function share(list, b) {
     if (b) an(b, [{ transform: 'scale(.9)' }, { transform: 'none' }], { easing: POP.ease, duration: POP.dur });
+    const many = list.length > 1;
     let url;
     try {
-      url = await linkFor(t);
+      url = await linkFor(list);
     } catch (e) {
-      toast('This task could not be put in a link');
+      toast('This could not be put in a link');
       return;
     }
     if (url.length > 8000) {
-      toast('Too long to send as a link: shorten the note');
+      toast(many ? 'Too long to send as a link: send fewer tasks' : 'Too long to send as a link: shorten the note');
       return;
     }
     const nav = W().navigator;
     if (TOUCH && nav.share)
       try {
-        await nav.share({ title: t.text.replace(TAGRE, '$1').trim() || 'A task', url });
+        await nav.share({ title: many ? `${list.length} tasks from One Day` : list[0].text.replace(TAGRE, '$1').trim() || 'A task', url });
         return;
       } catch (e) {
         if (e && e.name === 'AbortError') return;
       }
     try {
       await nav.clipboard.writeText(url);
-      toast('Link copied: whoever opens it can add this task');
+      toast(many ? 'Link copied: whoever opens it can add these tasks' : 'Link copied: whoever opens it can add this task');
     } catch (e) {
       toast('This browser blocked the copy');
     }
+  }
+  const sendTask = (t, b) => t && share([t], b);
+  // The open tasks of the day on screen: to someone else, or to yourself on another device.
+  function sendDay(b) {
+    const list = tasks(cur).filter(t => !t.done);
+    if (!list.length) {
+      toast('Nothing left to send on this day');
+      return;
+    }
+    share(list, b);
   }
   let IN = null;
   async function readIncoming() {
@@ -3435,38 +3481,36 @@
       if (m[1] === 'z') u8 = await through(u8, new DecompressionStream('deflate-raw'), 2e5);
       pl = JSON.parse(new TextDecoder().decode(u8));
     } catch (e) {}
-    const ok = pl && pl.v === 1 && typeof pl.t === 'string' && pl.t.trim(),
-      subs =
-        ok && Array.isArray(pl.s)
-          ? pl.s
-              .filter(x => Array.isArray(x) && typeof x[0] === 'string')
-              .map(x => ({ id: uid(), text: x[0].replace(/\s+/g, ' ').trim(), done: !!x[1] }))
-              .filter(x => x.text)
-          : [],
-      [t] = ok
-        ? clean([
-            {
-              id: uid(),
-              text: pl.t.replace(/\s+/g, ' ').trim(),
-              done: false,
-              note: typeof pl.n === 'string' ? pl.n : undefined,
-              subs: subs.length ? subs : undefined,
-            },
-          ])
+    const list =
+      pl && pl.v === 1
+        ? (Array.isArray(pl.d) ? pl.d.slice(0, 100) : [pl]).map(unpackTask).filter(Boolean)
         : [];
-    if (!t) {
+    if (!list.length) {
       toast('That link doesn’t hold a task');
       return;
     }
-    IN = { t, to: todayKey() };
-    $.inTitle.innerHTML = titleHTML(t.text);
-    const n = (t.subs || []).length,
-      meta = [t.note ? 'Note' : '', n ? `${n} ${n > 1 ? 'sub-tasks' : 'sub-task'}` : ''].filter(Boolean).join(' · ');
-    $.inMeta.textContent = meta;
-    $.inMeta.hidden = !meta;
+    IN = { list, to: todayKey() };
+    const many = list.length > 1;
+    $.inbox.classList.toggle('multi', many);
+    $.inT.textContent = many ? `${list.length} tasks for you` : 'A task for you';
+    if (many) {
+      const shown = list.slice(0, 4),
+        rest = list.length - shown.length;
+      $.inTitle.innerHTML = shown.map(t => `<span class="inl"><i class="mini"></i>${titleHTML(t.text)}</span>`).join('');
+      $.inMeta.textContent = rest ? `and ${rest} more` : '';
+      $.inMeta.hidden = !rest;
+    } else {
+      const t = list[0],
+        n = (t.subs || []).length,
+        meta = [t.note ? 'Note' : '', n ? `${n} ${n > 1 ? 'sub-tasks' : 'sub-task'}` : ''].filter(Boolean).join(' · ');
+      $.inTitle.innerHTML = titleHTML(t.text);
+      $.inMeta.textContent = meta;
+      $.inMeta.hidden = !meta;
+    }
+    $.inYes.textContent = many ? 'Add all' : 'Add';
     renderInbox();
     $.inbox.style.top = q('header').offsetHeight - 6 + 'px';
-    $.inbox.getAnimations().forEach(a => a.cancel());
+    $.inbox.getAnimations().forEach(x => x.cancel());
     $.inbox.hidden = false;
     an($.inbox, [{ opacity: 0, transform: 'translateY(-14px) scale(.97)' }, { opacity: 1, transform: 'none' }], {
       easing: POP.ease,
@@ -3496,29 +3540,180 @@
   $.inNo.onclick = closeInbox;
   $.inYes.onclick = () => {
     if (!IN) return;
-    const { t, to } = IN;
+    const { list, to } = IN,
+      many = list.length > 1;
     closeInbox();
     record([to]);
-    day(to).tasks.push(t);
+    day(to).tasks.push(...list);
     commit(to);
     if (to === cur) {
       flip(() => {
         renderList();
         renderAux();
       });
-      const li = rowOf(t.id);
+      const li = rowOf(list[0].id);
       if (li) {
         li.scrollIntoView({ block: 'nearest', behavior: RM.matches ? 'auto' : 'smooth' });
-        flash(li);
+        list.forEach(t => rowOf(t.id) && flash(rowOf(t.id)));
       }
-      toast('Task added', 'undo');
+      toast(many ? `${list.length} tasks added` : 'Task added', 'undo');
     } else {
       const d = Math.sign(diff(cur, to)) || 1;
       nudge(d > 0 ? $.next : $.prev, d);
-      toast(`Added to ${dayName(to)}`, 'undo');
+      toast(many ? `Added ${list.length} tasks to ${dayName(to)}` : `Added to ${dayName(to)}`, 'undo');
     }
   };
   $.inDay.onclick = () => ($.dpop.classList.contains('on') ? closePops(true) : openDpop($.inDay));
+
+  /* phones: a bottom bar with search, the timer, a big add button, sending the day, and more */
+  function bounce(b) {
+    an(b.querySelector('svg'), [{ transform: 'scale(.78)' }, { transform: 'none' }], { easing: POP.ease, duration: POP.dur });
+  }
+  // The scrim shows while the composer sheet or More is open; it lets touches through as it fades.
+  let moreOpen = false;
+  function syncScrim() {
+    const el = $.scrim,
+      want = moreOpen || app.classList.contains('composing');
+    if (want) {
+      el.getAnimations().forEach(x => x.cancel());
+      delete el.dataset.out;
+      if (el.hidden) {
+        el.hidden = false;
+        an(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease' });
+      }
+    } else if (!el.hidden && !el.dataset.out) {
+      el.dataset.out = '1';
+      then(an(el, [{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'ease', fill: 'forwards' }), () => {
+        if (!el.dataset.out) return;
+        delete el.dataset.out;
+        el.getAnimations().forEach(x => x.cancel());
+        el.hidden = true;
+      });
+    }
+  }
+  function compose(on) {
+    if (on === app.classList.contains('composing')) return;
+    app.classList.toggle('composing', on);
+    $.mbAdd.setAttribute('aria-expanded', on);
+    $.mbAdd.setAttribute('aria-label', on ? 'Close' : 'Add a task');
+    syncScrim();
+    if (on) {
+      $.input.focus({ preventScroll: true });
+      an($.add, [{ transform: 'translateY(110%)' }, { transform: 'none' }], { easing: SP.ease, duration: SP.dur });
+    } else if (D().activeElement === $.input) $.input.blur();
+  }
+  function sheetIn(el) {
+    el.getAnimations().forEach(x => x.cancel());
+    el.hidden = false;
+    an(el, [{ transform: 'translateY(100%)' }, { transform: 'none' }], { easing: SP.ease, duration: SP.dur });
+  }
+  function sheetOut(el, from = 0) {
+    if (el.hidden) return;
+    then(
+      an(el, [{ transform: `translateY(${from}px)` }, { transform: 'translateY(105%)' }], {
+        easing: SNAP.ease,
+        duration: SNAP.dur * 0.8,
+        fill: 'forwards',
+      }),
+      () => {
+        el.hidden = true;
+        el.getAnimations().forEach(x => x.cancel());
+      },
+    );
+  }
+  function openMore() {
+    const f = document.getElementById('foot'),
+      promo = f && f.querySelector('.promo'),
+      links = f ? [...f.querySelectorAll('nav a')].map(x => x.cloneNode(true).outerHTML).join('') : '';
+    $.moreList.innerHTML =
+      `<button type="button" class="srow" data-act="export">${IC.down}<span>${canTop ? 'Export backup' : 'Copy backup'}</span></button>` +
+      `<button type="button" class="srow" data-act="import">${IC.up}<span>Import backup</span></button><hr>` +
+      (promo
+        ? `<a class="srow" href="${esc(promo.href)}" target="_blank" rel="noopener" referrerpolicy="strict-origin">${IC.journal}<span>${promo.innerHTML}</span></a><hr>`
+        : '') +
+      `<p class="slinks">${links}</p>`;
+    compose(false);
+    closePops();
+    sheetIn($.more);
+    moreOpen = true;
+    syncScrim();
+    $.mbMore.setAttribute('aria-expanded', 'true');
+    const first = $.moreList.querySelector('button');
+    if (first) first.focus({ preventScroll: true });
+  }
+  function closeMore(from) {
+    if (!moreOpen) return;
+    moreOpen = false;
+    sheetOut($.more, from);
+    $.mbMore.setAttribute('aria-expanded', 'false');
+    syncScrim();
+  }
+  $.moreList.onclick = e => {
+    const a = e.target.closest('[data-act]');
+    if (!a) return;
+    closeMore();
+    if (a.dataset.act === 'export') exportData();
+    else $.impf.click();
+  };
+  // Drag a sheet down to close it.
+  {
+    let s = null;
+    $.more.addEventListener('pointerdown', e => {
+      if (e.target.closest('a,button')) return;
+      s = { y: e.clientY, id: e.pointerId };
+    });
+    $.more.addEventListener('pointermove', e => {
+      if (!s || e.pointerId !== s.id) return;
+      $.more.style.transform = `translateY(${Math.max(0, e.clientY - s.y)}px)`;
+    });
+    const end = e => {
+      if (!s || e.pointerId !== s.id) return;
+      const dy = Math.max(0, e.clientY - s.y);
+      s = null;
+      $.more.style.transform = '';
+      if (dy > 70) closeMore(dy);
+      else if (dy) an($.more, [{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { easing: SP.ease, duration: SP.dur });
+    };
+    $.more.addEventListener('pointerup', end);
+    $.more.addEventListener('pointercancel', end);
+  }
+  $.scrim.onclick = () => {
+    closeMore();
+    compose(false);
+  };
+  $.mbSearch.onclick = () => {
+    bounce($.mbSearch);
+    closeMore();
+    compose(false);
+    openSearch();
+  };
+  $.mbTimer.onclick = () => {
+    bounce($.mbTimer);
+    closeMore();
+    compose(false);
+    $.tpop.classList.contains('on') ? closePops(true) : openTimer();
+  };
+  $.mbAdd.onclick = () => {
+    closeMore();
+    compose(!app.classList.contains('composing'));
+  };
+  $.mbSend.onclick = () => {
+    bounce($.mbSend);
+    closeMore();
+    compose(false);
+    sendDay();
+  };
+  $.mbMore.onclick = () => {
+    bounce($.mbMore);
+    moreOpen ? closeMore() : openMore();
+  };
+  // iOS keeps the layout viewport when the keyboard opens: lift the composer sheet above it.
+  if (window.visualViewport) {
+    const vv = visualViewport,
+      kb = () => document.documentElement.style.setProperty('--kb', Math.max(0, innerHeight - vv.height - vv.offsetTop) + 'px');
+    vv.addEventListener('resize', kb);
+    vv.addEventListener('scroll', kb);
+  }
   window.addEventListener('hashchange', readIncoming);
 
   /* toast */
@@ -3666,6 +3861,12 @@
     if (k === 'Escape' && $.srch.classList.contains('on')) {
       e.preventDefault();
       closeSearch();
+      return;
+    }
+    if (k === 'Escape' && (moreOpen || app.classList.contains('composing')) && !popOn()) {
+      e.preventDefault();
+      closeMore();
+      compose(false);
       return;
     }
     if (k === 'Escape' && !$.inbox.hidden && !popOn()) {
@@ -3885,6 +4086,40 @@
     sheet.snap();
   }
   $.float.onclick = float;
+
+  /* light or dark in one click. The choice is kept; picking the system's own look follows the system again. */
+  const THK = 'oneday.theme',
+    sysDark = matchMedia('(prefers-color-scheme: dark)'),
+    METAS = [...document.querySelectorAll('meta[name="theme-color"]')].map(m => [m, m.content]);
+  let themePick = document.documentElement.dataset.theme || null;
+  const themeNow = () => themePick || (sysDark.matches ? 'dark' : 'light');
+  function applyTheme() {
+    const root = document.documentElement,
+      now = themeNow();
+    if (themePick) root.dataset.theme = themePick;
+    else delete root.dataset.theme;
+    for (const [m, c] of METAS) m.content = themePick ? (themePick === 'dark' ? '#0e0e0e' : '#ffffff') : c;
+    $.theme.setAttribute('aria-label', now === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+    $.theme.dataset.tip = now === 'dark' ? 'Light mode' : 'Dark mode';
+    if (pip) {
+      pip.document.documentElement.dataset.theme = now;
+      pip.document.documentElement.style.background = now === 'dark' ? '#0e0e0e' : '#fff';
+    }
+  }
+  function toggleTheme() {
+    const next = themeNow() === 'dark' ? 'light' : 'dark';
+    themePick = next === (sysDark.matches ? 'dark' : 'light') ? null : next;
+    try {
+      if (themePick) localStorage.setItem(THK, themePick);
+      else localStorage.removeItem(THK);
+    } catch (e) {}
+    applyTheme();
+    if (tipFor === $.theme) showTip($.theme);
+    an($.theme, [{ transform: 'rotate(-40deg) scale(.82)' }, { transform: 'none' }], { easing: POP.ease, duration: POP.dur });
+  }
+  $.theme.onclick = toggleTheme;
+  sysDark.addEventListener('change', applyTheme);
+  applyTheme();
   if (!('documentPictureInPicture' in window) || !canTop || TOUCH) $.float.hidden = true;
   document.getElementById('back').onclick = () => pip && pip.close();
 
