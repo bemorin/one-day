@@ -159,6 +159,9 @@ test('an open card: its title is easy to hit, a little above and after the words
   const r = row(page, 'Plan the trip');
   await r.locator('.mt').click();
   await expect(r).toHaveClass(/\bopen\b/);
+  // measure once the card has finished opening
+  const settled = () => r.evaluate(n => Promise.all(n.getAnimations({ subtree: true }).map(x => x.finished)));
+  await settled();
   const words = () =>
     r.locator('.t').evaluate(n => {
       const g = document.createRange();
@@ -172,12 +175,19 @@ test('an open card: its title is easy to hit, a little above and after the words
   await page.keyboard.press('Escape');
   await expect(r).not.toHaveClass(/\bediting\b/);
   await expect(r).toHaveClass(/\bopen\b/);
+  await settled();
   w = await words();
+  // two clicks on a task within 400 ms make a double-click: leave a moment between them
+  await page.waitForTimeout(450);
   await page.mouse.click(w.l + 8, w.t - 6);
   await expect(r).toHaveClass(/\bediting\b/);
   await page.keyboard.press('Escape');
   // further right, the line still closes the card
+  await expect(r).not.toHaveClass(/\bediting\b/);
+  await settled();
+  w = await words();
   const acts = await r.locator('.in .acts').boundingBox();
+  await page.waitForTimeout(450);
   await page.mouse.click(Math.min(w.r + 100, acts.x - 12), (w.t + w.b) / 2);
   await expect(r).not.toHaveClass(/\bopen\b/);
 });
@@ -378,25 +388,25 @@ test('phones: the page can run under the system bars, and keeps clear of them', 
 
 test('the leaving day floats above the list instead of joining it', async ({ page }) => {
   await open(page, { motion: 'no-preference' });
+  // the ghost only lives for the length of the transition: note where it is the moment it is added
+  await page.evaluate(() => {
+    window.__ghost = null;
+    const vp = document.querySelector('.vp'),
+      mo = new MutationObserver(() => {
+        const g = vp.querySelector(':scope > .ghost');
+        if (!g || window.__ghost) return;
+        window.__ghost = {
+          pos: getComputedStyle(g).position,
+          ghostTop: g.getBoundingClientRect().top,
+          addTop: document.getElementById('add').getBoundingClientRect().top,
+        };
+        mo.disconnect();
+      });
+    mo.observe(vp, { childList: true });
+  });
   await page.keyboard.press('ArrowRight');
-  // the ghost only lives for the length of the transition: read it on the first frame it exists
-  const st = await page.evaluate(
-    () =>
-      new Promise(done => {
-        const t0 = performance.now();
-        (function look() {
-          const g = document.querySelector('.vp > .ghost');
-          if (g)
-            return done({
-              pos: getComputedStyle(g).position,
-              ghostTop: g.getBoundingClientRect().top,
-              addTop: document.getElementById('add').getBoundingClientRect().top,
-            });
-          if (performance.now() - t0 > 3000) return done(null);
-          requestAnimationFrame(look);
-        })();
-      }),
-  );
+  await expect.poll(() => page.evaluate(() => window.__ghost)).not.toBeNull();
+  const st = await page.evaluate(() => window.__ghost);
   expect(st).not.toBeNull();
   expect(st.pos).toBe('absolute');
   expect(st.ghostTop).toBeLessThan(st.addTop);
@@ -730,7 +740,7 @@ test.describe('send a task', () => {
 
 test('on a large screen the card rests in a frame of glass; not on a phone', async ({ page, browser }) => {
   await open(page);
-  expect(await page.locator('#app').evaluate(n => getComputedStyle(n, '::before').backdropFilter)).toContain('blur');
+  expect(await page.locator('#app').evaluate(n => getComputedStyle(n, '::before').backgroundImage)).toContain('gradient');
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const phone = await ctx.newPage();
   await phone.goto('/');
