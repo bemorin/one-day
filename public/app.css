@@ -1428,6 +1428,287 @@ input::placeholder {
   padding: 0 6px;
 }
 
+/* the composer chip shows a repeat mark when new tasks repeat */
+.dchip .i-rep {
+  display: none;
+}
+.dchip.rep .i-cal {
+  display: none;
+}
+.dchip.rep .i-rep {
+  display: block;
+  animation: rep-in var(--pop-d) var(--pop);
+}
+@keyframes rep-in {
+  from {
+    transform: rotate(-200deg) scale(0.5);
+  }
+}
+.drep {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 40px;
+  margin-top: 8px;
+  padding: 0 8px;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 10px 10px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  transition: background-color 0.15s;
+}
+.drep:hover {
+  background: var(--hover);
+}
+.drep svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.drep .v {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--mute);
+}
+.drep .chev {
+  width: 14px;
+  height: 14px;
+  color: var(--mute);
+}
+
+/* the repeat editor */
+.rpop {
+  width: 312px;
+  overflow: hidden;
+}
+.rseg {
+  margin: 2px 0 0;
+}
+.rseg button {
+  flex: 1;
+}
+.rstep {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px 0 14px;
+  font-size: 14px;
+  color: var(--mute);
+}
+.rstep .ib {
+  width: 34px;
+  height: 34px;
+  box-shadow: inset 0 0 0 1.25px var(--line);
+}
+.rstep .ib svg {
+  width: 16px;
+  height: 16px;
+}
+.rnum {
+  display: flex;
+  justify-content: center;
+  min-width: 1.4em;
+  font-weight: 800;
+  font-variation-settings: 'wdth' 112;
+  font-size: 36px;
+  line-height: 0.84;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.runit {
+  min-width: 4.4em;
+}
+.rdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  padding: 0 0 12px;
+}
+.rdays button {
+  height: 36px;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--mute);
+  box-shadow: inset 0 0 0 1.25px var(--line);
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    box-shadow 0.2s;
+}
+.rdays button:hover {
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1.25px var(--line2);
+}
+.rdays button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--bg);
+  box-shadow: none;
+}
+.rmon {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 0 12px;
+}
+.rmon .chip {
+  justify-content: center;
+  height: 36px;
+  border-radius: 18px;
+}
+.rsum {
+  margin: 0;
+  padding: 12px 4px 0;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+  font-weight: 650;
+}
+.rsum span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--mute);
+}
+.racts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 12px;
+}
+.pbtn,
+.tbtn {
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 17px;
+  font-size: 14px;
+  font-weight: 650;
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    transform 0.25s var(--pop);
+}
+.pbtn {
+  background: var(--ink);
+  color: var(--bg);
+}
+.tbtn {
+  color: var(--mute);
+}
+.tbtn:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.pbtn:active,
+.tbtn:active {
+  transform: scale(0.95);
+}
+
+/* the open card's footer: Repeat and Send */
+.cfoot {
+  display: flex;
+  gap: 2px;
+  margin: 4px 0 0 -8px;
+}
+.cb {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 10px 0 8px;
+  border-radius: 9px;
+  font-size: 13.5px;
+  font-weight: 550;
+  color: var(--mute);
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+.cb:hover,
+.cb[aria-expanded='true'] {
+  background: var(--hover);
+  color: var(--ink);
+}
+.cb.on {
+  color: var(--ink);
+}
+.cb svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mt .rp svg {
+  transform-origin: 50% 50%;
+}
+
+/* a task someone sent you */
+.inbox {
+  position: absolute;
+  z-index: 25;
+  left: calc(var(--pad) - 14px);
+  right: calc(var(--pad) - 14px);
+  padding: 14px 14px 12px 16px;
+  background: var(--bg);
+  border-radius: 18px;
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 28px 60px -20px var(--shadow);
+}
+.inT {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--red);
+}
+.incard {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.incard .mini {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--line2);
+}
+.inti {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.inme {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--mute);
+}
+.inacts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+}
+.inacts .dchip {
+  margin-left: 0;
+}
+
 /* floating layers: tooltip, format bar, link bubble, tag suggestions, toast */
 .tip,
 .fmt,

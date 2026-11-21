@@ -5,7 +5,7 @@
     home = document.getElementById('home'),
     q = s => app.querySelector(s),
     $ = {};
-  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid'
+  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inTitle inMeta inDay inDayL inNo inYes'
     .split(' ')
     .forEach(id => ($[id] = q('#' + id)));
   const fill = q('.rule i'),
@@ -208,8 +208,58 @@
             .map(x => ({ id: okId(x.id), text: x.text.slice(0, 300), done: !!x.done }));
           if (s.length) o.subs = s;
         }
+        if (typeof t.rule === 'string' && IDRE.test(t.rule)) o.rule = t.rule;
         return o;
       });
+
+  /* repeating tasks: a rule makes a task on each matching day */
+  const FREQ = ['day', 'week', 'month'],
+    wdOf = k => (fromKey(k).getDay() + 6) % 7,
+    dimOf = d => new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  function cleanRule(r, id) {
+    if (!r || typeof r !== 'object' || !IDRE.test(id) || id in {}) return null;
+    if (typeof r.text !== 'string' || !r.text.trim() || !DAYRE.test(r.start) || !FREQ.includes(r.freq)) return null;
+    const x = {
+      id,
+      text: r.text.slice(0, 500),
+      start: r.start,
+      freq: r.freq,
+      every: Math.min(99, Math.max(1, Math.round(+r.every) || 1)),
+    };
+    if (r.freq === 'week') {
+      const d = [...new Set((Array.isArray(r.days) ? r.days : []).map(Number))]
+        .filter(n => Number.isInteger(n) && n >= 0 && n <= 6)
+        .sort((a, b) => a - b);
+      x.days = d.length ? d : [wdOf(r.start)];
+    }
+    if (r.freq === 'month' && (r.nth === -1 || [1, 2, 3, 4].includes(r.nth))) x.nth = r.nth;
+    if (typeof r.note === 'string' && r.note) {
+      const n = sanitize(r.note.slice(0, 30000));
+      if (htmlText(n).trim()) x.note = n;
+    }
+    if (Array.isArray(r.subs)) {
+      const sb = r.subs
+        .filter(v => v && typeof v.text === 'string')
+        .slice(0, 100)
+        .map(v => ({ text: v.text.slice(0, 300) }));
+      if (sb.length) x.subs = sb;
+    }
+    if (DAYRE.test(r.until)) x.until = r.until;
+    if (Array.isArray(r.skip)) {
+      const sk = r.skip.filter(k => DAYRE.test(k)).slice(-400);
+      if (sk.length) x.skip = sk;
+    }
+    return x;
+  }
+  const cleanRules = o => {
+    const out = {};
+    if (o && typeof o === 'object')
+      for (const id of Object.keys(o).slice(0, 300)) {
+        const r = cleanRule(o[id], id);
+        if (r) out[id] = r;
+      }
+    return out;
+  };
   let S = null;
   try {
     S = JSON.parse(localStorage.getItem(LS));
@@ -221,7 +271,7 @@
       done: false,
       ...x,
     });
-    S = { days: {} };
+    S = { days: {}, rules: {} };
     S.days[todayKey()] = {
       u: 0,
       tasks: [
@@ -246,6 +296,7 @@
       if (DAYRE.test(k) && v && typeof v === 'object') days[k] = { u: +v.u || 0, tasks: clean(v.tasks) };
     }
     S.days = days;
+    S.rules = cleanRules(S.rules);
   }
   let cur = todayKey(),
     lastToday = cur,
@@ -260,7 +311,9 @@
     const t = tasks(k);
     return [...t.filter(x => !x.done), ...t.filter(x => x.done).sort((a, b) => (a.at || 0) - (b.at || 0))];
   };
-  const hasOpen = k => tasks(k).some(t => !t.done);
+  const hasOpen = k =>
+    tasks(k).some(t => !t.done) ||
+    (k >= todayKey() && Object.values(S.rules).some(r => occurs(r, k) && !tasks(k).some(t => t.rule === r.id)));
   function persist() {
     IDX = null;
     try {
@@ -279,6 +332,7 @@
   const snap = keys => ({
     cur,
     days: Object.fromEntries([...new Set(keys)].map(k => [k, JSON.parse(JSON.stringify(day(k)))])),
+    rules: JSON.parse(JSON.stringify(S.rules)),
   });
   function pushUndo(s) {
     UN.push(s);
@@ -288,6 +342,7 @@
   const record = keys => pushUndo(snap(keys));
   function applySnap(e, into) {
     into.push({ ...snap(Object.keys(e.days)), cur: e.cur });
+    if (e.rules) S.rules = e.rules;
     for (const k in e.days) {
       S.days[k] = { u: 0, tasks: e.days[k].tasks };
       commit(k);
@@ -442,6 +497,8 @@
     plus: '<svg viewBox="0 0 18 18"><path d="M9 3.5v11M3.5 9h11"/></svg>',
     list: '<svg viewBox="0 0 14 14"><path d="m2 4 1.3 1.3L5.6 3M7.5 4.2H12M2 9.4l1.3 1.3 2.3-2.3M7.5 9.6H12"/></svg>',
     note: '<svg viewBox="0 0 14 14"><path d="M2.5 3.5h9M2.5 7h9M2.5 10.5h5.5"/></svg>',
+    rep: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.75 7.25a5.25 5.25 0 0 1 9.1-3.3l1.4 1.3M13.25 2.25v3h-3M13.25 8.75a5.25 5.25 0 0 1-9.1 3.3l-1.4-1.3M2.75 13.75v-3h3"/></svg>',
+    send: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 9.75V2.25M5.25 5 8 2.25 10.75 5M5.5 7H4.5c-.83 0-1.5.67-1.5 1.5v4c0 .83.67 1.5 1.5 1.5h7c.83 0 1.5-.67 1.5-1.5v-4c0-.83-.67-1.5-1.5-1.5h-1"/></svg>',
     down: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7.5M4.75 7 8 10.25 11.25 7M2.75 11.5v.75c0 .69.56 1.25 1.25 1.25h8c.69 0 1.25-.56 1.25-1.25v-.75"/></svg>',
     up: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.25V2.75M4.75 6 8 2.75 11.25 6M2.75 11.5v.75c0 .69.56 1.25 1.25 1.25h8c.69 0 1.25-.56 1.25-1.25v-.75"/></svg>',
   };
@@ -468,7 +525,7 @@
     const li = D().createElement('li');
     li.className = 'row';
     li.dataset.id = t.id;
-    li.innerHTML = `<div class="card"><div class="in"><button class="ck" type="button" role="checkbox" aria-checked="false" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown">${CK}</button><div class="tx"><span class="t"></span><button class="mt" type="button" hidden></button></div><div class="acts"><button class="ib ex" type="button" data-tip="Notes and sub-tasks" aria-label="Notes and sub-tasks" aria-expanded="false">${IC.ex}</button><button class="ib mv" type="button" data-tip="Move to next day" aria-label="Move to next day">${IC.mv}</button><button class="ib rm" type="button" data-tip="Delete" aria-label="Delete">${IC.rm}</button></div></div><div class="more" hidden><div class="mi"><div class="note is-empty" tabindex="0" role="textbox" aria-multiline="true" aria-label="Note" data-ph="Add a note"></div><ul class="subs"></ul><div class="sadd"><span class="plus" aria-hidden="true">${IC.plus}</span><input type="text" placeholder="Add a sub-task" aria-label="Add a sub-task" maxlength="300" enterkeyhint="done" autocomplete="off"></div></div></div></div>`;
+    li.innerHTML = `<div class="card"><div class="in"><button class="ck" type="button" role="checkbox" aria-checked="false" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown">${CK}</button><div class="tx"><span class="t"></span><button class="mt" type="button" hidden></button></div><div class="acts"><button class="ib ex" type="button" data-tip="Notes and sub-tasks" aria-label="Notes and sub-tasks" aria-expanded="false">${IC.ex}</button><button class="ib mv" type="button" data-tip="Move to next day" aria-label="Move to next day">${IC.mv}</button><button class="ib rm" type="button" data-tip="Delete" aria-label="Delete">${IC.rm}</button></div></div><div class="more" hidden><div class="mi"><div class="note is-empty" tabindex="0" role="textbox" aria-multiline="true" aria-label="Note" data-ph="Add a note"></div><ul class="subs"></ul><div class="sadd"><span class="plus" aria-hidden="true">${IC.plus}</span><input type="text" placeholder="Add a sub-task" aria-label="Add a sub-task" maxlength="300" enterkeyhint="done" autocomplete="off"></div><div class="cfoot"><button class="cb rbtn" type="button" aria-haspopup="dialog">${IC.rep}<span class="rlab">Repeat</span></button><button class="cb sbtn" type="button">${IC.send}<span>Send</span></button></div></div></div></div>`;
     return li;
   }
   function updateMeta(li, t) {
@@ -479,23 +536,28 @@
       '--off',
       subs.length && !t.done ? (64.4 * (1 - sd / subs.length)).toFixed(2) : '64.4',
     );
-    const mt = li.querySelector('.mt'),
-      has = !!(subs.length || t.note);
+    const r = t.rule && S.rules[t.rule],
+      mt = li.querySelector('.mt'),
+      has = !!(subs.length || t.note || r);
     mt.hidden = !has;
+    if (!has && mt.dataset.v) mt.innerHTML = mt.dataset.v = '';
     if (has) {
       const h =
+        (r ? `<span class="rp">${IC.rep}${esc(ruleText(r, true))}</span>` : '') +
         (subs.length ? `<span>${IC.list}${sd}/${subs.length}</span>` : '') +
         (t.note ? `<span>${IC.note}</span>` : '');
       if (mt.dataset.v !== h) {
         mt.innerHTML = h;
         mt.dataset.v = h;
       }
-      mt.setAttribute(
-        'aria-label',
-        [subs.length ? `${sd}/${subs.length} sub-tasks done` : '', t.note ? (subs.length ? 'has a note' : 'Has a note') : '']
-          .filter(Boolean)
-          .join(', ') + ', show details',
-      );
+      const lab = [
+        r ? `repeats ${ruleText(r).toLowerCase()}` : '',
+        subs.length ? `${sd}/${subs.length} sub-tasks done` : '',
+        t.note ? 'has a note' : '',
+      ]
+        .filter(Boolean)
+        .join(', ');
+      mt.setAttribute('aria-label', lab[0].toUpperCase() + lab.slice(1) + ', show details');
     }
   }
   function renderSubs(li, t, animNew) {
@@ -549,6 +611,15 @@
     }
     updateMeta(li, t);
     renderSubs(li, t, false);
+    const rb = li.querySelector('.rbtn'),
+      rr = t.rule && S.rules[t.rule],
+      rl = rr ? ruleText(rr) : 'Repeat';
+    if (rb.dataset.v !== rl) {
+      rb.dataset.v = rl;
+      rb.querySelector('.rlab').textContent = rl;
+      rb.classList.toggle('on', !!rr);
+      rb.setAttribute('aria-label', rr ? `Repeats ${rl.toLowerCase()}. Change` : 'Repeat this task');
+    }
     const open = openIds.has(t.id);
     if (li.classList.contains('open') !== open) {
       li.classList.toggle('open', open);
@@ -620,7 +691,7 @@
   function overdue() {
     const tk = todayKey(),
       out = [];
-    for (const k in S.days) if (k < tk) for (const t of S.days[k].tasks) if (!t.done) out.push([k, t]);
+    for (const k in S.days) if (k < tk) for (const t of S.days[k].tasks) if (!t.done && !t.rule) out.push([k, t]);
     return out;
   }
   function renderAux() {
@@ -685,6 +756,7 @@
   /* task actions */
   function addTask(text) {
     const k = addDay();
+    if (addRule) return addRepeating(text, k);
     if (k !== cur) return addElsewhere(text, k);
     record([cur]);
     const t = { id: uid(), text, done: false };
@@ -715,6 +787,11 @@
         easing: POP.ease,
         duration: POP.dur,
       });
+    if (t.done && t.rule)
+      an(li.querySelector('.mt .rp svg'), [{ transform: 'rotate(-360deg)' }, { transform: 'none' }], {
+        easing: SP.ease,
+        duration: SP.dur * 1.4,
+      });
     if (t.done && n && dn === n)
       an($.num, [{ transform: 'translateY(-7px)' }, { transform: 'none' }], {
         easing: POP.ease,
@@ -731,9 +808,12 @@
     if (i < 0) return;
     record(how === 'mv' ? [k, nk] : [k]);
     const [t] = arr.splice(i, 1);
+    const rr = t.rule && S.rules[t.rule];
+    if (rr) (rr.skip || (rr.skip = [])).push(k);
     if (how === 'mv') {
       t.done = false;
       delete t.at;
+      delete t.rule;
       day(nk).tasks.push(t);
       commit(nk);
       nudge($.next, 1);
@@ -803,6 +883,140 @@
       easing: POP.ease,
       duration: POP.dur,
     });
+  }
+
+  /* repeating tasks: an occurrence is made when its day is shown, today or later. Past days are left
+     alone, so a missed occurrence never piles up, and deleting one skips that day for good. */
+  const occId = (r, k) => r.id + '-' + k.replace(/-/g, '');
+  function occurs(r, k) {
+    if (k < r.start || (r.until && k > r.until) || (r.skip && r.skip.includes(k))) return false;
+    const n = diff(r.start, k);
+    if (r.freq === 'day') return n % r.every === 0;
+    if (r.freq === 'week')
+      return r.days.includes(wdOf(k)) && Math.floor((n + wdOf(r.start)) / 7) % r.every === 0;
+    const d = fromKey(k),
+      s = fromKey(r.start),
+      m = (d.getFullYear() - s.getFullYear()) * 12 + d.getMonth() - s.getMonth();
+    if (m % r.every) return false;
+    if (r.nth != null)
+      return (
+        d.getDay() === s.getDay() &&
+        (r.nth === -1 ? d.getDate() + 7 > dimOf(d) : Math.ceil(d.getDate() / 7) === r.nth)
+      );
+    return d.getDate() === Math.min(s.getDate(), dimOf(d));
+  }
+  function fromRule(r, k) {
+    const t = { id: occId(r, k), text: r.text, done: false, rule: r.id };
+    if (r.note) t.note = r.note;
+    if (r.subs) t.subs = r.subs.map(x => ({ id: uid(), text: x.text, done: false }));
+    return t;
+  }
+  function ensure(k) {
+    if (k < todayKey()) return false;
+    let added = false;
+    for (const r of Object.values(S.rules)) {
+      if (!occurs(r, k) || tasks(k).some(t => t.rule === r.id)) continue;
+      day(k).tasks.push(fromRule(r, k));
+      added = true;
+    }
+    if (added) persist();
+    return added;
+  }
+  function nextOcc(r, from) {
+    for (let i = 0, k = from; i < 800; i++, k = addDays(k, 1)) if (occurs(r, k)) return k;
+    return null;
+  }
+  const WDL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+    WDS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    NTH = { 1: 'first', 2: 'second', 3: 'third', 4: 'fourth', '-1': 'last' },
+    NTHS = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th', '-1': 'Last' },
+    AND = new Intl.ListFormat('en-GB', { type: 'conjunction' }),
+    ord = n => n + (n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th');
+  // "Every Monday and Thursday", "Every 2 weeks on weekdays", "Every month on the third Saturday".
+  // Short: "Mon, Thu", "Every 2 weeks", "3rd Sat".
+  function ruleText(r, short) {
+    const e = r.every;
+    if (r.freq === 'day') return e === 1 ? (short ? 'Daily' : 'Every day') : `Every ${e} days`;
+    if (r.freq === 'week') {
+      const d = r.days.join(),
+        set = d === '0,1,2,3,4' ? 'weekday' : d === '5,6' ? 'weekend' : d === '0,1,2,3,4,5,6' ? 'day' : null,
+        names = AND.format(r.days.map(i => WDL[i]));
+      if (e === 1) {
+        if (set === 'day') return short ? 'Daily' : 'Every day';
+        if (set) return short ? (set === 'weekday' ? 'Weekdays' : 'Weekends') : `Every ${set}`;
+        return short ? (r.days.length === 1 ? `Every ${WDS[r.days[0]]}` : r.days.map(i => WDS[i]).join(', ')) : `Every ${names}`;
+      }
+      return short ? `Every ${e} weeks` : `Every ${e} weeks on ${set ? set + 's' : names}`;
+    }
+    const s = fromKey(r.start),
+      wd = wdOf(r.start);
+    if (short)
+      return e > 1 ? `Every ${e} months` : r.nth != null ? `${NTHS[r.nth]} ${WDS[wd]}` : `Monthly, ${ord(s.getDate())}`;
+    const on = r.nth != null ? `the ${NTH[r.nth]} ${WDL[wd]}` : `the ${ord(s.getDate())}`;
+    return e === 1 ? `Every month on ${on}` : `Every ${e} months on ${on}`;
+  }
+  function addRepeating(text, k) {
+    const r = cleanRule({ ...addRule, text, start: k }, 'r' + uid());
+    if (!r) return;
+    record([k]);
+    S.rules[r.id] = r;
+    const here = occurs(r, k);
+    if (here) day(k).tasks.push(fromRule(r, k));
+    commit(k);
+    const first = nextOcc(r, k);
+    if (here && k === cur) {
+      flip(() => {
+        renderList();
+        renderAux();
+      });
+      const li = rowOf(occId(r, k));
+      if (li) li.scrollIntoView({ block: 'nearest', behavior: RM.matches ? 'auto' : 'smooth' });
+    } else if (first) {
+      const d = Math.sign(diff(cur, first)) || 1;
+      nudge(d > 0 ? $.next : $.prev, d);
+    }
+    toast(`${ruleText(r)}, from ${first ? dayName(first) : dayName(k)}`, 'undo');
+  }
+  // Undone occurrences still to come, which a change of rule replaces.
+  const ahead = (id, k) =>
+    Object.keys(S.days).filter(d => d > k && S.days[d].tasks.some(x => x.rule === id && !x.done));
+  function dropAhead(id, keys) {
+    for (const d of keys) {
+      S.days[d].tasks = S.days[d].tasks.filter(x => !(x.rule === id && !x.done));
+      commit(d);
+    }
+  }
+  // Make a task repeat from its day, or change how it repeats.
+  function setRule(t, f) {
+    const old = t.rule && S.rules[t.rule],
+      id = old ? old.id : 'r' + uid(),
+      later_ = old ? ahead(id, cur) : [];
+    record([cur, ...later_]);
+    const r = cleanRule({ ...f, text: t.text, note: t.note, subs: t.subs, start: cur }, id);
+    if (!r) return;
+    dropAhead(id, later_);
+    S.rules[id] = r;
+    t.rule = id;
+    commit(cur);
+    const li = rowOf(t.id);
+    if (li) updateRow(li, t);
+    toast(ruleText(r), 'undo');
+  }
+  function stopRule(t) {
+    const r = S.rules[t.rule];
+    if (!r) {
+      delete t.rule;
+      return;
+    }
+    const later_ = ahead(r.id, cur);
+    record([cur, ...later_]);
+    dropAhead(r.id, later_);
+    delete S.rules[r.id];
+    for (const d in S.days) for (const x of S.days[d].tasks) if (x.rule === r.id) delete x.rule;
+    commit(cur);
+    const li = rowOf(t.id);
+    if (li) updateRow(li, t);
+    toast('Stopped repeating', 'undo');
   }
 
   /* sub-tasks */
@@ -1394,6 +1608,7 @@
     if (v !== t.text) {
       pushUndo(editSnap);
       t.text = v;
+      if (t.rule && S.rules[t.rule]) S.rules[t.rule].text = v;
       commit(cur);
     }
     show();
@@ -1414,6 +1629,8 @@
       else if (b.classList.contains('rm')) removeTask(li.dataset.id, 'rm');
       else if (b.classList.contains('ex') || b.classList.contains('mt'))
         setOpen(li, !li.classList.contains('open'));
+      else if (b.classList.contains('rbtn')) repeatFor(li, b);
+      else if (b.classList.contains('sbtn')) sendTask(find(li.dataset.id), b);
       return;
     }
     if (sub && !sub.classList.contains('exit')) {
@@ -1830,6 +2047,8 @@
     $.stage.style.opacity = '';
     cur = k;
     addTo = null;
+    addRule = null;
+    ensure(k);
     renderChip();
     $.sc.scrollTop = 0;
     renderHeader(d);
@@ -1884,7 +2103,7 @@
   /* popovers: month and timer */
   let popM = null,
     dpM = null;
-  const popOn = () => ['pop', 'tpop', 'dpop'].some(id => $[id].classList.contains('on'));
+  const popOn = () => ['pop', 'tpop', 'dpop', 'rpop'].some(id => $[id].classList.contains('on'));
   function gridHTML(m0, sel) {
     const y = m0.getFullYear(),
       m = m0.getMonth(),
@@ -1936,19 +2155,24 @@
   function closePops(back) {
     const wasM = $.pop.classList.contains('on'),
       wasT = $.tpop.classList.contains('on'),
-      wasD = $.dpop.classList.contains('on');
+      wasD = $.dpop.classList.contains('on'),
+      wasR = $.rpop.classList.contains('on');
     $.pop.classList.remove('on');
     $.tpop.classList.remove('on');
     $.dpop.classList.remove('on');
+    $.rpop.classList.remove('on');
     $.meta.setAttribute('aria-expanded', 'false');
     $.tmb.setAttribute('aria-expanded', 'false');
     $.dchip.setAttribute('aria-expanded', 'false');
+    $.inDay.setAttribute('aria-expanded', 'false');
+    if (RP && RP.from) RP.from.setAttribute('aria-expanded', 'false');
     if (back) {
       if (wasM) $.meta.focus({ preventScroll: true });
       else if (wasT) $.tmb.focus({ preventScroll: true });
-      else if (wasD) $.dchip.focus({ preventScroll: true });
+      else if (wasD) (DPX === 'in' ? $.inDay : $.dchip).focus({ preventScroll: true });
+      else if (wasR && RP && RP.from && RP.from.isConnected) RP.from.focus({ preventScroll: true });
     }
-    if (wasD) composerLeft();
+    if ((wasD && DPX === 'add') || (wasR && RP && RP.ctx === 'add')) composerLeft();
   }
   $.meta.onclick = () => ($.pop.classList.contains('on') ? closePops() : openMonth());
   $.tmb.onclick = () => ($.tpop.classList.contains('on') ? closePops() : openTimer());
@@ -1970,8 +2194,8 @@
   function onOutside(e) {
     const t = e.target && e.target.closest ? e.target : null;
     if ($.srch.classList.contains('on') && t && !app.contains(t)) closeSearch(false);
-    if (popOn() && !(t && t.closest('#pop,#meta,#tpop,#tmb,#dpop,#dchip'))) closePops();
-    if (t && t.closest('#fmt,#lb,#sug,#toast,.srch,#dpop')) return;
+    if (popOn() && !(t && t.closest('#pop,#meta,#tpop,#tmb,#dpop,#dchip,#rpop,.rbtn,#inDay'))) closePops();
+    if (t && t.closest('#fmt,#lb,#sug,#toast,.srch,#dpop,#rpop,#inbox')) return;
     const keep = t && t.closest('.row.open');
     for (const li of $.list.querySelectorAll('.row.open')) if (li !== keep) setOpen(li, false);
     for (const id of [...openIds]) if (!keep || keep.dataset.id !== id) openIds.delete(id);
@@ -2187,11 +2411,10 @@
       easing: 'ease-out',
     });
   }
-  function segRender(anim) {
-    const bs = [...$.seg.querySelectorAll('button')],
-      a = bs.find(b => b.dataset.m === TM.mode) || bs[0],
-      ind = $.seg.querySelector('i');
-    bs.forEach(b => b.setAttribute('aria-checked', b === a));
+  // A segmented control: the pill glides to the chosen option.
+  function segMove(seg, a, anim) {
+    const ind = seg.querySelector('i');
+    seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-checked', b === a));
     if (!anim) ind.style.transition = 'none';
     ind.style.width = a.offsetWidth + 'px';
     ind.style.transform = `translateX(${a.offsetLeft}px)`;
@@ -2199,6 +2422,10 @@
       ind.getBoundingClientRect();
       ind.style.transition = '';
     }
+  }
+  function segRender(anim) {
+    const bs = [...$.seg.querySelectorAll('button')];
+    segMove($.seg, bs.find(b => b.dataset.m === TM.mode) || bs[0], anim);
   }
   $.seg.onclick = e => {
     const b = e.target.closest('button');
@@ -2557,7 +2784,7 @@
   /* backup: export and import */
   function exportData() {
     const data = JSON.stringify(
-      { app: 'one-day', version: 1, exported: new Date().toISOString(), days: S.days },
+      { app: 'one-day', version: 2, exported: new Date().toISOString(), days: S.days, rules: S.rules },
       null,
       1,
     );
@@ -2599,12 +2826,20 @@
     const keys = Object.keys(j.days)
       .filter(k => /^\d{4}-\d\d-\d\d$/.test(k))
       .slice(0, 5000);
-    if (!keys.length) {
+    const incRules = cleanRules(j.rules);
+    if (!keys.length && !Object.keys(incRules).length) {
       toast('That backup is empty');
       return;
     }
     record(keys);
-    let added = 0;
+    let added = 0,
+      ruled = 0;
+    for (const id in incRules)
+      if (!S.rules[id]) {
+        S.rules[id] = incRules[id];
+        ruled++;
+      }
+    if (ruled) persist();
     for (const k of keys) {
       const inc = clean(j.days[k] && j.days[k].tasks),
         d = day(k),
@@ -2621,10 +2856,13 @@
       renderList();
       renderAux();
     });
-    toast(
-      added ? `Imported ${added} ${added > 1 ? 'tasks' : 'task'}` : 'Nothing new in that backup',
-      added ? 'undo' : null,
-    );
+    ensure(cur);
+    flip(() => renderList());
+    const what = [
+      added ? `${added} ${added > 1 ? 'tasks' : 'task'}` : '',
+      ruled ? `${ruled} repeating ${ruled > 1 ? 'tasks' : 'task'}` : '',
+    ].filter(Boolean);
+    toast(what.length ? `Imported ${what.join(' and ')}` : 'Nothing new in that backup', what.length ? 'undo' : null);
   });
 
   /* tag suggestions while typing */
@@ -2762,7 +3000,9 @@
 
   /* the day a new task goes to: the day on screen, unless another one is picked.
      The pick holds while you keep adding, and goes back to the day on screen once you leave the composer. */
-  let addTo = null;
+  let addTo = null,
+    addRule = null,
+    DPX = 'add';
   const addDay = () => addTo || cur;
   const LONG = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
   const dayName = k => {
@@ -2770,10 +3010,17 @@
     return Math.abs(n) <= 1 ? relLabel(k).toLowerCase() : LONG.format(fromKey(k)) + (k.slice(0, 4) !== todayKey().slice(0, 4) ? ' ' + k.slice(0, 4) : '');
   };
   function renderChip(pop) {
-    const k = addDay();
-    $.dlabel.textContent = dayLabel(k);
-    $.dchip.classList.toggle('set', k !== cur);
-    $.dchip.setAttribute('aria-label', `${dayLabel(k)}: new tasks go to ${dayName(k)}. Choose another day`);
+    const k = addDay(),
+      r = addRule && cleanRule({ ...addRule, text: 'x', start: k }, 'x');
+    $.dlabel.textContent = r ? ruleText(r, true) : dayLabel(k);
+    $.dchip.classList.toggle('set', k !== cur || !!r);
+    $.dchip.classList.toggle('rep', !!r);
+    $.dchip.setAttribute(
+      'aria-label',
+      r
+        ? `${ruleText(r, true)}: new tasks repeat ${ruleText(r).toLowerCase()}, from ${dayName(k)}. Change`
+        : `${dayLabel(k)}: new tasks go to ${dayName(k)}. Choose another day`,
+    );
     if (pop)
       an($.dchip, [{ transform: 'scale(.9)' }, { transform: 'none' }], { easing: POP.ease, duration: POP.dur });
   }
@@ -2795,29 +3042,40 @@
     toast(`Added to ${dayName(k)}`, 'undo');
   }
   function renderDpop(d) {
+    const r = addRule && cleanRule({ ...addRule, text: 'x', start: addDay() }, 'x');
     $.dpT.textContent = MO.format(dpM);
-    $.dgrid.innerHTML = gridHTML(dpM, addDay());
+    $.dgrid.innerHTML = gridHTML(dpM, DPX === 'in' && IN ? IN.to : addDay());
+    $.drepV.textContent = r ? ruleText(r, true) : 'Never';
     if (d)
       an($.dgrid, [
         { opacity: 0, transform: `translateX(${d * 18}px)` },
         { opacity: 1, transform: 'none' },
       ]);
   }
-  function openDpop() {
+  function openDpop(from = $.dchip) {
     closePops();
     hideTip(0);
     hideSug();
-    const d = fromKey(addDay());
+    DPX = from === $.inDay ? 'in' : 'add';
+    const d = fromKey(DPX === 'in' && IN ? IN.to : addDay());
     dpM = new Date(d.getFullYear(), d.getMonth(), 1);
+    $.drep.hidden = DPX === 'in';
     renderDpop(0);
-    place($.dpop, $.dchip.getBoundingClientRect(), 'up');
-    $.dchip.setAttribute('aria-expanded', 'true');
+    place($.dpop, from.getBoundingClientRect(), DPX === 'in' ? 'down' : 'up');
+    from.setAttribute('aria-expanded', 'true');
     const s = $.dgrid.querySelector('.s');
     if (s) s.focus({ preventScroll: true });
   }
   function pickDay(k) {
-    setAddTo(k);
     $.dpop.classList.remove('on');
+    if (DPX === 'in') {
+      if (IN) IN.to = k;
+      renderInbox();
+      $.inDay.setAttribute('aria-expanded', 'false');
+      $.inYes.focus({ preventScroll: true });
+      return;
+    }
+    setAddTo(k);
     $.dchip.setAttribute('aria-expanded', 'false');
     $.input.focus({ preventScroll: true });
   }
@@ -2825,8 +3083,14 @@
   function composerLeft() {
     later(() => {
       const ae = D().activeElement;
-      if (addTo && !$.dpop.classList.contains('on') && !(ae && ($.add.contains(ae) || $.dpop.contains(ae)))) {
+      if (
+        (addTo || addRule) &&
+        !$.dpop.classList.contains('on') &&
+        !$.rpop.classList.contains('on') &&
+        !(ae && ($.add.contains(ae) || $.dpop.contains(ae) || $.rpop.contains(ae)))
+      ) {
         addTo = null;
+        addRule = null;
         renderChip();
       }
     }, 0);
@@ -2855,7 +3119,337 @@
     if (!e.target.closest('button')) e.preventDefault();
   });
   $.add.addEventListener('focusout', composerLeft);
-  $.dpop.addEventListener('focusout', composerLeft);
+  $.dpop.addEventListener('focusout', () => DPX === 'add' && composerLeft());
+  $.rpop.addEventListener('focusout', () => RP && RP.ctx === 'add' && composerLeft());
+  $.drep.onclick = () => {
+    const a = $.dchip.getBoundingClientRect();
+    $.dpop.classList.remove('on');
+    openRpop({ ctx: 'add', start: addDay(), rule: addRule, anchor: a, prefer: 'up', from: $.dchip });
+  };
+
+  /* the repeat editor, for new tasks (from the composer) or for a task (from its card) */
+  let RP = null;
+  function openRpop(o) {
+    hideTip(0);
+    const b = o.rule || {};
+    RP = {
+      ctx: o.ctx,
+      id: o.id,
+      start: o.start,
+      had: !!o.rule,
+      anchor: o.anchor,
+      prefer: o.prefer,
+      from: o.from,
+      f: {
+        freq: b.freq || 'week',
+        every: b.every || 1,
+        days: b.days ? [...b.days] : [wdOf(o.start)],
+        nth: b.nth != null ? b.nth : null,
+      },
+    };
+    $.rnone.textContent = o.ctx === 'task' ? (RP.had ? 'Stop repeating' : 'Cancel') : RP.had ? "Don't repeat" : 'Cancel';
+    delete $.rnum.dataset.v;
+    $.rpop.classList.add('on');
+    renderRp(false);
+    place($.rpop, o.anchor, o.prefer);
+    if (o.from) o.from.setAttribute('aria-expanded', 'true');
+    const a = $.rseg.querySelector('[aria-checked="true"]');
+    if (a) a.focus({ preventScroll: true });
+  }
+  function draftRule() {
+    const f = RP.f,
+      r = { freq: f.freq, every: f.every };
+    if (f.freq === 'week') r.days = f.days;
+    if (f.freq === 'month' && f.nth != null) r.nth = f.nth;
+    return r;
+  }
+  function renderRp(anim, d) {
+    const f = RP.f,
+      s = fromKey(RP.start),
+      h0 = $.rpop.offsetHeight;
+    segMove($.rseg, $.rseg.querySelector(`[data-f="${f.freq}"]`), anim);
+    roll($.rnum, String(f.every), d || 0);
+    $.runit.textContent = f.freq + (f.every > 1 ? 's' : '');
+    $.rdays.hidden = f.freq !== 'week';
+    $.rdays.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', f.days.includes(+b.dataset.d)));
+    $.rmon.hidden = f.freq !== 'month';
+    const wd = WDL[wdOf(RP.start)],
+      n = Math.ceil(s.getDate() / 7),
+      opt = {
+        date: `On the ${ord(s.getDate())}`,
+        nth: n <= 4 ? `On the ${NTH[n]} ${wd}` : '',
+        last: s.getDate() + 7 > dimOf(s) ? `On the last ${wd}` : '',
+      },
+      pick = f.nth == null ? 'date' : f.nth === -1 ? 'last' : 'nth';
+    $.rmon.querySelectorAll('button').forEach(b => {
+      const m = b.dataset.m;
+      b.hidden = !opt[m];
+      b.textContent = opt[m];
+      b.setAttribute('aria-checked', m === pick);
+      b.classList.toggle('on', m === pick);
+    });
+    const r = cleanRule({ ...draftRule(), text: 'x', start: RP.start }, 'x'),
+      nx = nextOcc(r, RP.ctx === 'task' ? addDays(RP.start, 1) : RP.start);
+    $.rsum.innerHTML = `${esc(ruleText(r))}${nx ? `<span>${RP.ctx === 'task' ? 'Then' : 'Next'}: ${esc(dayLabel(nx))}</span>` : ''}`;
+    const h1 = $.rpop.offsetHeight;
+    if (anim && Math.abs(h1 - h0) > 1) {
+      place($.rpop, RP.anchor, RP.prefer);
+      an($.rpop, [{ height: h0 + 'px' }, { height: h1 + 'px' }], { easing: SNAP.ease, duration: SNAP.dur });
+    }
+  }
+  $.rseg.onclick = e => {
+    const b = e.target.closest('button[data-f]');
+    if (!b || !RP || b.dataset.f === RP.f.freq) return;
+    RP.f.freq = b.dataset.f;
+    renderRp(true);
+  };
+  function stepRp(d) {
+    const v = Math.max(1, Math.min(99, RP.f.every + d));
+    if (v === RP.f.every) return;
+    RP.f.every = v;
+    renderRp(false, d);
+  }
+  $.rminus.onclick = () => stepRp(-1);
+  $.rplus.onclick = () => stepRp(1);
+  $.rdays.onclick = e => {
+    const b = e.target.closest('button[data-d]');
+    if (!b || !RP) return;
+    const n = +b.dataset.d,
+      i = RP.f.days.indexOf(n);
+    if (i > -1 && RP.f.days.length === 1) {
+      an(b, [{ transform: 'translateX(-3px)' }, { transform: 'translateX(3px)' }, { transform: 'none' }], {
+        duration: 260,
+        easing: 'ease-out',
+      });
+      return;
+    }
+    RP.f.days = i > -1 ? RP.f.days.filter(x => x !== n) : [...RP.f.days, n].sort((a, c) => a - c);
+    renderRp(false);
+    an(b, [{ transform: 'scale(.8)' }, { transform: 'none' }], { easing: POP.ease, duration: POP.dur });
+  };
+  $.rmon.onclick = e => {
+    const b = e.target.closest('button[data-m]');
+    if (!b || !RP) return;
+    const m = b.dataset.m;
+    RP.f.nth = m === 'date' ? null : m === 'last' ? -1 : Math.ceil(fromKey(RP.start).getDate() / 7);
+    renderRp(false);
+  };
+  function applyRp(on) {
+    const o = RP;
+    if (!o) return;
+    const f = draftRule();
+    $.rpop.classList.remove('on');
+    if (o.from) o.from.setAttribute('aria-expanded', 'false');
+    if (o.ctx === 'add') {
+      addRule = on ? f : o.had && !on ? null : addRule;
+      renderChip(true);
+      $.input.focus({ preventScroll: true });
+      return;
+    }
+    const t = find(o.id);
+    if (o.from && o.from.isConnected) o.from.focus({ preventScroll: true });
+    if (!t) return;
+    if (on) setRule(t, f);
+    else if (o.had) stopRule(t);
+  }
+  $.rdone.onclick = () => applyRp(true);
+  $.rnone.onclick = () => applyRp(false);
+  $.rpop.addEventListener('pointerdown', e => {
+    if (!e.target.closest('button')) e.preventDefault();
+  });
+  function repeatFor(li, b) {
+    if ($.rpop.classList.contains('on') && RP && RP.id === li.dataset.id) return closePops(true);
+    const t = find(li.dataset.id);
+    if (!t) return;
+    closePops();
+    openRpop({
+      ctx: 'task',
+      id: t.id,
+      start: cur,
+      rule: t.rule && S.rules[t.rule],
+      anchor: b.getBoundingClientRect(),
+      prefer: 'down',
+      from: b,
+    });
+  }
+
+  /* send a task: the whole task travels in the link, after the #, which browsers never send to a server */
+  const b64 = {
+    enc(u8) {
+      let x = '';
+      for (let i = 0; i < u8.length; i += 0x8000) x += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+      return btoa(x).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    },
+    dec(x) {
+      const b = atob(x.replace(/-/g, '+').replace(/_/g, '/')),
+        u8 = new Uint8Array(b.length);
+      for (let i = 0; i < b.length; i++) u8[i] = b.charCodeAt(i);
+      return u8;
+    },
+  };
+  // Through a (de)compression stream, refusing to grow past `max` bytes.
+  async function through(u8, stream, max) {
+    const rd = new Blob([u8]).stream().pipeThrough(stream).getReader(),
+      parts = [];
+    let n = 0;
+    for (;;) {
+      const { done, value } = await rd.read();
+      if (done) break;
+      n += value.length;
+      if (n > max) {
+        rd.cancel();
+        throw new Error('too large');
+      }
+      parts.push(value);
+    }
+    const out = new Uint8Array(n);
+    let o = 0;
+    for (const v of parts) {
+      out.set(v, o);
+      o += v.length;
+    }
+    return out;
+  }
+  async function linkFor(t) {
+    const pl = { v: 1, t: t.text };
+    if (t.note) pl.n = t.note;
+    if (t.subs) pl.s = t.subs.map(x => (x.done ? [x.text, 1] : [x.text]));
+    let u8 = new TextEncoder().encode(JSON.stringify(pl)),
+      kind = 'j';
+    if (window.CompressionStream)
+      try {
+        u8 = await through(u8, new CompressionStream('deflate-raw'), 1e6);
+        kind = 'z';
+      } catch (e) {}
+    return location.href.split('#')[0] + '#add=' + kind + b64.enc(u8);
+  }
+  async function sendTask(t, b) {
+    if (!t) return;
+    if (b) an(b, [{ transform: 'scale(.9)' }, { transform: 'none' }], { easing: POP.ease, duration: POP.dur });
+    let url;
+    try {
+      url = await linkFor(t);
+    } catch (e) {
+      toast('This task could not be put in a link');
+      return;
+    }
+    if (url.length > 8000) {
+      toast('Too long to send as a link: shorten the note');
+      return;
+    }
+    const nav = W().navigator;
+    if (TOUCH && nav.share)
+      try {
+        await nav.share({ title: t.text.replace(TAGRE, '$1').trim() || 'A task', url });
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+      }
+    try {
+      await nav.clipboard.writeText(url);
+      toast('Link copied: whoever opens it can add this task');
+    } catch (e) {
+      toast('This browser blocked the copy');
+    }
+  }
+  let IN = null;
+  async function readIncoming() {
+    const m = /^#add=([jz])([\w-]{4,24000})$/.exec(location.hash);
+    if (!m) return;
+    try {
+      history.replaceState(null, '', location.href.split('#')[0]);
+    } catch (e) {}
+    let pl = null;
+    try {
+      let u8 = b64.dec(m[2]);
+      if (m[1] === 'z') u8 = await through(u8, new DecompressionStream('deflate-raw'), 2e5);
+      pl = JSON.parse(new TextDecoder().decode(u8));
+    } catch (e) {}
+    const ok = pl && pl.v === 1 && typeof pl.t === 'string' && pl.t.trim(),
+      subs =
+        ok && Array.isArray(pl.s)
+          ? pl.s
+              .filter(x => Array.isArray(x) && typeof x[0] === 'string')
+              .map(x => ({ id: uid(), text: x[0].replace(/\s+/g, ' ').trim(), done: !!x[1] }))
+              .filter(x => x.text)
+          : [],
+      [t] = ok
+        ? clean([
+            {
+              id: uid(),
+              text: pl.t.replace(/\s+/g, ' ').trim(),
+              done: false,
+              note: typeof pl.n === 'string' ? pl.n : undefined,
+              subs: subs.length ? subs : undefined,
+            },
+          ])
+        : [];
+    if (!t) {
+      toast('That link doesn’t hold a task');
+      return;
+    }
+    IN = { t, to: todayKey() };
+    $.inTitle.innerHTML = titleHTML(t.text);
+    const n = (t.subs || []).length,
+      meta = [t.note ? 'Note' : '', n ? `${n} ${n > 1 ? 'sub-tasks' : 'sub-task'}` : ''].filter(Boolean).join(' · ');
+    $.inMeta.textContent = meta;
+    $.inMeta.hidden = !meta;
+    renderInbox();
+    $.inbox.style.top = q('header').offsetHeight - 6 + 'px';
+    $.inbox.getAnimations().forEach(a => a.cancel());
+    $.inbox.hidden = false;
+    an($.inbox, [{ opacity: 0, transform: 'translateY(-14px) scale(.97)' }, { opacity: 1, transform: 'none' }], {
+      easing: POP.ease,
+      duration: POP.dur,
+    });
+    $.inYes.focus({ preventScroll: true });
+  }
+  function renderInbox() {
+    if (!IN) return;
+    $.inDayL.textContent = dayLabel(IN.to);
+    $.inDay.classList.toggle('set', IN.to !== todayKey());
+  }
+  function closeInbox() {
+    if ($.inbox.hidden) return;
+    IN = null;
+    if ($.dpop.classList.contains('on') && DPX === 'in') closePops();
+    then(
+      an($.inbox, [{ opacity: 1 }, { opacity: 0, transform: 'translateY(-8px) scale(.98)' }], {
+        duration: 180,
+        easing: 'ease',
+      }),
+      () => {
+        if (!IN) $.inbox.hidden = true;
+      },
+    );
+  }
+  $.inNo.onclick = closeInbox;
+  $.inYes.onclick = () => {
+    if (!IN) return;
+    const { t, to } = IN;
+    closeInbox();
+    record([to]);
+    day(to).tasks.push(t);
+    commit(to);
+    if (to === cur) {
+      flip(() => {
+        renderList();
+        renderAux();
+      });
+      const li = rowOf(t.id);
+      if (li) {
+        li.scrollIntoView({ block: 'nearest', behavior: RM.matches ? 'auto' : 'smooth' });
+        flash(li);
+      }
+      toast('Task added', 'undo');
+    } else {
+      const d = Math.sign(diff(cur, to)) || 1;
+      nudge(d > 0 ? $.next : $.prev, d);
+      toast(`Added to ${dayName(to)}`, 'undo');
+    }
+  };
+  $.inDay.onclick = () => ($.dpop.classList.contains('on') ? closePops(true) : openDpop($.inDay));
+  window.addEventListener('hashchange', readIncoming);
 
   /* toast */
   let toastTm = null,
@@ -3004,6 +3598,11 @@
       closeSearch();
       return;
     }
+    if (k === 'Escape' && !$.inbox.hidden && !popOn()) {
+      e.preventDefault();
+      closeInbox();
+      return;
+    }
     if (typing || m) return;
     if (popOn()) {
       if (k === 'Escape') {
@@ -3025,7 +3624,7 @@
         closePops(true);
         return;
       }
-      if (t.closest('#pop,#tpop,#dpop')) return;
+      if (t.closest('#pop,#tpop,#dpop,#rpop')) return;
     }
     if (row && !t.closest('.more')) {
       if (e.altKey && (k === 'ArrowUp' || k === 'ArrowDown')) {
@@ -3409,6 +4008,7 @@
   };
 
   /* first paint: one orchestrated entrance, held until the type has loaded */
+  ensure(cur);
   renderHeader(0);
   renderList(true);
   renderAux();
@@ -3518,6 +4118,7 @@
   ]).then(intro);
   bindDoc(document);
   cloud.init();
+  if (location.hash.startsWith('#add=')) later(readIncoming, RM.matches ? 0 : 900);
   if (
     'serviceWorker' in navigator &&
     (location.protocol === 'https:' || location.hostname === 'localhost') &&

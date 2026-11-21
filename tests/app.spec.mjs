@@ -270,6 +270,213 @@ test('keep on top: the floating window is styled and follows the page theme', as
   await expect(page.locator('#num .dg .out')).toHaveCount(0);
 });
 
+test.describe('repeating tasks', () => {
+  test('repeat every 2 days from the composer', async ({ page }) => {
+    await open(page);
+    await page.locator('#input').click();
+    await page.locator('#dchip').click();
+    await page.locator('#drep').click();
+    await expect(page.locator('#rpop')).toHaveClass(/\bon\b/);
+    await page.locator('#rseg [data-f="day"]').click();
+    await page.locator('#rplus').click();
+    await expect(page.locator('#rsum')).toContainText('Every 2 days');
+    await page.locator('#rdone').click();
+    await expect(page.locator('#dchip')).toHaveClass(/\brep\b/);
+    await expect(page.locator('#dlabel')).toHaveText('Every 2 days');
+    await expect(page.locator('#input')).toBeFocused();
+    await page.locator('#input').fill('Stretch');
+    await page.locator('#input').press('Enter');
+    await expect(row(page, 'Stretch')).toBeVisible();
+    await expect(row(page, 'Stretch').locator('.mt')).toContainText('Every 2 days');
+    await page.mouse.click(40, 600);
+    await expect(page.locator('#dlabel')).toHaveText('Today');
+    await page.keyboard.press('ArrowRight');
+    await expect(row(page, 'Stretch')).toHaveCount(0);
+    await page.keyboard.press('ArrowRight');
+    await expect(row(page, 'Stretch')).toBeVisible();
+    await expect(row(page, 'Stretch').locator('.in .ck')).toHaveAttribute('aria-checked', 'false');
+  });
+
+  test('weekly on chosen days, with the summary and the next date', async ({ page }) => {
+    await open(page);
+    await page.locator('#input').click();
+    await page.locator('#dchip').click();
+    await page.locator('#drep').click();
+    const wd = (new Date().getDay() + 6) % 7,
+      other = (wd + 3) % 7;
+    await expect(page.locator(`#rdays [data-d="${wd}"]`)).toHaveAttribute('aria-pressed', 'true');
+    await page.locator(`#rdays [data-d="${other}"]`).click();
+    await expect(page.locator(`#rdays [data-d="${other}"]`)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#rsum')).toContainText('Next: Today');
+    // the last chosen day cannot be removed
+    await page.locator(`#rdays [data-d="${other}"]`).click();
+    await page.locator(`#rdays [data-d="${wd}"]`).click();
+    await expect(page.locator(`#rdays [data-d="${wd}"]`)).toHaveAttribute('aria-pressed', 'true');
+    await page.locator('#rdone').click();
+    await page.locator('#input').fill('Gym');
+    await page.locator('#input').press('Enter');
+    await expect(row(page, 'Gym')).toBeVisible();
+    await page.mouse.click(40, 600);
+    for (let i = 0; i < 6; i++) await page.keyboard.press('ArrowRight');
+    await expect(row(page, 'Gym')).toHaveCount(0);
+    await page.keyboard.press('ArrowRight');
+    await expect(row(page, 'Gym')).toBeVisible();
+  });
+
+  test('ticking or deleting one occurrence leaves the series alone; stop ends what is to come', async ({ page }) => {
+    await open(page);
+    const a = row(page, 'Write the report');
+    await a.locator('.tx').click({ position: { x: 300, y: 8 } });
+    await a.locator('.rbtn').click();
+    await page.locator('#rseg [data-f="day"]').click();
+    await page.locator('#rdone').click();
+    await expect(a.locator('.mt')).toContainText('Daily');
+    await expect(a.locator('.rbtn')).toContainText('Every day');
+    await a.locator('.in .ck').click();
+    await expect(a.locator('.in .ck')).toHaveAttribute('aria-checked', 'true');
+    await page.mouse.click(40, 600);
+    await page.keyboard.press('ArrowRight');
+    const b = row(page, 'Write the report');
+    await expect(b.locator('.in .ck')).toHaveAttribute('aria-checked', 'false');
+    await b.hover();
+    await b.locator('.rm').click();
+    await expect(row(page, 'Write the report')).toHaveCount(0);
+    await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('ArrowRight');
+    await expect(row(page, 'Write the report')).toHaveCount(0);
+    await page.keyboard.press('ArrowRight');
+    const c = row(page, 'Write the report');
+    await expect(c).toBeVisible();
+    await page.keyboard.press('ArrowRight');
+    await expect(row(page, 'Write the report')).toBeVisible();
+    await page.keyboard.press('ArrowLeft');
+    await c.locator('.mt').click();
+    await c.locator('.rbtn').click();
+    await expect(page.locator('#rnone')).toHaveText('Stop repeating');
+    await page.locator('#rnone').click();
+    await expect(page.locator('#toast')).toContainText('Stopped repeating');
+    await expect(c.locator('.mt .rp')).toHaveCount(0);
+    await page.mouse.click(40, 600);
+    await page.keyboard.press('ArrowRight');
+    await expect(row(page, 'Write the report')).toHaveCount(0);
+  });
+
+  test('missed occurrences are not leftovers; undo removes a new series', async ({ page }) => {
+    const start = key(plus(-3)),
+      past = key(plus(-2));
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.addInitScript(
+      ([s, p, t]) => {
+        if (localStorage.getItem('oneday.v1')) return;
+        localStorage.setItem(
+          'oneday.v1',
+          JSON.stringify({
+            days: {
+              [p]: { u: 1, tasks: [{ id: 'rx1-' + p.replace(/-/g, ''), text: 'Meditate', done: false, rule: 'rx1' }] },
+              [t]: { u: 1, tasks: [] },
+            },
+            rules: { rx1: { id: 'rx1', text: 'Meditate', start: s, freq: 'day', every: 1 } },
+          }),
+        );
+      },
+      [start, past, today()],
+    );
+    await page.goto('/');
+    await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
+    await expect(row(page, 'Meditate')).toHaveCount(1);
+    await expect(page.locator('#carry')).toBeHidden();
+    await page.locator('#input').click();
+    await page.locator('#dchip').click();
+    await page.locator('#drep').click();
+    await page.locator('#rseg [data-f="day"]').click();
+    await page.locator('#rdone').click();
+    await page.locator('#input').fill('Read');
+    await page.locator('#input').press('Enter');
+    await expect(row(page, 'Read')).toBeVisible();
+    await page.mouse.click(40, 600);
+    await page.keyboard.press('Control+z');
+    await expect(row(page, 'Read')).toHaveCount(0);
+    await page.keyboard.press('ArrowRight');
+    await expect(row(page, 'Read')).toHaveCount(0);
+    await expect(row(page, 'Meditate')).toHaveCount(1);
+  });
+});
+
+test.describe('send a task', () => {
+  test('the link carries the task, and whoever opens it can add it', async ({ page, browser }) => {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await open(page);
+    const b = row(page, 'Plan the trip');
+    await b.locator('.mt').click();
+    await b.locator('.sbtn').click();
+    await expect(page.locator('#toast')).toContainText('Link copied');
+    const link = await page.evaluate(() => navigator.clipboard.readText());
+    expect(link).toMatch(/#add=z[\w-]+$/);
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+    const other = await ctx.newPage(),
+      seen = [];
+    other.on('request', r => seen.push(r.url()));
+    await other.emulateMedia({ reducedMotion: 'reduce' });
+    await other.goto(link);
+    await expect(other.locator('#inbox')).toBeVisible();
+    await expect(other.locator('#inTitle')).toHaveText('Plan the trip');
+    await expect(other.locator('#inMeta')).toHaveText('Note · 2 sub-tasks');
+    expect(other.url()).not.toContain('#add=');
+    await other.locator('#inYes').click();
+    const r = other.locator('#list .row', { hasText: 'Plan the trip' });
+    await expect(r).toBeVisible();
+    await r.locator('.mt').click();
+    await expect(r.locator('.note')).toContainText('passports');
+    await expect(r.locator('.sub')).toHaveCount(2);
+    expect(seen.some(u => u.includes('add='))).toBe(false);
+    await ctx.close();
+  });
+
+  test('the incoming task can go to another day, or be ignored', async ({ page }) => {
+    await open(page);
+    const enc = x => Buffer.from(JSON.stringify(x)).toString('base64url');
+    await page.goto('/#add=j' + enc({ v: 1, t: 'Pick up the keys' }));
+    await expect(page.locator('#inbox')).toBeVisible();
+    await page.locator('#inDay').click();
+    await page.locator('#dq [data-d="tomorrow"]').click();
+    await expect(page.locator('#inDayL')).toHaveText('Tomorrow');
+    await page.locator('#inYes').click();
+    await expect(page.locator('#toast')).toContainText('Added to tomorrow');
+    await expect(row(page, 'Pick up the keys')).toHaveCount(0);
+    await page.keyboard.press('ArrowRight');
+    await expect(row(page, 'Pick up the keys')).toBeVisible();
+    await page.goto('/#add=j' + enc({ v: 1, t: 'Not this one' }));
+    await expect(page.locator('#inbox')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#inbox')).toBeHidden();
+    await expect(row(page, 'Not this one')).toHaveCount(0);
+  });
+
+  test('a hostile link cannot run code or break the page', async ({ page }) => {
+    await open(page);
+    const enc = x => Buffer.from(JSON.stringify(x)).toString('base64url');
+    await page.goto(
+      '/#add=j' +
+        enc({
+          v: 1,
+          t: 'Evil <img src=x onerror="window.__pwned=1">',
+          n: '<script>window.__pwned=1</script><img src=x onerror="window.__pwned=1"><b>kept</b>',
+          s: [['<svg onload="window.__pwned=1">'], [42], 'nope'],
+        }),
+    );
+    await expect(page.locator('#inTitle')).toHaveText('Evil <img src=x onerror="window.__pwned=1">');
+    await page.locator('#inYes').click();
+    const r = row(page, 'Evil <img');
+    await r.locator('.mt').click();
+    await expect(r.locator('.note b')).toHaveText('kept');
+    await expect(r.locator('.note img, .note script')).toHaveCount(0);
+    await expect(r.locator('.sub')).toHaveCount(1);
+    expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
+    await page.goto('/#add=zAAAAAAAA');
+    await expect(page.locator('#toast')).toContainText('doesn’t hold a task');
+  });
+});
+
 test.describe('on a large screen', () => {
   test('the card grows with its content and the footer follows it', async ({ page }) => {
     await open(page);
@@ -314,6 +521,14 @@ test.describe('accessibility (axe, WCAG 2.2 AA)', () => {
     search: async page => page.keyboard.press('/'),
     timer: async page => page.keyboard.press('t'),
     'day picker': async page => page.locator('#dchip').click(),
+    'repeat editor': async page => {
+      await page.locator('#dchip').click();
+      await page.locator('#drep').click();
+    },
+    'incoming task': async page =>
+      page.evaluate(() => {
+        location.hash = '#add=j' + btoa(JSON.stringify({ v: 1, t: 'Hello #work', n: '<b>x</b>', s: [['a']] })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      }),
   };
   for (const scheme of ['light', 'dark'])
     for (const [name, go] of Object.entries(states))

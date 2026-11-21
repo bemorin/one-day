@@ -13,6 +13,8 @@ One Day is a single-page web app with no framework, no runtime dependencies, no 
 - **One day on screen.** Move between days with the arrows, a swipe, a trackpad gesture or the month picker. The date rolls like a counter, and the thick rule at the top fills up as you finish the day.
 - **A sheet that fits its content.** On a large screen the day is a card on the page. It grows and shrinks on a spring as tasks come and go. On a phone it fills the screen.
 - **Add to any day.** The composer adds to the day on screen. Its day chip sends a task to another day (Today, Tomorrow, Next week or any date) without leaving the one you are on.
+- **Repeat.** A task can come back every few days, weeks or months: on chosen weekdays, or on a date or a weekday of the month. Each occurrence appears when its day comes; ticking or deleting one leaves the others alone, and missed ones don't pile up as leftovers.
+- **Send a task.** Share a task as a link from its card. The task travels inside the link, after the `#`, which browsers never send to a server; whoever opens it can add it to their own One Day, on the day they choose.
 - **Tasks that feel physical.** Tick, drag to reorder, send to tomorrow, delete. Every action can be undone, and every motion is driven by springs.
 - **Notes and sub-tasks.** Click a task to open it: a rich-text note (bold, italic, strikethrough, code, lists, links) and a checklist. The task's circle fills as the checklist gets done. Click the title of an open task, or double-click any task, to rename it.
 - **Tags.** Type `#anything` in a task or a sub-task. Tags autocomplete, and clicking one searches for it.
@@ -47,6 +49,7 @@ On a phone: tap a task to open it, hold then drag to reorder, swipe sideways to 
 - **Your tasks never leave your device.** They are stored in your browser's `localStorage` for this site. There is no server, database or account behind the app, so whoever hosts it cannot see them.
 - **No cookies, no analytics, no third-party requests.** The font is bundled with the app, and the Content Security Policy only lets the app's own files load. The footer links are plain links: nothing is contacted until you click one. The dogood.day link tells that site you came from One Day (the address of the site only, no page and no identifier); the others send nothing.
 - **The service worker caches the app's files only**, so it opens instantly and works offline. It never reads your tasks.
+- **Sent tasks travel in the link itself**, after the `#`, never through a server. Anyone who has the link can read the task, as with any message.
 - **Backups are yours.** Search → _Export backup_ downloads a JSON file. _Import backup_ merges one back without overwriting existing tasks.
 - **Erasing everything:** clear this site's data in your browser settings.
 

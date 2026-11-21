@@ -202,9 +202,14 @@
                 aria-expanded="false"
                 aria-controls="dpop"
               >
-                <svg viewBox="0 0 16 16" aria-hidden="true">
+                <svg class="i-cal" viewBox="0 0 16 16" aria-hidden="true">
                   <rect x="2.25" y="3" width="11.5" height="10.75" rx="2.75" />
                   <path d="M2.5 6.6h11M5.4 1.6v2.8M10.6 1.6v2.8" />
+                </svg>
+                <svg class="i-rep" viewBox="0 0 16 16" aria-hidden="true">
+                  <path
+                    d="M2.75 7.25a5.25 5.25 0 0 1 9.1-3.3l1.4 1.3M13.25 2.25v3h-3M13.25 8.75a5.25 5.25 0 0 1-9.1 3.3l-1.4-1.3M2.75 13.75v-3h3"
+                  />
                 </svg>
                 <span id="dlabel">Today</span>
               </button>
@@ -229,6 +234,78 @@
             </div>
           </div>
           <div class="grid" id="dgrid"></div>
+          <button type="button" class="drep" id="drep">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.75 7.25a5.25 5.25 0 0 1 9.1-3.3l1.4 1.3M13.25 2.25v3h-3M13.25 8.75a5.25 5.25 0 0 1-9.1 3.3l-1.4-1.3M2.75 13.75v-3h3" /></svg><span>Repeat</span><span class="v" id="drepV">Never</span>
+            <svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6.5 4 4 4-4 4" /></svg>
+          </button>
+        </div>
+        <div class="dpop rpop" id="rpop" role="dialog" aria-labelledby="rpT">
+          <div class="ph"><span id="rpT">Repeat</span></div>
+          <div class="seg rseg" id="rseg" role="radiogroup" aria-label="How often">
+            <button type="button" role="radio" data-f="day">Daily</button
+            ><button type="button" role="radio" data-f="week">Weekly</button
+            ><button type="button" role="radio" data-f="month">Monthly</button><i></i>
+          </div>
+          <div class="rstep">
+            <span>Every</span>
+            <button class="ib" id="rminus" type="button" aria-label="Fewer">
+              <svg viewBox="0 0 20 20"><path d="M5 10h10" /></svg>
+            </button>
+            <span class="rnum" id="rnum" aria-live="polite"></span>
+            <button class="ib" id="rplus" type="button" aria-label="More">
+              <svg viewBox="0 0 20 20"><path d="M10 5v10M5 10h10" /></svg>
+            </button>
+            <span class="runit" id="runit">week</span>
+          </div>
+          <div class="rdays" id="rdays" role="group" aria-label="On these days">
+            <button type="button" data-d="0" aria-label="Monday" aria-pressed="false">M</button
+            ><button type="button" data-d="1" aria-label="Tuesday" aria-pressed="false">T</button
+            ><button type="button" data-d="2" aria-label="Wednesday" aria-pressed="false">W</button
+            ><button type="button" data-d="3" aria-label="Thursday" aria-pressed="false">T</button
+            ><button type="button" data-d="4" aria-label="Friday" aria-pressed="false">F</button
+            ><button type="button" data-d="5" aria-label="Saturday" aria-pressed="false">S</button
+            ><button type="button" data-d="6" aria-label="Sunday" aria-pressed="false">S</button>
+          </div>
+          <div class="rmon" id="rmon" role="radiogroup" aria-label="On">
+            <button type="button" role="radio" class="chip" data-m="date"></button
+            ><button type="button" role="radio" class="chip" data-m="nth"></button
+            ><button type="button" role="radio" class="chip" data-m="last"></button>
+          </div>
+          <p class="rsum" id="rsum" aria-live="polite"></p>
+          <div class="racts">
+            <button type="button" class="tbtn" id="rnone">Don't repeat</button
+            ><button type="button" class="pbtn" id="rdone">Done</button>
+          </div>
+        </div>
+        <div class="inbox" id="inbox" role="dialog" aria-labelledby="inT" hidden>
+          <p class="inT" id="inT">A task for you</p>
+          <div class="incard">
+            <span class="mini" aria-hidden="true"></span>
+            <div>
+              <p class="inti" id="inTitle"></p>
+              <p class="inme" id="inMeta"></p>
+            </div>
+          </div>
+          <div class="inacts">
+            <button
+              class="dchip"
+              id="inDay"
+              type="button"
+              data-tip="Choose the day"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+              aria-controls="dpop"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <rect x="2.25" y="3" width="11.5" height="10.75" rx="2.75" />
+                  <path d="M2.5 6.6h11M5.4 1.6v2.8M10.6 1.6v2.8" />
+                </svg>
+              <span id="inDayL">Today</span>
+            </button>
+            <span class="sp"></span>
+            <button type="button" class="tbtn" id="inNo">Ignore</button
+            ><button type="button" class="pbtn" id="inYes">Add</button>
+          </div>
         </div>
         <div class="srch" id="srch" role="dialog" aria-label="Search" inert>
           <div class="sbar">
