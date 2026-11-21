@@ -442,6 +442,8 @@
     plus: '<svg viewBox="0 0 18 18"><path d="M9 3.5v11M3.5 9h11"/></svg>',
     list: '<svg viewBox="0 0 14 14"><path d="m2 4 1.3 1.3L5.6 3M7.5 4.2H12M2 9.4l1.3 1.3 2.3-2.3M7.5 9.6H12"/></svg>',
     note: '<svg viewBox="0 0 14 14"><path d="M2.5 3.5h9M2.5 7h9M2.5 10.5h5.5"/></svg>',
+    down: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7.5M4.75 7 8 10.25 11.25 7M2.75 11.5v.75c0 .69.56 1.25 1.25 1.25h8c.69 0 1.25-.56 1.25-1.25v-.75"/></svg>',
+    up: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.25V2.75M4.75 6 8 2.75 11.25 6M2.75 11.5v.75c0 .69.56 1.25 1.25 1.25h8c.69 0 1.25-.56 1.25-1.25v-.75"/></svg>',
   };
   const CK =
     '<i></i><svg viewBox="0 0 22 22"><circle class="rg" cx="11" cy="11" r="10.25"/><circle class="pr" cx="11" cy="11" r="10.25"/><path d="M6.6 11.4l3 3 5.8-6.3"/></svg>';
@@ -1967,6 +1969,7 @@
   };
   function onOutside(e) {
     const t = e.target && e.target.closest ? e.target : null;
+    if ($.srch.classList.contains('on') && t && !app.contains(t)) closeSearch(false);
     if (popOn() && !(t && t.closest('#pop,#meta,#tpop,#tmb,#dpop,#dchip'))) closePops();
     if (t && t.closest('#fmt,#lb,#sug,#toast,.srch,#dpop')) return;
     const keep = t && t.closest('.row.open');
@@ -2360,7 +2363,7 @@
               )
               .join('')}</div>`
           : '') +
-        `<div class="sdata"><p class="shint">${cloud.col ? 'Your tasks are saved in this browser and in your private space on Claude.' : 'Your tasks are stored only in this browser. Nothing is sent anywhere.'}</p><div class="chips"><button type="button" class="chip" data-act="export">${canTop ? 'Export backup' : 'Copy backup'}</button><button type="button" class="chip" data-act="import">Import backup</button></div>${aboutHTML()}</div>`;
+        `<div class="sdata"><p class="shint">${cloud.col ? 'Your tasks are saved in this browser and in your private space on Claude.' : 'Your tasks are stored only in this browser. Nothing is sent anywhere.'}</p><div class="chips"><button type="button" class="chip" data-act="export">${IC.down}${canTop ? 'Export backup' : 'Copy backup'}</button><button type="button" class="chip" data-act="import">${IC.up}Import backup</button></div>${aboutHTML()}</div>`;
       moveHl();
       return;
     }

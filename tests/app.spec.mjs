@@ -123,6 +123,17 @@ test('a click outside closes the card, the calendar and the timer', async ({ pag
   await expect(page.locator('#tpop')).not.toHaveClass(/\bon\b/);
 });
 
+test('a click outside the card closes search and shows the day again', async ({ page }) => {
+  await open(page);
+  await page.keyboard.press('/');
+  await expect(page.locator('#srch')).toHaveClass(/\bon\b/);
+  await expect(page.locator('[data-act="export"] svg')).toBeVisible();
+  await expect(page.locator('[data-act="import"] svg')).toBeVisible();
+  await page.mouse.click(40, 600);
+  await expect(page.locator('#srch')).not.toHaveClass(/\bon\b/);
+  await expect(row(page, 'Write the report')).toBeVisible();
+});
+
 test('tags in sub-tasks show as chips and search finds their task', async ({ page }) => {
   await open(page);
   const b = row(page, 'Plan the trip');
