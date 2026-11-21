@@ -501,9 +501,18 @@ test('the wheel: up for the day before, down for the day after, one day per notc
 test('the day chip follows its label with a smooth width', async ({ page }) => {
   await open(page, { motion: 'no-preference' });
   await expect(page.locator('#dlabel')).toHaveText('Today');
+  // watch every frame, however busy the machine: the width animation is short
+  await page.evaluate(() => {
+    window.__cw = false;
+    const t0 = performance.now();
+    (function look() {
+      if (document.getElementById('dchip').getAnimations().some(a => a.id === 'cw')) window.__cw = true;
+      if (performance.now() - t0 < 4000) requestAnimationFrame(look);
+    })();
+  });
   await page.keyboard.press('ArrowRight');
   await expect(page.locator('#dlabel')).toHaveText('Tomorrow');
-  expect(await page.locator('#dchip').evaluate(n => n.getAnimations().some(a => a.id === 'cw'))).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__cw)).toBe(true);
   await expect.poll(() => page.locator('#dchip').evaluate(n => n.getAnimations().some(a => a.id === 'cw'))).toBe(false);
   expect(await page.locator('#dchip').evaluate(n => n.style.overflow)).toBe('');
 });
