@@ -3449,8 +3449,8 @@ mark {
   .lpill.on .lk-shut {
     display: block;
   }
-  #app.pre ~ .topbar,
-  .topbar:has(~ #app.pre) {
+  /* it comes in with the card */
+  #home:not(.shown) .topbar {
     opacity: 0;
   }
   .vp {

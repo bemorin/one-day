@@ -5523,6 +5523,7 @@ try {
   tpRender(0);
   function intro() {
     app.classList.remove('pre');
+    home.classList.add('shown');
     calm(2000);
     sheet.init();
     if (RM.matches) return;
