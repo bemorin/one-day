@@ -15,7 +15,7 @@ try {
     home = document.getElementById('home'),
     q = s => app.querySelector(s),
     $ = {};
-  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inT inTitle inMeta inDay inDayL inNo inYes mbar mbSearch mbTimer mbTimerL mbAdd mbSend mbMore scrim more moreList theme sendd fx fbtn fname fclr fpop ftags fnone fqL fq spicks'
+  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inT inTitle inMeta inDay inDayL inNo inYes mbar mbSearch mbTimer mbTimerL mbAdd mbSend mbMore scrim more moreList theme sendd fx fbtn fname fclr fpop ftags fnone fqL fq spicks lockb'
     .split(' ')
     .forEach(id => ($[id] = q('#' + id)));
   const fill = q('.rule i'),
@@ -276,11 +276,43 @@ try {
       }
     return out;
   };
-  let S = null;
+  function cleanDays(o) {
+    const days = {};
+    if (o && typeof o === 'object')
+      for (const k of Object.keys(o)) {
+        const v = o[k];
+        if (DAYRE.test(k) && v && typeof v === 'object') days[k] = { u: +v.u || 0, tasks: clean(v.tasks) };
+      }
+    return days;
+  }
+  // With the lock on, the tasks live encrypted in the vault (see "the lock"). Until it is opened,
+  // the app holds no tasks at all.
+  const VK = 'oneday.vault',
+    okBlob = b => !!b && typeof b.iv === 'string' && typeof b.ct === 'string',
+    okVault = v =>
+      !!v &&
+      v.v === 1 &&
+      !!v.kdf &&
+      typeof v.kdf.salt === 'string' &&
+      Number.isInteger(v.kdf.iter) &&
+      v.kdf.iter >= 1e5 &&
+      v.kdf.iter <= 5e6 &&
+      okBlob(v.pass) &&
+      okBlob(v.data) &&
+      (!v.bio || (okBlob(v.bio) && typeof v.bio.id === 'string' && typeof v.bio.salt === 'string'));
+  let vault = null;
   try {
-    S = JSON.parse(localStorage.getItem(LS));
+    vault = JSON.parse(localStorage.getItem(VK));
   } catch (e) {}
-  if (!S || !S.days || typeof S.days !== 'object') {
+  if (!okVault(vault)) vault = null;
+  let locked = !!vault,
+    S = null;
+  if (!locked)
+    try {
+      S = JSON.parse(localStorage.getItem(LS));
+    } catch (e) {}
+  if (locked) S = { days: {}, rules: {} };
+  else if (!S || !S.days || typeof S.days !== 'object') {
     const T = (text, x = {}) => ({
       id: uid() + Math.random().toString(36).slice(2, 4),
       text,
@@ -306,12 +338,7 @@ try {
     };
     S.days[todayKey()].tasks = clean(S.days[todayKey()].tasks);
   } else {
-    const days = {};
-    for (const k of Object.keys(S.days)) {
-      const v = S.days[k];
-      if (DAYRE.test(k) && v && typeof v === 'object') days[k] = { u: +v.u || 0, tasks: clean(v.tasks) };
-    }
-    S.days = days;
+    S.days = cleanDays(S.days);
     S.rules = cleanRules(S.rules);
   }
   let cur = todayKey(),
@@ -333,6 +360,11 @@ try {
     (k >= todayKey() && Object.values(S.rules).some(r => occurs(r, k) && !tasks(k).some(t => t.rule === r.id)));
   function persist() {
     IDX = null;
+    if (locked) return;
+    if (vault) {
+      sealSoon();
+      return;
+    }
     try {
       localStorage.setItem(LS, JSON.stringify(S));
     } catch (e) {}
@@ -521,6 +553,12 @@ try {
     send: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 9.75V2.25M5.25 5 8 2.25 10.75 5M5.5 7H4.5c-.83 0-1.5.67-1.5 1.5v4c0 .83.67 1.5 1.5 1.5h7c.83 0 1.5-.67 1.5-1.5v-4c0-.83-.67-1.5-1.5-1.5h-1"/></svg>',
     down: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7.5M4.75 7 8 10.25 11.25 7M2.75 11.5v.75c0 .69.56 1.25 1.25 1.25h8c.69 0 1.25-.56 1.25-1.25v-.75"/></svg>',
     up: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.25V2.75M4.75 6 8 2.75 11.25 6M2.75 11.5v.75c0 .69.56 1.25 1.25 1.25h8c.69 0 1.25-.56 1.25-1.25v-.75"/></svg>',
+    lock: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.25" y="7" width="9.5" height="6.75" rx="1.75"/><path d="M5.25 7V5.25a2.75 2.75 0 0 1 5.5 0V7"/></svg>',
+    unlock:
+      '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.25" y="7" width="9.5" height="6.75" rx="1.75"/><path d="M5.25 7V5.25a2.75 2.75 0 0 1 5.35-.9"/></svg>',
+    key: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="5.25" cy="10.75" r="2.75"/><path d="M7.2 8.8 13 3M10.75 5.25l1.75 1.75M9.25 6.75l1.25 1.25"/></svg>',
+    finger:
+      '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.1 5.2A4.6 4.6 0 0 1 12 5.9M3.2 8.6a5 5 0 0 1 .4-2.1M12.9 8.3c0 1.8-.3 3.4-1 4.9M5.3 12.8c.4-1.1.6-2.4.6-3.7a2.1 2.1 0 0 1 4.2 0c0 1.7-.3 3.4-.9 4.8M8 9.1c0 1.9-.4 3.7-1.2 5.2"/></svg>',
   };
   const CK =
     '<i></i><svg viewBox="0 0 22 22"><circle class="rg" cx="11" cy="11" r="10.25"/><circle class="pr" cx="11" cy="11" r="10.25"/><path d="M6.6 11.4l3 3 5.8-6.3"/></svg>';
@@ -2365,6 +2403,8 @@ try {
   };
   function onOutside(e) {
     const t = e.target && e.target.closest ? e.target : null;
+    // the lock's screen and dialog sit above the app: what happens there leaves the app as it is
+    if (t && t.closest('#lock,#lockset')) return;
     if ($.srch.classList.contains('on') && t && !app.contains(t)) closeSearch(false);
     if (popOn() && !(t && t.closest('#pop,#meta,#tpop,#tmb,#dpop,#dchip,#rpop,.rbtn,#inDay,#mbTimer,#fpop,#fx'))) closePops();
     if (t && t.closest('#fmt,#lb,#sug,#toast,.srch,#dpop,#rpop,#inbox,#more,#mbar,#scrim')) return;
@@ -2766,7 +2806,7 @@ try {
               .join('')}${tags.length > 12 ? `<button type="button" class="chip" data-more>${tags.length - 12} more tags</button>` : ''}</div>` +
             (tags.length > 12 ? '<p class="shint">Type # and a few letters to find any tag.</p>' : '')
           : '') +
-        `<div class="sdata"><p class="shint">${cloud.col ? 'Your tasks are saved in this browser and in your private space on Claude.' : 'Your tasks are stored only in this browser. Nothing is sent anywhere.'}</p><div class="chips"><button type="button" class="chip" data-act="import">${IC.up}Import backup</button><button type="button" class="chip" data-act="export">${IC.down}${canTop ? 'Export backup' : 'Copy backup'}</button></div></div>${aboutHTML()}`;
+        `<div class="sdata"><p class="shint">${dataHint()}</p><div class="chips"><button type="button" class="chip" data-act="import">${IC.up}Import backup</button><button type="button" class="chip" data-act="export">${IC.down}${canTop ? 'Export backup' : 'Copy backup'}</button></div>${lockChips()}</div>${aboutHTML()}`;
       moveHl();
       return;
     }
@@ -2959,7 +2999,7 @@ try {
   $.slist.addEventListener('click', e => {
     const act = e.target.closest('[data-act]');
     if (act) {
-      act.dataset.act === 'export' ? exportData() : $.impf.click();
+      doAct(act.dataset.act);
       return;
     }
     const tg = e.target.closest('[data-tag]');
@@ -2994,28 +3034,33 @@ try {
   });
 
   /* backup: export and import */
-  function exportData() {
-    const data = JSON.stringify(
-      { app: 'one-day', version: 2, exported: new Date().toISOString(), days: S.days, rules: S.rules },
-      null,
-      1,
-    );
+  // With the lock on, a backup holds the encrypted tasks and opens with the passphrase.
+  async function exportData() {
+    const at = new Date().toISOString();
+    let o = { app: 'one-day', version: 2, exported: at, days: S.days, rules: S.rules };
+    if (vault) {
+      await flush();
+      if (!vault || locked) return;
+      o = { app: 'one-day', version: 2, exported: at, vault: { v: 1, kdf: vault.kdf, pass: vault.pass, data: vault.data } };
+    }
+    const data = JSON.stringify(o, null, 1),
+      what = o.vault ? 'Encrypted backup' : 'Backup';
     if (canTop) {
       try {
         const u = URL.createObjectURL(new Blob([data], { type: 'application/json' })),
           a = D().createElement('a');
         a.href = u;
-        a.download = `one-day-backup-${todayKey()}.json`;
+        a.download = `one-day-backup-${todayKey()}${o.vault ? '-encrypted' : ''}.json`;
         D().body.append(a);
         a.click();
         a.remove();
         setTimeout(() => URL.revokeObjectURL(u), 4000);
-        toast('Backup downloaded');
+        toast(`${what} downloaded`);
         return;
       } catch (e) {}
     }
     navigator.clipboard.writeText(data).then(
-      () => toast('Backup copied to the clipboard'),
+      () => toast(`${what} copied to the clipboard`),
       () => toast('This browser blocked the backup'),
     );
   }
@@ -3031,6 +3076,11 @@ try {
     try {
       j = JSON.parse(await f.text());
     } catch (e) {}
+    if (j && j.app === 'one-day' && !j.days && j.vault) {
+      const inner = await openBackup(j.vault);
+      if (!inner) return;
+      j = { app: 'one-day', days: inner.days, rules: inner.rules };
+    }
     if (!j || j.app !== 'one-day' || !j.days || typeof j.days !== 'object') {
       toast('That file isn’t a One Day backup');
       return;
@@ -3899,6 +3949,7 @@ try {
   }
   let IN = null;
   async function readIncoming() {
+    if (locked) return;
     const m = /^#add=([jz])([\w-]{4,24000})$/.exec(location.hash);
     if (!m) return;
     try {
@@ -4063,6 +4114,11 @@ try {
     $.moreList.innerHTML =
       `<div class="sbk"><button type="button" class="sbk-b" data-act="import">${IC.up}<span>Import backup</span></button>` +
       `<button type="button" class="sbk-b" data-act="export">${IC.down}<span>${canTop ? 'Export backup' : 'Copy backup'}</span></button></div>` +
+      (CAN_LOCK
+        ? lockActs()
+            .map(([k, i, l]) => `<button type="button" class="srow" data-act="${k}">${i}<span>${l}</span></button>`)
+            .join('')
+        : '') +
       (promo
         ? `<a class="spromo" href="${esc(promo.href)}" target="_blank" rel="noopener" referrerpolicy="strict-origin">${promo.innerHTML}</a>`
         : '') +
@@ -4088,8 +4144,7 @@ try {
     const a = e.target.closest('[data-act]');
     if (!a) return;
     closeMore();
-    if (a.dataset.act === 'export') exportData();
-    else $.impf.click();
+    doAct(a.dataset.act);
   };
   // Drag a sheet down to close it, from anywhere on it that ok() allows. A drag never presses what it started on.
   function dragToClose(el, isOpen, close, cssBack, ok = () => true) {
@@ -4345,6 +4400,7 @@ try {
 
   /* keys */
   function onKey(e) {
+    if (locked || LSM) return;
     const t = e.target,
       typing = t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName),
       k = e.key,
@@ -4476,6 +4532,11 @@ try {
       case 'f':
       case 'F':
         $.fpop.classList.contains('on') ? closePops(true) : openFilter();
+        break;
+      case 'l':
+      case 'L':
+        if (!vault) return;
+        lockNow();
         break;
       case 'Escape':
         if (FX && t === D().body) setFilter(null);
@@ -4646,6 +4707,577 @@ try {
   if (!('documentPictureInPicture' in window) || !canTop || TOUCH) $.float.hidden = true;
   document.getElementById('back').onclick = () => pip && pip.close();
 
+  /* the lock: a random key encrypts the tasks (AES-GCM, 256 bits). That key is kept sealed by a key drawn from
+     the passphrase (PBKDF2-SHA-256, 600,000 rounds) and, if chosen, by one from a passkey (WebAuthn PRF:
+     fingerprint, face or device PIN). It all happens in this browser: nothing is sent anywhere, and nobody
+     can open the tasks without the passphrase or the passkey. */
+  const L = {};
+  'lock lockForm lockPass lockErr lockGo lockBio lockForgot lockset lsForm lsT lsSub lsOld lsPass lsPass2 lsBio lsBioL lsWarn lsOk lsOkL lsErr lsCancel lsGo'
+    .split(' ')
+    .forEach(id => (L[id] = document.getElementById(id)));
+  const CAN_LOCK = !!(L.lock && window.isSecureContext && window.crypto && crypto.subtle && !window.claude),
+    BIO =
+      CAN_LOCK &&
+      !!window.PublicKeyCredential &&
+      !!navigator.credentials &&
+      (location.protocol === 'https:' || location.hostname === 'localhost');
+  const ITER = 600000,
+    AWAY = 5 * 60e3,
+    TE = new TextEncoder(),
+    TD = new TextDecoder();
+  let DEK = null,
+    RAW = null,
+    sealing = null,
+    sealAgain = false,
+    introLater = false,
+    LSM = null,
+    bioOK = false;
+  // fingerprint or face is offered where the device has it and the browser can derive a secret from a passkey
+  if (BIO)
+    Promise.all([
+      PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable
+        ? PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => false)
+        : false,
+      PublicKeyCredential.getClientCapabilities ? PublicKeyCredential.getClientCapabilities().catch(() => null) : null,
+    ]).then(([uv, caps]) => {
+      bioOK = !!uv && !(caps && caps['extension:prf'] === false);
+    });
+  const rnd = n => crypto.getRandomValues(new Uint8Array(n));
+  function toB64(buf) {
+    const u = new Uint8Array(buf);
+    let s = '';
+    for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  const fromB64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  async function passKey(pass, salt, iter) {
+    const base = await crypto.subtle.importKey('raw', TE.encode(pass.normalize('NFC')), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+      { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: iter },
+      base,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt'],
+    );
+  }
+  async function prfKey(secret, salt) {
+    const base = await crypto.subtle.importKey('raw', secret, 'HKDF', false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+      { name: 'HKDF', hash: 'SHA-256', salt, info: TE.encode('one-day lock') },
+      base,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt'],
+    );
+  }
+  const dataKey = raw => crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+  async function sealWith(key, bytes) {
+    const iv = rnd(12);
+    return { iv: toB64(iv), ct: toB64(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, bytes)) };
+  }
+  const unseal = async (key, b) =>
+    new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(b.iv) }, key, fromB64(b.ct)));
+  const plain = () => TE.encode(JSON.stringify({ days: S.days, rules: S.rules }));
+  // The passphrase opens the key, or nothing: a wrong one fails the AES-GCM check.
+  async function byPass(pass, v) {
+    try {
+      return await unseal(await passKey(pass, fromB64(v.kdf.salt), v.kdf.iter), v.pass);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Every change is sealed again. Writes are chained, so the latest state always lands last.
+  function sealSoon() {
+    if (sealing) {
+      sealAgain = true;
+      return sealing;
+    }
+    sealing = (async () => {
+      try {
+        do {
+          sealAgain = false;
+          if (locked || !vault || !DEK) break;
+          const data = await sealWith(DEK, plain());
+          if (!vault) break;
+          vault = { ...vault, data };
+          localStorage.setItem(VK, JSON.stringify(vault));
+        } while (sealAgain);
+      } catch (e) {}
+      sealing = null;
+    })();
+    return sealing;
+  }
+  async function flush() {
+    while (sealing) await sealing;
+  }
+
+  // A passkey with the PRF extension gives the same secret each time it is used: that secret seals the key too.
+  async function bioSecret(id, salt) {
+    const a = await navigator.credentials.get({
+      publicKey: {
+        challenge: rnd(32),
+        allowCredentials: [{ type: 'public-key', id }],
+        userVerification: 'required',
+        timeout: 60000,
+        extensions: { prf: { eval: { first: salt } } },
+      },
+    });
+    const r = a && a.getClientExtensionResults().prf;
+    return r && r.results && r.results.first ? new Uint8Array(r.results.first) : null;
+  }
+  async function bioWrap(raw) {
+    const salt = rnd(32),
+      c = await navigator.credentials.create({
+        publicKey: {
+          rp: { name: 'One Day' },
+          user: { id: rnd(16), name: 'One Day lock', displayName: 'One Day lock' },
+          challenge: rnd(32),
+          pubKeyCredParams: [
+            { type: 'public-key', alg: -7 },
+            { type: 'public-key', alg: -257 },
+          ],
+          authenticatorSelection: { userVerification: 'required', residentKey: 'preferred' },
+          timeout: 60000,
+          extensions: { prf: { eval: { first: salt } } },
+        },
+      });
+    const id = new Uint8Array(c.rawId),
+      ext = c.getClientExtensionResults().prf;
+    if (!ext || ext.enabled === false) return null;
+    // some authenticators only give the secret when the passkey is used, not when it is made
+    let secret = ext.results && ext.results.first ? new Uint8Array(ext.results.first) : null;
+    if (!secret) secret = await bioSecret(id, salt);
+    if (!secret) return null;
+    return { id: toB64(id), salt: toB64(salt), ...(await sealWith(await prfKey(secret, salt), raw)) };
+  }
+
+  function wrong(form, out, field, msg) {
+    out.textContent = msg;
+    if (field) {
+      field.focus({ preventScroll: true });
+      if (field.select) field.select();
+    }
+    an(
+      form,
+      [
+        { transform: 'none' },
+        { transform: 'translateX(-9px)' },
+        { transform: 'translateX(7px)' },
+        { transform: 'translateX(-4px)' },
+        { transform: 'none' },
+      ],
+      { duration: 380, easing: 'ease-out' },
+    );
+  }
+  function busy(b, label) {
+    b.disabled = !!label;
+    if (label) {
+      b.dataset.label = b.textContent;
+      b.textContent = label;
+    } else if (b.dataset.label) b.textContent = b.dataset.label;
+  }
+
+  /* the unlock screen */
+  function showLock() {
+    L.lockErr.textContent = '';
+    L.lockPass.value = '';
+    L.lockBio.hidden = !(vault && vault.bio && BIO);
+    L.lock.getAnimations().forEach(a => a.cancel());
+    L.lock.hidden = false;
+    home.inert = true;
+    $.lockb.hidden = true;
+    an(L.lockForm, [
+      { opacity: 0, transform: 'translateY(14px) scale(.98)' },
+      { opacity: 1, transform: 'none' },
+    ]);
+    if (!TOUCH) L.lockPass.focus({ preventScroll: true });
+  }
+  function hideLock() {
+    home.inert = false;
+    $.lockb.hidden = false;
+    then(an(L.lock, [{ opacity: 1 }, { opacity: 0 }], { duration: 280, easing: 'ease', fill: 'forwards' }), () => {
+      if (locked) return;
+      L.lock.hidden = true;
+      L.lock.getAnimations().forEach(a => a.cancel());
+    });
+  }
+  async function opened(raw) {
+    const dek = await dataKey(raw),
+      j = JSON.parse(TD.decode(await unseal(dek, vault.data)));
+    S = { days: cleanDays(j && j.days), rules: cleanRules(j && j.rules) };
+    DEK = dek;
+    RAW = raw;
+    locked = false;
+    UN.length = 0;
+    RE.length = 0;
+    IDX = null;
+    TAGC = null;
+    cur = lastToday = todayKey();
+    hideLock();
+    ensure(cur);
+    repaint();
+    renderChip();
+    if (introLater) {
+      introLater = false;
+      intro();
+    }
+    if (location.hash.startsWith('#add=')) later(readIncoming, 600);
+  }
+  L.lockForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!locked || !vault || L.lockGo.disabled) return;
+    const pass = L.lockPass.value;
+    if (!pass) return wrong(L.lockForm, L.lockErr, L.lockPass, 'Enter your passphrase');
+    L.lockErr.textContent = '';
+    busy(L.lockGo, 'Unlocking…');
+    const raw = await byPass(pass, vault);
+    busy(L.lockGo);
+    if (!raw) return wrong(L.lockForm, L.lockErr, L.lockPass, 'That passphrase doesn’t open these tasks');
+    try {
+      await opened(raw);
+    } catch (err) {
+      L.lockErr.textContent = 'These tasks could not be opened';
+    }
+  });
+  L.lockBio.onclick = async () => {
+    if (!locked || !vault || !vault.bio) return;
+    L.lockErr.textContent = '';
+    let raw = null;
+    try {
+      const b = vault.bio,
+        salt = fromB64(b.salt),
+        secret = await bioSecret(fromB64(b.id), salt);
+      if (secret) raw = await unseal(await prfKey(secret, salt), b);
+    } catch (err) {}
+    if (!raw) return wrong(L.lockForm, L.lockErr, null, 'That didn’t work. Use your passphrase.');
+    try {
+      await opened(raw);
+    } catch (err) {
+      L.lockErr.textContent = 'These tasks could not be opened';
+    }
+  };
+  L.lockForgot.onclick = () => openLockset('reset');
+
+  // Locking keeps what was being typed, then forgets the key and every task until the next unlock.
+  async function lockNow() {
+    if (!vault || locked) return;
+    const ae = D().activeElement;
+    if (ae && ae !== D().body && ae.blur) ae.blur();
+    sealSoon();
+    await flush();
+    if (vault && !locked) lockHere();
+  }
+  function lockHere() {
+    if (pip) pip.close();
+    locked = true;
+    DEK = null;
+    if (RAW) RAW.fill(0);
+    RAW = null;
+    closePops();
+    closeSearch(false);
+    closeInbox();
+    closeMore();
+    compose(false);
+    hideSug();
+    $.toast.classList.remove('on');
+    $.input.value = '';
+    $.sq.value = '';
+    UN.length = 0;
+    RE.length = 0;
+    S = { days: {}, rules: {} };
+    IDX = null;
+    TAGC = null;
+    $.slist.textContent = '';
+    repaint();
+    showLock();
+  }
+  $.lockb.onclick = () => lockNow();
+  // away for five minutes: locked (not while the app floats on top)
+  let awayAt = 0,
+    awayT = null;
+  document.addEventListener('visibilitychange', () => {
+    clearTimeout(awayT);
+    if (!vault || locked || pip) return;
+    if (document.hidden) {
+      awayAt = Date.now();
+      awayT = setTimeout(lockNow, AWAY);
+    } else if (awayAt && Date.now() - awayAt >= AWAY) lockNow();
+  });
+  // another tab turned the lock on, changed the passphrase or turned the lock off
+  window.addEventListener('storage', e => {
+    if (e.key !== VK && e.key !== null) return;
+    let v = null;
+    try {
+      v = JSON.parse(localStorage.getItem(VK));
+    } catch (err) {}
+    if (!okVault(v)) v = null;
+    if (v && vault) vault = locked ? v : { ...vault, kdf: v.kdf, pass: v.pass, bio: v.bio };
+    else if (v && !locked) {
+      vault = v;
+      lockHere();
+    } else if (!v && vault) location.reload();
+  });
+
+  /* the lock's settings: turn on, change, turn off, open an encrypted backup, start over */
+  const LST = {
+    on: [
+      'Lock One Day',
+      'Choose a passphrase. Your tasks will be encrypted in this browser, and One Day will ask for it when it opens.',
+      'Lock',
+    ],
+    change: ['Change the passphrase', 'Your tasks stay encrypted. Backups made before keep the passphrase they were made with.', 'Change'],
+    off: ['Turn off the lock', 'Your tasks will be stored in this browser without encryption again.', 'Turn off'],
+    ask: ['Encrypted backup', 'Enter the passphrase this backup was made with.', 'Open'],
+    reset: [
+      'Forgot the passphrase?',
+      'Nobody can open these tasks without it, not even the maker of One Day. You can erase them and start again with an empty list.',
+      'Erase',
+    ],
+  };
+  function openLockset(mode, done, check) {
+    if (!CAN_LOCK || LSM) return false;
+    if (pip) pip.close();
+    closePops();
+    closeMore();
+    compose(false);
+    const [t, sub, go] = LST[mode],
+      ae = D().activeElement,
+      old = mode === 'change' || mode === 'off' || mode === 'ask';
+    LSM = { mode, done, check, from: ae && ae !== D().body ? ae : null };
+    L.lsT.textContent = t;
+    L.lsSub.textContent = sub;
+    L.lsGo.textContent = go;
+    L.lsGo.classList.toggle('danger', mode === 'reset');
+    L.lsOld.hidden = !old;
+    L.lsOld.placeholder = mode === 'ask' ? 'Passphrase' : 'Current passphrase';
+    L.lsOld.setAttribute('aria-label', L.lsOld.placeholder);
+    L.lsPass.hidden = L.lsPass2.hidden = !(mode === 'on' || mode === 'change');
+    L.lsPass.placeholder = mode === 'change' ? 'New passphrase, 8 characters or more' : 'Passphrase, 8 characters or more';
+    L.lsBioL.hidden = !(mode === 'on' && bioOK);
+    L.lsWarn.hidden = mode !== 'on';
+    L.lsOkL.hidden = !(mode === 'on' || mode === 'reset');
+    L.lsOkL.lastElementChild.textContent = mode === 'reset' ? 'Erase my tasks in this browser' : 'I understand';
+    for (const i of [L.lsOld, L.lsPass, L.lsPass2]) i.value = '';
+    L.lsBio.checked = false;
+    L.lsOk.checked = false;
+    L.lsErr.textContent = '';
+    L.lsGo.disabled = false;
+    L.lockset.hidden = false;
+    home.inert = true;
+    an(L.lsForm, [
+      { opacity: 0, transform: 'translateY(14px) scale(.98)' },
+      { opacity: 1, transform: 'none' },
+    ]);
+    (old ? L.lsOld : mode === 'on' ? L.lsPass : L.lsOk).focus({ preventScroll: true });
+    return true;
+  }
+  function closeLockset(res) {
+    const m = LSM;
+    if (!m) return;
+    LSM = null;
+    L.lockset.hidden = true;
+    for (const i of [L.lsOld, L.lsPass, L.lsPass2]) i.value = '';
+    if (!locked) home.inert = false;
+    if (m.from && m.from.isConnected && !m.from.closest('[inert]')) m.from.focus({ preventScroll: true });
+    else if (locked && !TOUCH) L.lockPass.focus({ preventScroll: true });
+    if (m.done) m.done(res);
+  }
+  L.lsCancel.onclick = () => closeLockset(null);
+  L.lockset.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation();
+    closeLockset(null);
+  });
+  L.lockset.addEventListener('click', e => {
+    if (e.target === L.lockset) closeLockset(null);
+  });
+  const LOCKDO = {
+    async on(old, pass) {
+      const raw = rnd(32);
+      // the passkey first, while the click still counts as one
+      let bio = null,
+        bioFailed = false;
+      if (L.lsBio.checked && !L.lsBioL.hidden) {
+        try {
+          bio = await bioWrap(raw);
+        } catch (e) {}
+        bioFailed = !bio;
+      }
+      const salt = rnd(16),
+        dek = await dataKey(raw),
+        kek = await passKey(pass, salt, ITER),
+        v = { v: 1, kdf: { iter: ITER, salt: toB64(salt) }, pass: await sealWith(kek, raw), data: await sealWith(dek, plain()) };
+      if (bio) v.bio = bio;
+      // read it all back before the plain copy goes
+      const back = await unseal(kek, v.pass);
+      if (back.length !== 32 || back.some((x, i) => x !== raw[i])) throw new Error('lock check');
+      JSON.parse(TD.decode(await unseal(dek, v.data)));
+      localStorage.setItem(VK, JSON.stringify(v));
+      try {
+        localStorage.removeItem(LS);
+      } catch (e) {}
+      vault = v;
+      DEK = dek;
+      RAW = raw;
+      $.lockb.hidden = false;
+      return {
+        toast: bioFailed
+          ? 'The lock is on. Fingerprint or face couldn’t be set up, so use your passphrase.'
+          : 'The lock is on. Your tasks are encrypted.',
+      };
+    },
+    async change(old, pass) {
+      const raw = await byPass(old, vault);
+      if (!raw) return { err: 'That isn’t the current passphrase', el: 'old' };
+      const salt = rnd(16),
+        pw = await sealWith(await passKey(pass, salt, ITER), raw);
+      await flush();
+      vault = { ...vault, kdf: { iter: ITER, salt: toB64(salt) }, pass: pw };
+      localStorage.setItem(VK, JSON.stringify(vault));
+      return { toast: 'Passphrase changed' };
+    },
+    async off(old) {
+      const raw = await byPass(old, vault);
+      if (!raw) return { err: 'That isn’t the current passphrase', el: 'old' };
+      await flush();
+      localStorage.setItem(LS, JSON.stringify(S));
+      localStorage.removeItem(VK);
+      vault = null;
+      DEK = null;
+      if (RAW) RAW.fill(0);
+      RAW = null;
+      $.lockb.hidden = true;
+      return { toast: 'The lock is off. Your tasks are no longer encrypted.' };
+    },
+    async reset() {
+      localStorage.removeItem(VK);
+      try {
+        localStorage.removeItem(LS);
+      } catch (e) {}
+      location.reload();
+      return { wait: true };
+    },
+  };
+  L.lsForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const m = LSM;
+    if (!m || L.lsGo.disabled) return;
+    const old = L.lsOld.value,
+      p1 = L.lsPass.value,
+      p2 = L.lsPass2.value,
+      no = (msg, el) => wrong(L.lsForm, L.lsErr, el, msg);
+    if (!L.lsOld.hidden && !old) return no('Enter the passphrase', L.lsOld);
+    if (!L.lsPass.hidden) {
+      if (p1.length < 8) return no('Use 8 characters or more', L.lsPass);
+      if (p1 !== p2) return no('The two passphrases are not the same', L.lsPass2);
+    }
+    if (!L.lsOkL.hidden && !L.lsOk.checked)
+      return no(m.mode === 'reset' ? 'Tick the box to erase them' : 'Tick “I understand” first', L.lsOk);
+    L.lsErr.textContent = '';
+    busy(L.lsGo, { on: 'Locking…', change: 'Changing…', off: 'Turning off…', ask: 'Opening…', reset: 'Erasing…' }[m.mode]);
+    let res;
+    try {
+      res = await (m.mode === 'ask' ? m.check(old) : LOCKDO[m.mode](old, p1));
+    } catch (err) {
+      res = { err: 'Something went wrong. Nothing was changed.' };
+    }
+    if (res && res.wait) return;
+    busy(L.lsGo);
+    if (LSM !== m) return;
+    if (res && res.err) return no(res.err, res.el === 'old' ? L.lsOld : null);
+    closeLockset(res);
+  });
+  function lockDone(res) {
+    if (!res) return;
+    if (res.toast) toast(res.toast);
+    if ($.srch.classList.contains('on')) {
+      renderSearch();
+      $.sq.focus({ preventScroll: true });
+    }
+  }
+  function openBackup(v) {
+    if (!okVault({ ...v, v: 1, bio: null })) {
+      toast('That file isn’t a One Day backup');
+      return Promise.resolve(null);
+    }
+    if (!CAN_LOCK) {
+      toast('This browser can’t open encrypted backups');
+      return Promise.resolve(null);
+    }
+    return new Promise(res => {
+      const ok = openLockset(
+        'ask',
+        r => res(r && r.data),
+        async pass => {
+          const raw = await byPass(pass, v);
+          if (!raw) return { err: 'That passphrase doesn’t open this backup', el: 'old' };
+          const j = JSON.parse(TD.decode(await unseal(await dataKey(raw), v.data)));
+          raw.fill(0);
+          return { data: j && typeof j === 'object' ? j : { days: {} } };
+        },
+      );
+      if (!ok) res(null);
+    });
+  }
+  async function bioOn() {
+    if (!vault || locked || !RAW) return;
+    let b = null;
+    try {
+      b = await bioWrap(RAW);
+    } catch (e) {}
+    if (!b) return toast('Fingerprint or face couldn’t be set up here');
+    await flush();
+    vault = { ...vault, bio: b };
+    localStorage.setItem(VK, JSON.stringify(vault));
+    lockDone({ toast: 'Fingerprint or face can now unlock One Day' });
+  }
+  function bioOff() {
+    if (!vault || !vault.bio) return;
+    const { bio, ...rest } = vault;
+    vault = rest;
+    localStorage.setItem(VK, JSON.stringify(vault));
+    lockDone({ toast: 'Only your passphrase unlocks One Day now' });
+  }
+  function lockActs() {
+    if (!CAN_LOCK) return [];
+    if (!vault) return [['lock', IC.lock, 'Lock with a passphrase']];
+    return [
+      ['locknow', IC.lock, 'Lock now'],
+      ['lockchange', IC.key, 'Change passphrase'],
+      vault.bio
+        ? ['biooff', IC.finger, 'Stop using fingerprint or face']
+        : bioOK
+          ? ['bioon', IC.finger, 'Use fingerprint or face']
+          : null,
+      ['lockoff', IC.unlock, 'Turn off the lock'],
+    ].filter(Boolean);
+  }
+  function lockChips() {
+    const a = lockActs();
+    return a.length
+      ? `<div class="chips">${a.map(([k, i, l]) => `<button type="button" class="chip" data-act="${k}">${i}${l}</button>`).join('')}</div>`
+      : '';
+  }
+  function dataHint() {
+    if (vault) return 'Your tasks are encrypted and stored only in this browser.';
+    return cloud.col
+      ? 'Your tasks are saved in this browser and in your private space on Claude.'
+      : 'Your tasks are stored only in this browser. Nothing is sent anywhere.';
+  }
+  function doAct(a) {
+    if (a === 'export') exportData();
+    else if (a === 'import') $.impf.click();
+    else if (a === 'lock') openLockset('on', lockDone);
+    else if (a === 'locknow') lockNow();
+    else if (a === 'lockchange') openLockset('change', lockDone);
+    else if (a === 'lockoff') openLockset('off', lockDone);
+    else if (a === 'bioon') bioOn();
+    else if (a === 'biooff') bioOff();
+  }
+  if (locked) showLock();
+
   /* sync: the hosted page keeps days in a private store; the local file keeps them in this browser */
   const cloud = {
     col: null,
@@ -4655,7 +5287,7 @@ try {
     busy: new Set(),
     dirty: new Set(),
     async init() {
-      if (!window.claude || typeof claude.use !== 'function') return;
+      if (vault || !window.claude || typeof claude.use !== 'function') return;
       let db, us, id;
       try {
         [db, us] = await Promise.all([claude.use('db'), claude.use('user')]);
@@ -4702,7 +5334,7 @@ try {
       }
     },
     push(k) {
-      if (!this.col) return;
+      if (!this.col || vault) return;
       clearTimeout(this.t[k]);
       this.t[k] = setTimeout(() => this.write(k), 450);
     },
@@ -4953,10 +5585,10 @@ try {
       ),
     ).catch(() => 0),
     new Promise(r => setTimeout(r, 1200)),
-  ]).then(intro);
+  ]).then(() => (locked ? (introLater = true) : intro()));
   bindDoc(document);
   cloud.init();
-  if (location.hash.startsWith('#add=')) later(readIncoming, RM.matches ? 0 : 900);
+  if (!locked && location.hash.startsWith('#add=')) later(readIncoming, RM.matches ? 0 : 900);
   if (
     'serviceWorker' in navigator &&
     (location.protocol === 'https:' || location.hostname === 'localhost') &&

@@ -2757,7 +2757,8 @@ mark {
   #sb,
   #tmb,
   #sendd,
-  #float {
+  #float,
+  #lockb {
     display: none !important;
   }
   /* no stacking context: the timer sheet can rise above the scrim */
@@ -2926,6 +2927,160 @@ mark {
   }
   .toast {
     bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+}
+
+/* the lock: an unlock screen over everything, and a dialog for its settings */
+.lock,
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  overflow: auto;
+  background: var(--page);
+}
+.modal {
+  z-index: 96;
+  background: rgb(0 0 0 / 0.36);
+}
+.lcard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(380px, 100%);
+  padding: 30px 24px 22px;
+  border-radius: var(--r);
+  background: var(--bg);
+  text-align: center;
+  box-shadow:
+    0 0 0 1px var(--edge),
+    0 32px 72px -32px var(--shadow);
+}
+.lico {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 6px;
+}
+.lcard h2 {
+  margin: 0;
+  font-weight: 800;
+  font-variation-settings: 'wdth' 112;
+  font-size: 26px;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+.lsub {
+  margin: 0 0 4px;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--mute);
+}
+.lcard input[type='password'] {
+  height: 48px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  box-shadow: inset 0 0 0 1.25px var(--line2);
+  transition: box-shadow 0.2s;
+}
+.lcard input[type='password']:focus {
+  outline: 0;
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+.lcard .wide {
+  width: 100%;
+  height: 46px;
+  border-radius: 23px;
+  font-size: 15px;
+}
+.lcard .tbtn.wide {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.lcard .tbtn svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+.lcard .pbtn:disabled {
+  opacity: 0.6;
+}
+.lcard .pbtn.danger {
+  background: var(--red);
+  color: light-dark(#fff, #0e0e0e);
+}
+.lerr {
+  margin: -2px 0 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--red);
+}
+.lerr:empty {
+  display: none;
+}
+.lwarn {
+  margin: 0;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--red) 9%, transparent);
+  font-size: 13.5px;
+  line-height: 1.45;
+  text-align: left;
+}
+.lchk {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  text-align: left;
+  cursor: var(--c-ptr);
+}
+.lchk input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--ink);
+}
+.lhint {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--mute);
+}
+.lnk {
+  padding: 0;
+  font: inherit;
+  font-weight: 650;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.lcard .racts {
+  margin-top: 4px;
+}
+.lcard [hidden] {
+  display: none !important;
+}
+.sdata .chips + .chips {
+  margin-top: 8px;
+}
+@media (max-width: 719px) {
+  .lock .lcard {
+    padding-inline: 4px;
+    box-shadow: none;
   }
 }
 

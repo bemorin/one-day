@@ -91,6 +91,12 @@
                 <rect x="10" y="9" width="5" height="4.5" rx="1" fill="currentColor" stroke="none" />
               </svg>
             </button>
+            <button class="ib" id="lockb" type="button" data-tip="Lock now" data-key="L" aria-label="Lock One Day now" hidden>
+              <svg viewBox="0 0 20 20">
+                <rect x="4.25" y="9" width="11.5" height="8.25" rx="2.25" />
+                <path d="M6.75 9V6.75a3.25 3.25 0 0 1 6.5 0V9" />
+              </svg>
+            </button>
             <button class="ib" id="theme" type="button" data-tip="Dark mode" aria-label="Switch to dark mode">
               <svg class="sm" viewBox="0 0 20 20">
                 <mask id="smMask">
@@ -511,6 +517,61 @@
       </div>
     </div>
 
+    <div class="lock" id="lock" role="dialog" aria-modal="true" aria-labelledby="lockT" hidden>
+      <form class="lcard" id="lockForm" novalidate>
+        <img class="lico" src="icons/icon.svg" alt="" width="64" height="64" />
+        <h2 id="lockT">One Day is locked</h2>
+        <p class="lsub">Your tasks are encrypted in this browser. Enter your passphrase to open them.</p>
+        <input type="text" name="username" autocomplete="username" value="One Day" hidden />
+        <input
+          id="lockPass"
+          type="password"
+          autocomplete="current-password"
+          placeholder="Passphrase"
+          aria-label="Passphrase"
+          aria-describedby="lockErr"
+        />
+        <p class="lerr" id="lockErr" role="alert"></p>
+        <button class="pbtn wide" id="lockGo" type="submit">Unlock</button>
+        <button class="tbtn wide" id="lockBio" type="button" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.2 6.6A5.6 5.6 0 0 1 15 7.4M3.9 10.6a6.1 6.1 0 0 1 .6-2.7M16.1 10.3c0 2.2-.4 4.2-1.2 5.9" /><path d="M6.7 15.9c.5-1.4.8-2.9.8-4.6a2.5 2.5 0 0 1 5 0c0 2.1-.4 4.1-1.1 5.8M10 11.4c0 2.3-.5 4.5-1.4 6.3" /></svg><span>Use fingerprint or face</span></button>
+        <p class="lhint">
+          Without the passphrase, nobody can open these tasks, not even the maker of One Day.
+          <button class="lnk" id="lockForgot" type="button">Forgot it?</button>
+        </p>
+      </form>
+    </div>
+    <div class="modal" id="lockset" role="dialog" aria-modal="true" aria-labelledby="lsT" aria-describedby="lsSub" hidden>
+      <form class="lcard" id="lsForm" novalidate>
+        <h2 id="lsT">Lock One Day</h2>
+        <p class="lsub" id="lsSub"></p>
+        <input type="text" name="username" autocomplete="username" value="One Day" hidden />
+        <input id="lsOld" type="password" autocomplete="current-password" placeholder="Current passphrase" aria-label="Current passphrase" />
+        <input
+          id="lsPass"
+          type="password"
+          autocomplete="new-password"
+          placeholder="Passphrase, 8 characters or more"
+          aria-label="New passphrase"
+        />
+        <input
+          id="lsPass2"
+          type="password"
+          autocomplete="new-password"
+          placeholder="The same passphrase again"
+          aria-label="The same passphrase again"
+        />
+        <label class="lchk" id="lsBioL"><input type="checkbox" id="lsBio" /><span>Also unlock with fingerprint, face or device PIN</span></label>
+        <p class="lwarn" id="lsWarn">
+          If you forget the passphrase, your tasks are gone for good: nobody can recover them. Export a backup first.
+        </p>
+        <label class="lchk" id="lsOkL"><input type="checkbox" id="lsOk" /><span>I understand</span></label>
+        <p class="lerr" id="lsErr" role="alert"></p>
+        <div class="racts">
+          <button class="tbtn" id="lsCancel" type="button">Cancel</button
+          ><button class="pbtn" id="lsGo" type="submit">Lock</button>
+        </div>
+      </form>
+    </div>
     <script src="app.js"></script>
   </body>
 </html>
