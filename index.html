@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <meta
+      name="description"
+      content="A calm, minimalist task list that shows one day at a time. Private by design: your tasks never leave your device."
+    />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0e0e0e" media="(prefers-color-scheme: dark)" />
+    <title>One Day</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
+    <link rel="preload" href="fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="app.css" />
+  </head>
+  <body>
+    <div id="home">
+      <div id="app" class="pre">
+        <header>
+          <h1 class="sr-only">One Day</h1>
+          <div class="rule" aria-hidden="true"><i></i></div>
+          <div class="bar">
+            <button
+              class="ib"
+              id="prev"
+              type="button"
+              data-tip="Previous day"
+              data-key="←"
+              aria-label="Previous day"
+            >
+              <svg viewBox="0 0 20 20"><path d="M12.5 4.5 7 10l5.5 5.5" /></svg>
+            </button>
+            <button class="ib" id="next" type="button" data-tip="Next day" data-key="→" aria-label="Next day">
+              <svg viewBox="0 0 20 20"><path d="M7.5 4.5 13 10l-5.5 5.5" /></svg>
+            </button>
+            <button class="todayb" id="todayb" type="button" data-tip="Back to today" data-key="T">
+              Today
+            </button>
+            <span class="sp"></span>
+            <button class="ib" id="sb" type="button" data-tip="Search" data-key="/" aria-label="Search">
+              <svg viewBox="0 0 20 20">
+                <circle cx="9" cy="9" r="5.5" />
+                <path d="m13.2 13.2 3.8 3.8" />
+              </svg>
+            </button>
+            <button
+              class="ib tmb"
+              id="tmb"
+              type="button"
+              data-tip="Timer"
+              aria-label="Timer"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+              aria-controls="tpop"
+            >
+              <svg class="tic" viewBox="0 0 20 20">
+                <circle cx="10" cy="11" r="6.25" />
+                <path d="M10 8v3.2l2 1.4M8.2 2.5h3.6" />
+              </svg>
+              <span class="tpl"
+                ><svg class="tmr" viewBox="0 0 16 16">
+                  <circle class="bg" cx="8" cy="8" r="6" />
+                  <circle class="fg" cx="8" cy="8" r="6" /></svg
+                ><span class="tv" id="tv"></span
+              ></span>
+            </button>
+            <button
+              class="ib"
+              id="float"
+              type="button"
+              data-tip="Keep on top"
+              data-key="P"
+              aria-label="Keep on top of other windows"
+              aria-pressed="false"
+            >
+              <svg viewBox="0 0 20 20">
+                <rect x="2.5" y="4" width="15" height="12" rx="2.5" />
+                <rect x="10" y="9" width="5" height="4.5" rx="1" fill="currentColor" stroke="none" />
+              </svg>
+            </button>
+          </div>
+          <div class="date">
+            <div class="num" id="num" aria-hidden="true"></div>
+            <button
+              class="meta"
+              id="meta"
+              type="button"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+              aria-controls="pop"
+            >
+              <span class="sr-only" id="dnum"></span>
+              <span class="wd" id="wd"></span>
+              <span class="mo"
+                ><span id="mo"></span><svg viewBox="0 0 14 14"><path d="m3.5 5.5 3.5 3.5 3.5-3.5" /></svg
+              ></span>
+              <span class="rel" id="rel"></span>
+              <span class="sr-only">, choose another day</span>
+            </button>
+          </div>
+          <div class="pop" id="pop" role="dialog" aria-label="Choose a day">
+            <div class="ph">
+              <span id="popT"></span>
+              <div>
+                <button
+                  class="ib"
+                  id="pmPrev"
+                  type="button"
+                  data-tip="Previous month"
+                  aria-label="Previous month"
+                >
+                  <svg viewBox="0 0 20 20"><path d="M12.5 4.5 7 10l5.5 5.5" /></svg>
+                </button>
+                <button class="ib" id="pmNext" type="button" data-tip="Next month" aria-label="Next month">
+                  <svg viewBox="0 0 20 20"><path d="M7.5 4.5 13 10l-5.5 5.5" /></svg>
+                </button>
+              </div>
+            </div>
+            <div class="grid" id="grid"></div>
+          </div>
+          <div class="pop tpop" id="tpop" role="dialog" aria-label="Timer">
+            <div class="ph">
+              <span>Timer</span>
+              <div class="seg" id="seg" role="radiogroup" aria-label="Display">
+                <button type="button" role="radio" data-m="calm">Calm</button
+                ><button type="button" role="radio" data-m="live">Live</button><i></i>
+              </div>
+            </div>
+            <div id="tset">
+              <div class="tpick">
+                <button class="ib" id="tminus" type="button" aria-label="Less time">
+                  <svg viewBox="0 0 20 20"><path d="M5 10h10" /></svg>
+                </button>
+                <div class="tbig" id="tpv" aria-live="polite"></div>
+                <span class="tunit">min</span
+                ><button class="ib" id="tplus" type="button" aria-label="More time">
+                  <svg viewBox="0 0 20 20"><path d="M10 5v10M5 10h10" /></svg>
+                </button>
+              </div>
+              <div class="chips" id="tpre">
+                <button class="chip" type="button" data-v="5">5</button
+                ><button class="chip" type="button" data-v="15">15</button
+                ><button class="chip" type="button" data-v="25">25</button
+                ><button class="chip" type="button" data-v="45">45</button>
+              </div>
+              <button class="cta" id="tstart" type="button">Start</button>
+            </div>
+            <div id="trun" hidden>
+              <div class="tdisp">
+                <div class="tbig" id="tbig"></div>
+                <span class="tunit l-calm" id="tunit">min left</span>
+              </div>
+              <div class="tline l-calm"><i id="tsec"></i></div>
+              <div class="tline l-live"><i id="tprog"></i></div>
+              <div class="tacts">
+                <button type="button" id="tpause">Pause</button><button type="button" id="tadd">+1 min</button
+                ><button type="button" id="tstop">Stop</button>
+              </div>
+            </div>
+          </div>
+        </header>
+        <main class="vp" id="vp">
+          <div class="sc" id="sc">
+            <div class="stage" id="stage">
+              <div class="carry" id="carry" hidden>
+                <span id="carryTxt"></span><button id="bring" type="button">Bring here</button>
+              </div>
+              <ul id="list" aria-label="Tasks"></ul>
+              <p class="empty" id="empty" hidden></p>
+            </div>
+            <div class="add" id="add">
+              <span class="plus" aria-hidden="true"
+                ><svg viewBox="0 0 18 18"><path d="M9 3.5v11M3.5 9h11" /></svg
+              ></span>
+              <input
+                id="input"
+                type="text"
+                placeholder="Add a task"
+                aria-label="Add a task"
+                enterkeyhint="done"
+                maxlength="500"
+                autocomplete="off"
+              />
+              <kbd class="kbd" aria-hidden="true">Enter</kbd>
+            </div>
+          </div>
+        </main>
+        <div class="srch" id="srch" role="dialog" aria-label="Search" inert>
+          <div class="sbar">
+            <svg viewBox="0 0 20 20">
+              <circle cx="9" cy="9" r="5.5" />
+              <path d="m13.2 13.2 3.8 3.8" /></svg
+            ><input
+              id="sq"
+              type="text"
+              placeholder="Search tasks and #tags"
+              aria-label="Search tasks"
+              autocomplete="off"
+              enterkeyhint="go"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-controls="slist"
+              aria-expanded="false"
+            /><button
+              class="ib"
+              id="sx"
+              type="button"
+              data-tip="Close"
+              data-key="Esc"
+              aria-label="Close search"
+            >
+              <svg viewBox="0 0 20 20"><path d="m5.5 5.5 9 9m0-9-9 9" /></svg></button
+            ><i></i>
+          </div>
+          <div class="sres" id="sres">
+            <div class="hl" id="hl"></div>
+            <div id="slist" role="listbox" aria-label="Results"></div>
+            <span class="sr-only" id="scount" role="status" aria-live="polite"></span
+            ><input type="file" id="impf" accept="application/json,.json" hidden />
+          </div>
+        </div>
+        <div class="toast" id="toast" role="status" aria-live="polite">
+          <span id="toastTxt"></span><button id="undo" type="button">Undo</button>
+        </div>
+        <div class="tip" id="tip" role="tooltip"></div>
+        <div class="fmt" id="fmt" role="toolbar" aria-label="Text format">
+          <button type="button" data-c="bold" data-tip="Bold" data-key="⌘B" aria-label="Bold">
+            <b>B</b>
+          </button>
+          <button type="button" data-c="italic" data-tip="Italic" data-key="⌘I" aria-label="Italic">
+            <i class="it">I</i>
+          </button>
+          <button
+            type="button"
+            data-c="strikeThrough"
+            data-tip="Strikethrough"
+            data-key="⌘⇧S"
+            aria-label="Strikethrough"
+          >
+            <s>S</s>
+          </button>
+          <button type="button" data-c="code" data-tip="Code" data-key="⌘E" aria-label="Code">
+            <svg viewBox="0 0 20 20"><path d="M7 6 3 10l4 4M13 6l4 4-4 4" /></svg>
+          </button>
+          <span class="sep"></span>
+          <button
+            type="button"
+            data-c="insertUnorderedList"
+            data-tip="List"
+            data-key="- space"
+            aria-label="Bulleted list"
+          >
+            <svg viewBox="0 0 20 20">
+              <path d="M8 6h9M8 10h9M8 14h9" />
+              <circle cx="4" cy="6" r=".6" />
+              <circle cx="4" cy="10" r=".6" />
+              <circle cx="4" cy="14" r=".6" />
+            </svg>
+          </button>
+          <button type="button" data-c="link" data-tip="Link" data-key="⌘K" aria-label="Link">
+            <svg viewBox="0 0 20 20">
+              <path
+                d="M8.6 11.4a3 3 0 0 0 4.2 0l2.6-2.6a3 3 0 0 0-4.2-4.2l-.9.9M11.4 8.6a3 3 0 0 0-4.2 0l-2.6 2.6a3 3 0 0 0 4.2 4.2l.9-.9"
+              />
+            </svg>
+          </button>
+          <input id="fmtIn" type="url" placeholder="Paste a link, then Enter" aria-label="Link address" />
+        </div>
+        <div class="lb" id="lb">
+          <a id="lbA" target="_blank" rel="noopener noreferrer"></a
+          ><button id="lbRm" type="button">Remove</button>
+        </div>
+        <div class="sug" id="sug" role="listbox" aria-label="Tags"></div>
+      </div>
+    </div>
+    <div class="fl">
+      <div>
+        <p>One Day is floating on top of your windows.</p>
+        <button id="back" type="button">Bring it back</button>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

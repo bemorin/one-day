@@ -1,0 +1,11 @@
+{
+  "name": "one-day",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A calm, minimalist task list that shows one day at a time.",
+  "license": "MIT",
+  "scripts": {
+    "start": "npx --yes serve .",
+    "build:standalone": "node scripts/build-standalone.mjs"
+  }
+}
