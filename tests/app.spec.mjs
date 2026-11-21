@@ -481,6 +481,39 @@ test('one click switches light and dark, kept across visits, and back to the sys
   expect(await page.evaluate(() => localStorage.getItem('oneday.theme'))).toBeNull();
 });
 
+test('the wheel: up for the day before, down for the day after, one day per notch', async ({ page }) => {
+  await open(page);
+  const wd = n => new Date(Date.now() + n * 864e5).toLocaleDateString('en-GB', { weekday: 'long' });
+  await page.locator('#num').hover();
+  await page.mouse.wheel(0, 100);
+  await expect(page.locator('#wd')).toHaveText(wd(1));
+  await page.waitForTimeout(260);
+  await page.mouse.wheel(0, -100);
+  await expect(page.locator('#wd')).toHaveText(wd(0));
+  await page.waitForTimeout(260);
+  await page.mouse.wheel(0, -100);
+  await expect(page.locator('#wd')).toHaveText(wd(-1));
+});
+
+test('the wheel scrolls a long list first, and never flips the day at its end', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript(k => {
+    const tasks = Array.from({ length: 40 }, (_, i) => ({ id: 'l' + i, text: 'Task number ' + (i + 1), done: false }));
+    localStorage.setItem('oneday.v1', JSON.stringify({ days: { [k]: { u: 1, tasks } }, rules: {} }));
+  }, today());
+  await page.goto('/');
+  await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
+  // even while the list rests after its entrance, the wheel does not flip the day
+  await page.locator('#list .row').nth(3).hover();
+  await page.mouse.wheel(0, 400);
+  await expect(page.locator('#app')).toHaveClass(/\bis-today\b/);
+  await expect(page.locator('#app')).not.toHaveClass(/\bcalm\b/);
+  await page.waitForTimeout(260);
+  for (let i = 0; i < 6; i++) await page.mouse.wheel(0, 400);
+  await expect.poll(() => page.locator('.sc').evaluate(n => n.scrollTop)).toBeGreaterThan(200);
+  await expect(page.locator('#app')).toHaveClass(/\bis-today\b/);
+});
+
 test('a sideways scroll on a month grid changes the month, not the day', async ({ page }) => {
   await open(page);
   await page.locator('#meta').click();

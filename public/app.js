@@ -2111,24 +2111,55 @@ try {
   $.next.onclick = () => step(1);
   $.todayb.onclick = () => go(todayKey());
   $.bring.onclick = bringHere;
+  // shared by the month grids' own sideways wheel
   let wAcc = 0,
     wLock = false,
     wT = null;
+  /* The wheel changes the day: up for the day before, down for the day after, sideways as on a trackpad.
+     Up and down scroll the list first: only a gesture that starts with nothing to scroll that way changes
+     the day, so reaching the top of a long list never flips it. One day per gesture (it ends after 200 ms
+     without events); a notched mouse wheel moves one day per notch. */
+  let gAcc = 0,
+    gMode = null,
+    gLast = 0,
+    gStep = 0;
+  function scrollsY(t, dy) {
+    for (let n = t; n && n !== app && n.nodeType === 1; n = n.parentElement) {
+      if (n.scrollHeight <= n.clientHeight + 1) continue;
+      // the list counts even while it rests during an entrance (overflow hidden for a moment)
+      const oy = getComputedStyle(n).overflowY;
+      if (oy !== 'auto' && oy !== 'scroll' && !n.classList.contains('sc')) continue;
+      if (dy < 0 ? n.scrollTop > 0 : n.scrollTop + n.clientHeight < n.scrollHeight - 1) return true;
+    }
+    return false;
+  }
   app.addEventListener(
     'wheel',
     e => {
-      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) || P || $.srch.classList.contains('on')) return;
+      if (P || e.ctrlKey || $.srch.classList.contains('on') || popOn()) return;
+      const k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? innerHeight : 1,
+        dx = e.deltaX * k,
+        dy = e.deltaY * k,
+        side = Math.abs(dx) > Math.abs(dy),
+        now = performance.now(),
+        gap = now - gLast;
+      gLast = now;
+      if (gap > 200) {
+        gMode = null;
+        gAcc = 0;
+      } else if (!side && gMode === 'done' && Math.abs(dy) >= 80 && gap >= 90 && now - gStep >= 180) {
+        gMode = 'day';
+        gAcc = 0;
+      }
+      if (!gMode) gMode = side || !scrollsY(e.target, dy) ? 'day' : 'scroll';
+      if (gMode === 'scroll') return;
       e.preventDefault();
-      stop(wT);
-      wT = later(() => {
-        wAcc = 0;
-        wLock = false;
-      }, 200);
-      if (wLock) return;
-      wAcc += e.deltaX;
-      if (Math.abs(wAcc) > 46) {
-        wLock = true;
-        step(wAcc > 0 ? 1 : -1);
+      if (gMode === 'done') return;
+      gAcc += side ? dx : dy;
+      if (Math.abs(gAcc) > 46) {
+        gMode = 'done';
+        gStep = now;
+        step(gAcc > 0 ? 1 : -1);
       }
     },
     { passive: false },
