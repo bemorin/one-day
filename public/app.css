@@ -522,8 +522,65 @@ header {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 300px;
-  overflow-y: auto;
+}
+.fpop:focus {
+  outline: none;
+}
+/* finding a tag, when there are more than the list shows */
+.fq {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  margin: 0 0 6px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: var(--hover);
+  transition: box-shadow 0.2s;
+}
+.fq:focus-within {
+  box-shadow: inset 0 0 0 1.5px var(--line2);
+}
+.fq svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: var(--mute);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.fq input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+}
+.fq input::placeholder {
+  color: var(--mute);
+}
+.fq[hidden] {
+  display: none;
+}
+/* in the list, the keyboard's place shows like a hover; the chosen tag keeps its black, with a soft ring */
+.ftag:focus-visible {
+  outline: none;
+}
+.ftag:focus-visible:not([aria-pressed='true']) {
+  background: var(--hover);
+}
+.ftag[aria-pressed='true']:focus-visible {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--bg) 45%, transparent);
+}
+.spicks {
+  margin: 4px 0 14px;
+}
+.spicks[hidden] {
+  display: none;
 }
 .ftag {
   display: flex;

@@ -142,8 +142,11 @@
               </button>
             </div>
           </div>
-          <div class="pop fpop" id="fpop" role="dialog" aria-label="Filter by tag">
+          <div class="pop fpop" id="fpop" role="dialog" aria-label="Filter by tag" tabindex="-1">
             <p class="fh">Filter by tag</p>
+            <label class="fq" id="fqL" hidden
+              ><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5" /><path d="m13.2 13.2 3.8 3.8" /></svg><input id="fq" type="text" placeholder="Find a tag" aria-label="Find a tag" autocomplete="off" spellcheck="false"
+            /></label>
             <div class="ftags" id="ftags"></div>
           </div>
           <div class="pop" id="pop" role="dialog" aria-label="Choose a day">
@@ -405,6 +408,7 @@
           </div>
           <div class="sres" id="sres">
             <div class="hl" id="hl"></div>
+            <div class="chips spicks" id="spicks" hidden></div>
             <div id="slist" role="listbox" aria-label="Results"></div>
             <span class="sr-only" id="scount" role="status" aria-live="polite"></span>
           </div>

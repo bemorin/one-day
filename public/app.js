@@ -9,7 +9,7 @@ try {
     home = document.getElementById('home'),
     q = s => app.querySelector(s),
     $ = {};
-  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inT inTitle inMeta inDay inDayL inNo inYes mbar mbSearch mbTimer mbTimerL mbAdd mbSend mbMore scrim more moreList theme sendd fx fbtn fname fclr fpop ftags fnone'
+  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inT inTitle inMeta inDay inDayL inNo inYes mbar mbSearch mbTimer mbTimerL mbAdd mbSend mbMore scrim more moreList theme sendd fx fbtn fname fclr fpop ftags fnone fqL fq spicks'
     .split(' ')
     .forEach(id => ($[id] = q('#' + id)));
   const fill = q('.rule i'),
@@ -2740,6 +2740,7 @@ try {
         .map(norm);
     if (!qs.trim()) {
       SR = [];
+      $.spicks.hidden = true;
       const tags = allTags();
       prevIds = new Set();
       $.sq.setAttribute('aria-expanded', 'false');
@@ -2749,12 +2750,13 @@ try {
         `<p class="shint">Search tasks, notes and sub-tasks on every day. Type # to filter by tag.</p>` +
         (tags.length
           ? `<div class="chips">${tags
-              .slice(0, 40)
+              .slice(0, 12)
               .map(
                 ([g, c]) =>
                   `<button type="button" class="chip" data-tag="${esc(g)}">#${esc(g)}<span>${c}</span></button>`,
               )
-              .join('')}</div>`
+              .join('')}${tags.length > 12 ? `<button type="button" class="chip" data-more>${tags.length - 12} more tags</button>` : ''}</div>` +
+            (tags.length > 12 ? '<p class="shint">Type # and a few letters to find any tag.</p>' : '')
           : '') +
         `<div class="sdata"><p class="shint">${cloud.col ? 'Your tasks are saved in this browser and in your private space on Claude.' : 'Your tasks are stored only in this browser. Nothing is sent anywhere.'}</p><div class="chips"><button type="button" class="chip" data-act="import">${IC.up}Import backup</button><button type="button" class="chip" data-act="export">${IC.down}${canTop ? 'Export backup' : 'Copy backup'}</button></div></div>${aboutHTML()}`;
       moveHl();
@@ -2762,12 +2764,23 @@ try {
     }
     SR = search(qs);
     SEL = 0;
+    // after a #, the tags that start with what is typed, to pick in one click
+    const last = qs.endsWith(' ') ? '' : qs.trim().split(/\s+/).pop() || '',
+      pq = last[0] === '#' ? norm(last.slice(1)) : null,
+      picks = pq == null ? [] : allTags().filter(([g]) => norm(g).startsWith(pq) && norm(g) !== pq).slice(0, 12);
+    $.spicks.hidden = !picks.length;
+    $.spicks.innerHTML = picks
+      .map(([g, c]) => `<button type="button" class="chip" data-pick="${esc(g)}">#${esc(g)}<span>${c}</span></button>`)
+      .join('');
     $.sq.setAttribute('aria-expanded', SR.length ? 'true' : 'false');
     if (SR.length) $.slist.setAttribute('role', 'listbox');
     else $.slist.removeAttribute('role');
     $.scount.textContent = SR.length ? `${SR.length} ${SR.length > 1 ? 'results' : 'result'}` : 'No results';
     if (!SR.length) {
-      $.slist.innerHTML = `<p class="shint">No tasks match “${esc(qs.trim())}”.</p>`;
+      $.slist.innerHTML =
+        picks.length && qs.trim().length < 3
+          ? ''
+          : `<p class="shint">${picks.length ? 'No tasks with that tag yet.' : `No tasks match “${esc(qs.trim())}”.`}</p>`;
       prevIds = new Set();
       moveHl();
       return;
@@ -2943,8 +2956,21 @@ try {
       $.sq.focus();
       return;
     }
+    if (e.target.closest('[data-more]')) {
+      $.sq.value = '#';
+      renderSearch();
+      $.sq.focus();
+      return;
+    }
     const b = e.target.closest('.sr');
     if (b) openResult(+b.dataset.i);
+  });
+  $.spicks.addEventListener('click', e => {
+    const b = e.target.closest('[data-pick]');
+    if (!b) return;
+    $.sq.value = $.sq.value.replace(/#[^\s#]*$/, '#' + b.dataset.pick + ' ');
+    renderSearch();
+    $.sq.focus();
   });
   $.slist.addEventListener('pointermove', e => {
     const b = e.target.closest('.sr');
@@ -3172,22 +3198,97 @@ try {
       renderAux();
     });
   }
+  // The list stays short: the day's tags, then the ones used lately. With more tags than that, a field finds any.
+  const FMAX = 8;
+  function recentTags(k) {
+    const tk = todayKey(),
+      lo = addDays(tk, -21),
+      hi = addDays(tk, 7),
+      last = new Map();
+    for (const d of Object.keys(S.days)) {
+      if (d < lo || d > hi || d === k) continue;
+      for (const t of S.days[d].tasks) for (const g of tagsIn(t)) if (!(last.get(g) >= d)) last.set(g, d);
+    }
+    return [...last].sort((a, b) => b[1].localeCompare(a[1]) || a[0].localeCompare(b[0])).map(([g]) => g);
+  }
+  function filterRows(q) {
+    const day = dayTags(cur),
+      on = new Map(day);
+    if (q) {
+      const nq = norm(q),
+        all = allTags().map(([g]) => g),
+        first = all.filter(g => norm(g).startsWith(nq)),
+        then = all.filter(g => !norm(g).startsWith(nq) && norm(g).includes(nq));
+      return [...first, ...then].slice(0, FMAX).map(g => [g, on.get(g) || 0]);
+    }
+    const rows = day.slice(0, FMAX);
+    for (const g of recentTags(cur)) {
+      if (rows.length >= FMAX) break;
+      if (!on.has(g)) rows.push([g, 0]);
+    }
+    if (FX && !rows.some(([g]) => g === FX)) rows.unshift([FX, on.get(FX) || 0]);
+    return rows;
+  }
+  function renderFtags(q) {
+    const rows = filterRows(q);
+    let h = '';
+    if (!q && (FX || rows.length))
+      h += `<button type="button" class="ftag" data-tag="" aria-pressed="${!FX}">All tasks<span>${tasks(cur).length}</span></button>`;
+    h += rows
+      .map(([g, c]) => `<button type="button" class="ftag" data-tag="${esc(g)}" aria-pressed="${g === FX}">#${esc(g)}<span>${c || ''}</span></button>`)
+      .join('');
+    $.ftags.innerHTML =
+      h ||
+      (q
+        ? `<p class="fempty">No tag matches “${esc(q)}”.</p>`
+        : '<p class="fempty">No tags yet. Type #something in a task to filter by it.</p>');
+    [...$.ftags.children].forEach((c, i) =>
+      an(c, [{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], {
+        duration: 220,
+        delay: Math.min(i, 8) * 16,
+        fill: 'backwards',
+      }),
+    );
+  }
   function openFilter() {
     closePops();
-    const tags = dayTags(cur);
-    if (FX && !tags.some(([g]) => g === FX)) tags.unshift([FX, 0]);
-    $.ftags.innerHTML = tags.length
-      ? `<button type="button" class="ftag" data-tag="" aria-pressed="${!FX}">All tasks<span>${tasks(cur).length}</span></button>` +
-        tags
-          .map(([g, c]) => `<button type="button" class="ftag" data-tag="${esc(g)}" aria-pressed="${g === FX}">#${esc(g)}<span>${c}</span></button>`)
-          .join('')
-      : '<p class="fempty">No tags on this day. Type #something in a task to filter by it.</p>';
+    const n = allTags().length,
+      many = n > FMAX;
+    $.fqL.hidden = !many;
+    $.fq.value = '';
+    $.fq.placeholder = `Find a tag among ${n}`;
+    renderFtags('');
     $.fpop.classList.add('on');
     $.fbtn.setAttribute('aria-expanded', 'true');
     hideTip(0);
-    const b = $.ftags.querySelector('[aria-pressed="true"]') || $.ftags.querySelector('button');
-    if (b) b.focus({ preventScroll: true });
+    // no ring on opening: the field takes the focus, or the popover itself; the arrows lead into the list
+    (many ? $.fq : $.fpop).focus({ preventScroll: true });
   }
+  $.fq.addEventListener('input', () => renderFtags($.fq.value.trim().replace(/^#/, '')));
+  $.fq.addEventListener('keydown', e => {
+    const first = $.ftags.querySelector('.ftag');
+    if (e.key === 'Enter' && !e.isComposing) {
+      e.preventDefault();
+      if (first) first.click();
+    } else if (e.key === 'ArrowDown' && first) {
+      e.preventDefault();
+      first.focus();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      if ($.fq.value) {
+        $.fq.value = '';
+        renderFtags('');
+      } else closePops(true);
+    }
+  });
+  $.fpop.addEventListener('keydown', e => {
+    if (D().activeElement !== $.fpop || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) return;
+    const bs = $.ftags.querySelectorAll('.ftag');
+    if (!bs.length) return;
+    e.preventDefault();
+    (e.key === 'ArrowDown' ? bs[0] : bs[bs.length - 1]).focus();
+  });
   $.fbtn.onclick = () => ($.fpop.classList.contains('on') ? closePops() : openFilter());
   $.fclr.onclick = () => {
     setFilter(null);
@@ -3203,10 +3304,10 @@ try {
     const bs = [...$.ftags.querySelectorAll('.ftag')],
       i = bs.indexOf(D().activeElement),
       d = { ArrowDown: 1, ArrowUp: -1 }[e.key];
-    if (d && i > -1) {
-      e.preventDefault();
-      bs[Math.max(0, Math.min(bs.length - 1, i + d))].focus();
-    }
+    if (!d || i < 0) return;
+    e.preventDefault();
+    if (i === 0 && d < 0 && !$.fqL.hidden) $.fq.focus();
+    else bs[Math.max(0, Math.min(bs.length - 1, i + d))].focus();
   });
 
   /* A pasted list: one item per line. Bullets, numbers and checkboxes are left out ("- [x]" makes it done);
@@ -4231,7 +4332,7 @@ try {
         closePops(true);
         return;
       }
-      if (t.closest('#pop,#tpop,#dpop,#rpop')) return;
+      if (t.closest('#pop,#tpop,#dpop,#rpop,#fpop')) return;
     }
     if (row && !t.closest('.more')) {
       if (e.altKey && (k === 'ArrowUp' || k === 'ArrowDown')) {

@@ -351,6 +351,10 @@ test.describe('filter by tag', () => {
     await open(page);
     await page.keyboard.press('f');
     await expect(page.locator('#fpop')).toHaveClass(/\bon\b/);
+    // nothing is ringed on opening; the arrows lead into the list
+    await expect(page.locator('#fpop')).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.locator('#ftags .ftag').first()).toBeFocused();
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
@@ -363,6 +367,47 @@ test.describe('filter by tag', () => {
     await page.keyboard.press('Escape');
     await expect(page.locator('#fx')).not.toHaveClass(/\bon\b/);
     await expect(page.locator('#list .row')).toHaveCount(4);
+  });
+
+  test('with many tags the list stays short, and a field finds any of them', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.addInitScript(k => {
+      const tags = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel', 'india', 'juliet', 'kilo', 'lima'];
+      const tasks = tags.map((g, i) => ({ id: 't' + i, text: `Task ${i} #${g}`, done: false }));
+      localStorage.setItem('oneday.v1', JSON.stringify({ days: { [k]: { u: 1, tasks } }, rules: {} }));
+    }, today());
+    await page.goto('/');
+    await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
+    await page.keyboard.press('f');
+    await expect(page.locator('#fq')).toBeFocused();
+    await expect(page.locator('#fq')).toHaveAttribute('placeholder', 'Find a tag among 12');
+    await expect(page.locator('#ftags .ftag')).toHaveCount(9);
+    await page.keyboard.type('ki');
+    await expect(page.locator('#ftags .ftag')).toHaveText(['#kilo1']);
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#fname')).toHaveText('#kilo');
+    await expect(page.locator('#list .row')).toHaveCount(1);
+  });
+
+  test('search shows a dozen tags; after a # it offers the ones that start with what is typed', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.addInitScript(k => {
+      const tags = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel', 'india', 'juliet', 'kilo', 'lima', 'mike', 'november'];
+      const tasks = tags.map((g, i) => ({ id: 't' + i, text: `Task ${i} #${g}`, done: false }));
+      localStorage.setItem('oneday.v1', JSON.stringify({ days: { [k]: { u: 1, tasks } }, rules: {} }));
+    }, today());
+    await page.goto('/');
+    await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
+    await page.keyboard.press('/');
+    await expect(page.locator('#slist [data-tag]')).toHaveCount(12);
+    await page.locator('#slist [data-more]').click();
+    await expect(page.locator('#sq')).toHaveValue('#');
+    await expect(page.locator('#spicks [data-pick]')).toHaveCount(12);
+    await page.keyboard.type('n');
+    await expect(page.locator('#spicks [data-pick]')).toHaveText(['#november1']);
+    await page.locator('#spicks [data-pick]').click();
+    await expect(page.locator('#sq')).toHaveValue('#november ');
+    await expect(page.locator('#slist .sr')).toHaveCount(1);
   });
 
   test('reordering a filtered list keeps the tasks it hides where they are', async ({ page }) => {
