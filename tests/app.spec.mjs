@@ -86,11 +86,17 @@ test('works offline from a cold start once visited, whatever the address', async
     await page.locator('#input').fill('Written before going offline');
     await page.locator('#input').press('Enter');
     // the service worker controls the page and has cached the whole app
-    await page.waitForFunction(async () => {
-      if (!navigator.serviceWorker.controller) return false;
-      const keys = await caches.keys();
-      return keys.length === 1 && (await (await caches.open(keys[0])).keys()).length >= 11;
-    });
+    await expect
+      .poll(
+        () =>
+          page.evaluate(async () => {
+            if (!navigator.serviceWorker.controller) return false;
+            const keys = await caches.keys();
+            return keys.length === 1 && (await (await caches.open(keys[0])).keys()).length >= 11;
+          }),
+        { timeout: 10000 },
+      )
+      .toBe(true);
     await page.close();
   } finally {
     srv.kill();

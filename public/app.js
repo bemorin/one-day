@@ -3650,7 +3650,9 @@ try {
       (promo
         ? `<a class="spromo" href="${esc(promo.href)}" target="_blank" rel="noopener" referrerpolicy="strict-origin">${promo.innerHTML}</a>`
         : '') +
-      (kofi ? `<a class="spromo kofi" href="${esc(kofi.href)}" target="_blank" rel="noopener">${kofi.innerHTML}</a>` : '') +
+      (kofi
+        ? `<a class="spromo kofi" href="${esc(kofi.href)}" target="_blank" rel="noopener" aria-label="${esc(kofi.getAttribute('aria-label') || '')}">${kofi.innerHTML}</a>`
+        : '') +
       '<hr>' +
       `<p class="slinks">${links}</p>`;
     compose(false);
