@@ -4,13 +4,15 @@
   "display_name": "One Day",
   "version": "1.0.0",
   "description": "Turn tasks into a One Day link. Nothing is sent anywhere: the tasks travel inside the link.",
-  "long_description": "One tool, make_one_day_link, puts tasks (with a note, sub-tasks, a day and a repeat) in a link that adds them to One Day, a calm to-do list that keeps your tasks in your browser. You open the link and confirm. The server runs on your computer, opens no network connection and keeps nothing.",
+  "long_description": "One tool, make_one_day_link, puts tasks (with a note, sub-tasks, a day and a repeat) in a link that adds them to One Day, a calm to-do list that keeps your tasks in your browser. You open the link and confirm. The server runs on your computer, opens no network connection and keeps nothing.\n\nTry: “Add to One Day: call the bank tomorrow, and water the plants every Tuesday and Friday.”",
   "author": {
     "name": "Ben Morin",
     "url": "https://bemorin.com"
   },
   "homepage": "https://day.bemorin.com",
-  "documentation": "https://github.com/bemorin/one-day/blob/main/docs/links.md",
+  "documentation": "https://github.com/bemorin/one-day/tree/main/mcp#readme",
+  "support": "https://github.com/bemorin/one-day/issues",
+  "icon": "icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/bemorin/one-day.git"
@@ -38,7 +40,7 @@
     "app_url": {
       "type": "string",
       "title": "One Day address",
-      "description": "Where your One Day opens. Change it only for your own copy of One Day.",
+      "description": "Where your One Day opens, starting with https://. Change it only for your own copy of One Day; left empty, links open day.bemorin.com.",
       "default": "https://day.bemorin.com/",
       "required": false
     }

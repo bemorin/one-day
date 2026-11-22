@@ -10,17 +10,27 @@ It speaks the Model Context Protocol over stdio, in its stateless 2026-07-28 ver
 
 ## Install
 
-Get the files: clone the repository (`git clone https://github.com/bemorin/one-day`) or download the `mcp` folder. The examples below use `/path/to/one-day/mcp/server.mjs`; use the real path on your computer.
+### Claude Desktop
+
+The One Day extension is one file, `one-day.mcpb`. It runs on the Node.js that comes with Claude Desktop, so there is nothing else to install.
+
+1. Download [`one-day.mcpb`](https://github.com/bemorin/one-day/releases/latest/download/one-day.mcpb) from the latest release.
+2. Open it with Claude Desktop (double-click it). If that does nothing, or Windows asks which app should open it, use Claude's menu instead: **Help → Troubleshooting → Enable Developer Mode…** once (Claude restarts), then **Developer → Extensions → Install Extension…**, and pick the file.
+3. Check what it is and click **Install**. Leave “One Day address” as it is, unless you have [your own copy of One Day](#your-own-copy-of-one-day).
+
+Claude Desktop does not update an extension installed from a file: for a newer version, install the new `one-day.mcpb` the same way.
 
 ### Claude Code
+
+Get the files: clone the repository (`git clone https://github.com/bemorin/one-day`) or download the `mcp` folder. Then, with the real path on your computer:
 
 ```sh
 claude mcp add --scope user one-day -- node /path/to/one-day/mcp/server.mjs
 ```
 
-### Claude Desktop
+### Claude Desktop, without the extension
 
-Claude Desktop, Settings → Developer → Edit Config opens `claude_desktop_config.json` (on Windows `%APPDATA%\Claude\claude_desktop_config.json`, on macOS `~/Library/Application Support/Claude/claude_desktop_config.json`). Add the server, then quit and reopen Claude Desktop:
+Claude Desktop can also start the server from its configuration file, with the files on your computer as for Claude Code. Settings → Developer → Edit Config opens `claude_desktop_config.json` (on Windows `%APPDATA%\Claude\claude_desktop_config.json`, on macOS `~/Library/Application Support/Claude/claude_desktop_config.json`). Add the server, then quit and reopen Claude Desktop:
 
 ```json
 {
@@ -34,8 +44,6 @@ Claude Desktop, Settings → Developer → Edit Config opens `claude_desktop_con
 ```
 
 On Windows, write the path with double backslashes: `"C:\\Users\\you\\one-day\\mcp\\server.mjs"`. This needs [Node.js](https://nodejs.org) installed.
-
-Claude Desktop extensions (`.mcpb` files) install with a click and bring their own Node.js. This folder carries the [`manifest.json`](manifest.json) for one, to be packed with the [MCPB tool](https://github.com/modelcontextprotocol/mcpb) (`mcpb pack`); no packed extension is published yet.
 
 ## Use it
 
@@ -74,6 +82,10 @@ In `claude_desktop_config.json`, add `"env": { "ONE_DAY_URL": "https://day.examp
 ```
 
 `title` is required; the rest is optional. `day` is `today`, `tomorrow`, a weekday or `YYYY-MM-DD`; `repeat` is `daily`, `weekdays`, `weekends`, `weekly`, `monthly`, `yearly` or an iCalendar `RRULE` (see [Repeats](../docs/links.md#repeats)). A day or a repeat One Day could not follow, or text too long for it, comes back as an error that says what to change, so Claude can fix it and try again.
+
+## Building the extension
+
+From the repository's root, `npm run mcpb` packs this folder into `dist/one-day.mcpb` with the [MCPB tool](https://github.com/modelcontextprotocol/mcpb) (`npx` fetches `@anthropic-ai/mcpb` the first time), after checking `manifest.json`. The extension is this folder as it is, with no build step: `server.mjs`, `link.mjs`, `manifest.json`, `icon.png` (the app's icon, written by `npm run icons`), `package.json`, `LICENSE` and this README. Keep the version the same in `manifest.json`, `package.json` and `server.mjs`: `npm test` checks it.
 
 ## License
 

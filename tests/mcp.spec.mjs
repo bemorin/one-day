@@ -1,11 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { spawn } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { oneDayLink, parseRepeat, isDay, DEFAULT_URL } from '../mcp/link.mjs';
 
 // The MCP server in mcp/, spoken to over stdio as Claude Desktop or Claude Code would.
-const SERVER = fileURLToPath(new URL('../mcp/server.mjs', import.meta.url));
+const MCP = new URL('../mcp/', import.meta.url);
+const SERVER = fileURLToPath(new URL('server.mjs', MCP));
+const json = f => JSON.parse(readFileSync(new URL(f, MCP), 'utf8'));
 function mcp(env = {}) {
   const p = spawn(process.execPath, [SERVER], { env: { ...process.env, ...env }, stdio: ['pipe', 'pipe', 'inherit'] }),
     got = [],
@@ -171,5 +174,50 @@ test.describe('MCP server', () => {
     expect(oneDayLink([{ title: 'x', subtasks: ['- a', '[x] b', 'c'] }]).url).toBe(
       DEFAULT_URL + '#add?task=x&sub=%5B+%5D+-+a&sub=%5B+%5D+%5Bx%5D+b&sub=c',
     );
+  });
+
+  test('the Claude Desktop extension hands its address setting to the server, and an empty or unresolved one means day.bemorin.com', async () => {
+    // Claude Desktop runs node <the extension's folder>/server.mjs, with ONE_DAY_URL from the “One Day address” setting
+    const { server, user_config } = json('manifest.json');
+    expect(server).toMatchObject({
+      type: 'node',
+      entry_point: 'server.mjs',
+      mcp_config: { command: 'node', args: ['${__dirname}/server.mjs'], env: { ONE_DAY_URL: '${user_config.app_url}' } },
+    });
+    expect(user_config.app_url).toMatchObject({ type: 'string', default: DEFAULT_URL, required: false });
+    const preview = 'https://assistants.one-day-2eb.pages.dev/';
+    for (const [setting, base] of [
+      [DEFAULT_URL, DEFAULT_URL],
+      [preview, preview],
+      ['', DEFAULT_URL],
+      ['${user_config.app_url}', DEFAULT_URL],
+      ['null', DEFAULT_URL],
+    ]) {
+      const s = mcp({ ONE_DAY_URL: setting });
+      const call = await s.ask({
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'make_one_day_link', arguments: { tasks: [{ title: 'Call the bank', day: 'tomorrow' }] } },
+      });
+      await s.close();
+      expect(call.result.content[0].text.split('\n')[0], `ONE_DAY_URL="${setting}"`).toBe(base + '#add?task=Call+the+bank&day=tomorrow');
+    }
+  });
+
+  test('the extension says what the server is and offers, and carries its icon and license', async () => {
+    const manifest = json('manifest.json'),
+      pkg = json('package.json');
+    const s = mcp();
+    const init = await s.ask({ id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '0' } } });
+    const list = await s.ask({ id: 2, method: 'tools/list' });
+    await s.close();
+    const { name, version } = init.result.serverInfo;
+    expect([manifest.name, manifest.version, pkg.version]).toEqual([name, version, version]);
+    expect(manifest.tools.map(t => t.name)).toEqual(list.result.tools.map(t => t.name));
+    // the app's icon at 512 px (scripts/icons.mjs writes it), and the license that goes with every copy
+    const icon = readFileSync(new URL(manifest.icon, MCP));
+    expect([icon.toString('latin1', 1, 4), icon.readUInt32BE(16), icon.readUInt32BE(20)]).toEqual(['PNG', 512, 512]);
+    expect(readFileSync(new URL('LICENSE', MCP), 'utf8')).toBe(readFileSync(new URL('../LICENSE', import.meta.url), 'utf8'));
+    for (const f of pkg.files) expect(existsSync(new URL(f, MCP)), f).toBe(true);
   });
 });

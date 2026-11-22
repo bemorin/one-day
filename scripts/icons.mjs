@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Draws the One Day icon and writes every size the app needs.
+// Draws the One Day icon and writes every size the app needs, and the Claude Desktop extension's (mcp/icon.png).
 //   node scripts/icons.mjs   (needs the dev dependencies: npm install)
 //
 // The mark: a signal-red tile, the day's progress rule half filled, and the date numeral "1"
@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { chromium } from 'playwright';
 
-const pub = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
+const root = join(dirname(fileURLToPath(import.meta.url)), '..'),
+  pub = join(root, 'public');
 
 // Archivo "1" at wght 800, wdth 112 (units per em 1000, y up, baseline 0).
 const ONE =
@@ -84,7 +85,9 @@ async function png(markup, size) {
 
 await writeFile(join(pub, 'icons', 'icon.svg'), svg() + '\n');
 await writeFile(join(pub, 'icons', 'icon-192.png'), await png(svg(), 192));
-await writeFile(join(pub, 'icons', 'icon-512.png'), await png(svg(), 512));
+const icon512 = await png(svg(), 512);
+await writeFile(join(pub, 'icons', 'icon-512.png'), icon512);
+await writeFile(join(root, 'mcp', 'icon.png'), icon512);
 await writeFile(join(pub, 'icons', 'icon-maskable-512.png'), await png(svg({ tile: false, k: 0.8 }), 512));
 await writeFile(join(pub, 'icons', 'apple-touch-icon.png'), await png(svg({ tile: false, k: 0.92 }), 180));
 await writeFile(
@@ -96,4 +99,4 @@ await writeFile(
   ]),
 );
 await browser.close();
-console.log('Icons written to public/icons and public/favicon.ico');
+console.log('Icons written to public/icons, public/favicon.ico and mcp/icon.png');

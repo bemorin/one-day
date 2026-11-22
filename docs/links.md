@@ -93,7 +93,12 @@ Three tasks: a talk to prepare on Friday, with a note and two sub-tasks; plants 
 
 ### Claude Desktop and Claude Code
 
-[`mcp/`](../mcp) holds a small MCP server with one tool, `make_one_day_link`. It runs on your computer, opens no network connection and keeps nothing: Claude passes it the tasks, it returns the link. See [its README](../mcp/README.md) to install it.
+[`mcp/`](../mcp) holds a small MCP server with one tool, `make_one_day_link`. It runs on your computer, opens no network connection and keeps nothing: Claude passes it the tasks, it returns the link.
+
+- **Claude Desktop**: download the One Day extension, [`one-day.mcpb`](https://github.com/bemorin/one-day/releases/latest/download/one-day.mcpb), and open it with Claude Desktop. It brings everything it needs, Node.js included.
+- **Claude Code**: `claude mcp add --scope user one-day -- node /path/to/one-day/mcp/server.mjs`, with the path of `mcp/server.mjs` on your computer.
+
+[Its README](../mcp/README.md) has the details, including the menu that installs the extension when opening the file does nothing, and how to make the links open your own copy of One Day.
 
 ### ChatGPT, claude.ai and other assistants
 
@@ -118,5 +123,5 @@ If the assistant shows the link as plain text, copy it into the address bar. For
 - **One Day sees nothing.** The part after `#` is never sent to day.bemorin.com, nor to Cloudflare, which hosts it. The host only sees that the page was opened, as for any visit.
 - **The link holds the tasks in plain text.** Anyone who has it can read them, as with any message, and your browser's history can keep it, as it keeps any address you open.
 - **Your assistant's provider** (Anthropic, OpenAI…) sees what you ask it and the link it writes, as with anything you tell it, and keeps them in your chat history as it keeps the rest of the conversation.
-- **The MCP server** runs on your computer, opens no network connection, writes no file and keeps nothing between calls.
+- **The MCP server** runs on your computer, opens no network connection, writes no file and keeps nothing between calls. Installed as a Claude Desktop extension, it is the same server: Claude Desktop keeps its files, and the One Day address setting, in its own folder on your computer.
 - **There is no remote MCP server, on purpose.** ChatGPT and claude.ai connectors can only reach servers on the internet. One would receive every task in clear on its way: the words, notes, days and repeats, and the address of the assistant's servers calling it, even if it stored and logged nothing. The instructions above do the same job without it.

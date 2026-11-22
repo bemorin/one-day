@@ -28,6 +28,7 @@
     "server.mjs",
     "link.mjs",
     "manifest.json",
+    "icon.png",
     "README.md"
   ],
   "engines": {
