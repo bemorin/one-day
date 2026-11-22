@@ -95,7 +95,7 @@ Three tasks: a talk to prepare on Friday, with a note and two sub-tasks; plants 
 
 [`mcp/`](../mcp) holds a small MCP server with one tool, `make_one_day_link`. It runs on your computer, opens no network connection and keeps nothing: Claude passes it the tasks, it returns the link.
 
-- **Claude Desktop**: download the One Day extension, [`one-day.mcpb`](https://github.com/bemorin/one-day/releases/latest/download/one-day.mcpb), and drag it onto Settings → Desktop app → Extensions (**Manage**). It brings everything it needs, Node.js included.
+- **Claude Desktop**: download the One Day extension, [`one-day.mcpb`](https://github.com/bemorin/one-day/releases/latest/download/one-day.mcpb), and drag it onto Settings → Desktop app → Extensions (**Manage**). It runs on the Node.js that comes with Claude Desktop: there is nothing else to install.
 - **Claude Code**: `claude mcp add --scope user one-day -- node /path/to/one-day/mcp/server.mjs`, with the path of `mcp/server.mjs` on your computer.
 
 [Its README](../mcp/README.md) has the details, and how to make the links open your own copy of One Day.

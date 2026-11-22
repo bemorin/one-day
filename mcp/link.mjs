@@ -86,11 +86,13 @@ export function parseRepeat(v) {
   return sp;
 }
 
-// The app's address, without any # part. Only http and https.
+// The app's address, without any # part: https, or plain http only on this computer (a copy being developed). On a
+// plain-http page, anyone on the way could serve a script that reads the tasks after the #. No user:password@ either.
 export function appUrl(v) {
   try {
     const u = new URL(String(v || '').trim());
-    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+    const local = u.protocol === 'http:' && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(u.hostname);
+    if ((u.protocol !== 'https:' && !local) || u.username || u.password) return null;
     u.hash = '';
     return u.href;
   } catch (e) {

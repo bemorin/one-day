@@ -15,7 +15,7 @@ One Day has no server and no account: tasks reach it in a link, after the `#`, w
 - `note=` details, as plain text: `**bold**`, `*italic*`, lines starting with `- ` and links are kept.
 - `sub=` one sub-task; repeat it for more (up to 100).
 - `day=` `today`, `tomorrow`, a weekday (`monday` to `sunday`: the next one, today included) or `YYYY-MM-DD`. Leave it out when the user names no day: they will pick one.
-- `repeat=` `daily`, `weekdays`, `weekends`, `weekly`, `monthly`, `yearly`, or an iCalendar RRULE: `FREQ=DAILY`, `WEEKLY`, `MONTHLY` or `YEARLY`, with `INTERVAL=n`, `BYDAY` (`MO,TH`; in a month `2TU` or `-1FR`), `BYMONTHDAY=15` (`-1` for the last day), `BYMONTH=3` (yearly), `UNTIL=YYYYMMDD` or `COUNT=n`. A repeat counts from the task's day: `weekly` and `monthly` follow that day's weekday or date.
+- `repeat=` `daily`, `weekdays`, `weekends`, `weekly`, `monthly`, `yearly`, or an iCalendar RRULE: `FREQ=DAILY`, `WEEKLY`, `MONTHLY` or `YEARLY`, with `INTERVAL=n`, `BYDAY` (`MO,TH`; in a month `2TU` or `-1FR`), `BYMONTHDAY=15` in a monthly repeat (`-1` for the last day), `BYMONTH=3;BYMONTHDAY=14` in a yearly one (a yearly date always names its month), `UNTIL=YYYYMMDD` or `COUNT=n`. A repeat counts from the task's day: `weekly` and `monthly` follow that day's weekday or date.
 
 ## Encode the values
 

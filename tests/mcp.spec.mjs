@@ -170,6 +170,10 @@ test.describe('MCP server', () => {
     expect(() => oneDayLink([])).toThrow(/at least one task/);
     expect(oneDayLink([{ title: 'Hi' }], 'https://example.com/day/#old').url).toBe('https://example.com/day/#add?task=Hi');
     expect(oneDayLink([{ title: 'Hi' }], 'javascript:alert(1)').url).toBe(DEFAULT_URL + '#add?task=Hi');
+    // plain http only for a copy on this computer, and never a user:password@ address
+    expect(oneDayLink([{ title: 'Hi' }], 'http://day.example.com/').url).toBe(DEFAULT_URL + '#add?task=Hi');
+    expect(oneDayLink([{ title: 'Hi' }], 'https://me:secret@day.example.com/').url).toBe(DEFAULT_URL + '#add?task=Hi');
+    expect(oneDayLink([{ title: 'Hi' }], 'http://localhost:8000/').url).toBe('http://localhost:8000/#add?task=Hi');
     expect(oneDayLink([{ title: '(a) & b + c = d #e' }]).url).toBe(DEFAULT_URL + '#add?task=%28a%29+%26+b+%2B+c+%3D+d+%23e');
     expect(oneDayLink([{ title: 'x', subtasks: ['- a', '[x] b', 'c'] }]).url).toBe(
       DEFAULT_URL + '#add?task=x&sub=%5B+%5D+-+a&sub=%5B+%5D+%5Bx%5D+b&sub=c',

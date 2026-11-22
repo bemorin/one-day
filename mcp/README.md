@@ -87,6 +87,8 @@ In `claude_desktop_config.json`, add `"env": { "ONE_DAY_URL": "https://day.examp
 
 From the repository's root, `npm run mcpb` packs this folder into `dist/one-day.mcpb` with the [MCPB tool](https://github.com/modelcontextprotocol/mcpb) (`npx` fetches `@anthropic-ai/mcpb` the first time), after checking `manifest.json`. The extension is this folder as it is, with no build step: `server.mjs`, `link.mjs`, `manifest.json`, `icon.png` (the app's icon, written by `npm run icons`), `package.json`, `LICENSE` and this README. Keep the version the same in `manifest.json`, `package.json` and `server.mjs`: `npm test` checks it.
 
+Pack from a clean checkout (`git status` shows nothing), so that no stray file in this folder ends up in the extension. Attach `dist/one-day.mcpb` to every GitHub release: the download links point at the latest release's copy.
+
 ## License
 
 MIT, like the rest of [One Day](https://github.com/bemorin/one-day).

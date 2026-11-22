@@ -5096,7 +5096,7 @@ try {
       return;
     }
     if (m && !e.altKey && (kl === 'z' || kl === 'y')) {
-      const own = t.isContentEditable || (/^(INPUT|TEXTAREA)$/.test(t.tagName) && t.value);
+      const own = t.isContentEditable || (/^(INPUT|TEXTAREA)$/.test(t.tagName) && t.type !== 'checkbox' && t.value);
       if (!own) {
         e.preventDefault();
         kl === 'y' || e.shiftKey ? redo() : undo();

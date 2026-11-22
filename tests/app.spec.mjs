@@ -1420,9 +1420,17 @@ test.describe('links from assistants', () => {
 
   test('a box per task: one left unticked stays out, and with none ticked nothing can be added', async ({ page }) => {
     await openOn(page);
+    await page.locator('#input').fill('Composer task');
+    await page.locator('#input').press('Enter');
+    await expect(row(page, 'Composer task')).toBeVisible();
     await page.goto('/#add?task=Buy+bread&task=Call+the+bank&day=tomorrow&task=Gym');
     const boxes = page.locator('#inList .inck');
     await expect(boxes).toHaveCount(3);
+    // undo still works with a box in focus
+    await boxes.first().focus();
+    await page.keyboard.press('Control+z');
+    await expect(row(page, 'Composer task')).toHaveCount(0);
+    await expect(page.locator('#inbox')).toBeVisible();
     await expect(page.getByRole('checkbox', { name: /Call the bank/ })).toBeChecked();
     await expect(page.locator('#inYes')).toHaveText('Add all');
     // a click anywhere on the line takes it out
