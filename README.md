@@ -16,7 +16,7 @@ One Day is a single-page web app with no framework, no runtime dependencies, no 
 - **A sheet that fits its content.** On a large screen the day is a card on the page, resting in a thin frame of glass. It grows and shrinks on a spring as tasks come and go. On a phone it fills the screen.
 - **Add to any day.** The composer adds to the day on screen. Its day chip sends a task to another day (Today, Tomorrow, Next week or any date) without leaving the one you are on.
 - **Paste a list.** Paste several lines into the composer, or into a card's sub-task field, and each line becomes a task (or a sub-task). Bullets, numbers and checkboxes are left out, as Markdown, Notion, notes and to-do apps write them, and ticked items (`- [x]`, ☑, ✅) come in done. In the composer, a line set further in than the one above (as Notion and Markdown nest them) comes in as its sub-task. One undo takes them all back.
-- **Bring your tasks from another app.** _Import backup_ also reads Todoist, TickTick, Google Tasks and todo.txt exports, in the browser, and shows where they will go before adding them (see [Coming from another app](#coming-from-another-app)).
+- **Bring your tasks from another app.** _Import backup_ also reads Todoist, TickTick, Google Tasks, Evernote and todo.txt exports, and tables saved as CSV (Coda, Any.do's boards, a spreadsheet), in the browser, and shows where they will go before adding them (see [Coming from another app](#coming-from-another-app)).
 - **Repeat.** A task can come back every few days, weeks or months: on chosen weekdays, or on a date or a weekday of the month. Each occurrence appears when its day comes; ticking or deleting one leaves the others alone, and missed ones don't pile up as leftovers.
 - **Send a task, or the whole day.** Share a task as a link from its card, or all of the day's open tasks at once (to someone else, or to yourself on another device). The task travels inside the link, after the `#`, which browsers never send to a server; whoever opens it can add it to their own One Day, on the day they choose.
 - **Tasks from your assistant.** Claude, ChatGPT or any assistant can write such a link for you: several tasks at once, each with a note, sub-tasks, a day and a repeat. One Day shows them all, each with a box to untick it, and adds them in one go, with one undo. The [link format](docs/links.md) is open, Claude Desktop and Claude Code get a small local [MCP server](mcp), and other assistants only need a paragraph of instructions.
@@ -44,6 +44,8 @@ Search → _Import backup_ (More on a phone) also reads what other to-do apps ex
 | **TickTick**     | In the web app: _Settings → Account → Backup & Import → Generate Backup_, a `.csv`                                                                                                                                                  | Open and done tasks (each on the day it was done), their content, checklist items and sub-tasks, tags and the list as tags, dates, repeats                                                                        | Tasks marked _Won't do_, notes, priorities, times, reminders, folders and kanban columns                                                           |
 | **Google Tasks** | [Google Takeout](https://takeout.google.com) with only _Tasks_ ticked: the `.zip` as it is, or the `Tasks.json` inside                                                                                                             | Open and done tasks (each on the day it was done), notes and links, sub-tasks, the list as a tag, dates, and the repeats each list keeps                                                                         | Times, stars, assignees                                                                                                                            |
 | **todo.txt**     | `todo.txt` and `done.txt`, both at once                                                                                                                                                                                            | Open and done tasks (each on the day it was done), `+projects` and `@contexts` as tags, `due:` (else `t:`, the day it may start), `rec:` repeats                                                                  | Priorities and creation dates; other `key:value` tags stay in the task's words                                                                     |
+| **Evernote**     | In the desktop app: right-click a notebook (or the notes) → _Export…_ → ENEX, the `.enex` file                                                                                                                                      | Notes with checkboxes (a task each: its checklist as sub-tasks, the rest as its note), Evernote Tasks (each on its due day, done ones on the day they were done), notes with a reminder, tags and the notebook as tags, repeats | Notes with no checklist, task or reminder; pictures and files; flags, reminders and assignees |
+| **Coda, Any.do and other tables** | A table saved as CSV: Coda's _Download as CSV_, an Any.do board's _Print and Export → CSV_, a Notion database, Airtable, a spreadsheet                                                                                   | Its rows, found by the names of its columns: the task (or name, title), done, the day it was done, a due date, notes, tags (or list, project), a repeat; in English, French, German or Spanish | Every other column; a done row with no date at all |
 
 How the tasks land:
 
@@ -55,7 +57,9 @@ How the tasks land:
 - **Left behind everywhere:** priorities, times of day, reminders and durations. One Day plans days, not hours.
 - **One Day's limits hold:** 300 tasks a day, 100 sub-tasks a task, 300 repeating tasks, and what the browser can keep (about 5 MB: past that, the oldest done tasks are left out). The dialog says what was left out.
 
-Things, Apple Reminders, Microsoft To Do and Notion have no export One Day can read. Select the tasks there, copy them, and paste them into the composer: each line becomes a task (see _Paste a list_ above). A plain `.txt` or Markdown list file is read the same way.
+A table's dates are read whichever way it writes them (2026-11-24, Nov 24, 2026, 24/11/2026): when its dates leave it open (4/6/2026), they are read as this browser writes dates, and the dialog says so.
+
+Things, Apple Reminders, Microsoft To Do, a Notion page and Any.do's own lists have no export One Day can read (Any.do prints its lists as PDF). Select the tasks there, copy them, and paste them into the composer: each line becomes a task (see _Paste a list_ above). A plain `.txt` or Markdown list file is read the same way.
 
 Made-up sample exports, one per app, are in [`tests/fixtures/imports`](tests/fixtures/imports).
 
@@ -160,7 +164,7 @@ mcp/                    the local MCP server for Claude (one tool, no dependenci
 docs/links.md           the link format that carries tasks into One Day
 skills/one-day/         the same, as a skill for ChatGPT or Claude
 tests/                  Playwright tests
-  fixtures/imports/     made-up exports from Todoist, TickTick, Google Tasks and todo.txt
+  fixtures/imports/     made-up exports from Todoist, TickTick, Google Tasks, Evernote, todo.txt and tables
 ```
 
 After changing any file the service worker caches, bump `CACHE` in `public/sw.js` so installed copies update.

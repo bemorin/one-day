@@ -3210,7 +3210,8 @@ try {
     const files = [...($.impf.files || [])].slice(0, 20);
     $.impf.value = '';
     if (!files.length) return;
-    if (files.some(f => f.size > 20e6)) {
+    // an Evernote export carries its pictures and files: it may be large, and is read as it streams (see readEnex)
+    if (files.some(f => f.size > (/\.enex$/i.test(f.name) ? 4e9 : 20e6))) {
       toast('That file is too large to import');
       return;
     }
@@ -3309,13 +3310,51 @@ try {
   async function readFiles(files) {
     const out = [];
     for (const f of files) {
-      const u8 = new Uint8Array(await f.arrayBuffer()),
-        at = f.lastModified || Date.now();
+      const at = f.lastModified || Date.now();
+      if (/\.enex$/i.test(f.name)) {
+        out.push({ name: f.name, text: await readEnex(f), at });
+        continue;
+      }
+      const u8 = new Uint8Array(await f.arrayBuffer());
       if (u8[0] === 0x50 && u8[1] === 0x4b && u8[2] === 3 && u8[3] === 4)
         for (const e of await unzip(u8)) out.push({ name: e.name, text: utf8(e.bytes), at });
       else out.push({ name: f.name, text: utf8(u8), at });
     }
     return out;
+  }
+  // An Evernote export writes each note's pictures and files into it, in base64: it is read as it streams, and what
+  // lies between <resource> and </resource> is dropped on the way, so only the notes are kept (40 MB of them at most).
+  async function readEnex(f) {
+    if (typeof TextDecoderStream !== 'function') return utf8(new Uint8Array(await f.arrayBuffer()));
+    const rd = f.stream().pipeThrough(new TextDecoderStream()).getReader(),
+      A = '<resource>',
+      B = '</resource>';
+    let out = '',
+      buf = '',
+      skip = false;
+    for (;;) {
+      const { done, value } = await rd.read();
+      if (value) buf += value;
+      for (;;) {
+        const i = buf.indexOf(skip ? B : A);
+        if (i < 0) {
+          // keep what could be the start of a tag cut by the chunk's end
+          const keep = done ? 0 : (skip ? B : A).length - 1;
+          if (!skip) out += buf.slice(0, Math.max(0, buf.length - keep));
+          buf = keep ? buf.slice(-keep) : '';
+          break;
+        }
+        if (!skip) out += buf.slice(0, i);
+        buf = buf.slice(i + (skip ? B : A).length);
+        skip = !skip;
+      }
+      if (out.length > 40e6) {
+        rd.cancel();
+        throw new Error('too large');
+      }
+      if (done) break;
+    }
+    return out.replace(/^\uFEFF/, '');
   }
   // UTF-8, as these apps write it; a file an older Windows app saved falls back to its code page
   function utf8(u8) {
@@ -3601,14 +3640,15 @@ try {
           .replace(/\s+/g, ' ')
           .trim();
       if (!words) continue;
-      if (links.length) it.note = [it.note, links.join('\n')].filter(x => x && x.trim()).join('\n\n');
       const own = tagsOf(words),
         tags = [...new Set((it.tags || []).map(imTag))].filter(g => g && !own.includes(g)),
         tail = tags.map(g => ' #' + g).join(''),
         text = (words.slice(0, Math.max(40, 500 - tail.length)) + tail).slice(0, 500);
       const subs0 = (it.subs || []).filter(x => x && String(x.text || '').trim()),
         subs = subs0.slice(0, 100).map(x => ({ id: uid(), text: String(x.text).replace(/\s+/g, ' ').trim().slice(0, 300), done: !!x.done }));
-      let note = imNote(it.note);
+      // (the items are planned twice, for the dialog and again for Add all: nothing here changes them)
+      // (an Evernote note comes as HTML already; clean() sanitises every note below)
+      let note = (it.noteHtml || '') + imNote([it.note, links.join('\n')].filter(x => x && String(x).trim()).join('\n\n'));
       // a date One Day couldn't read is kept in the note, in the words it was written in
       if (it.when) {
         note += `<div>${esc(`Date in ${it.app}: ${it.when}`)}</div>`;
@@ -3704,9 +3744,14 @@ try {
       } catch (e) {}
       return j && j.kind === 'tasks#taskLists' && Array.isArray(j.items) ? { app: 'Google Tasks', items: fromGoogle(j) } : null;
     }
+    if (ENX.test(head)) return { app: 'Evernote', items: fromEvernote(text, name, ctx) };
     if (TDH.test(head)) return { app: 'Todoist', items: fromTodoist(text, name, ctx) };
     if (TTH.test(head)) return { app: 'TickTick', items: fromTickTick(text, left) };
-    if (/\.(csv|json)$/i.test(name)) return null;
+    if (/\.(csv|tsv)$/i.test(name)) {
+      const items = fromTable(text, ctx);
+      return items ? { app: name.replace(/\.(csv|tsv)$/i, ''), items } : null;
+    }
+    if (/\.(json|enex)$/i.test(name)) return null;
     if (/^(todo|done)\.txt$/i.test(name) || (!/\.(md|markdown)$/i.test(name) && TXT.test(text.slice(0, 20000))))
       return { app: 'todo.txt', items: fromTodoTxt(text) };
     // any other list, one item a line, is read as a pasted one: bullets and boxes left out, what is set in nested
@@ -3947,6 +3992,214 @@ try {
     return allDay && w.m === 0 && w.s === 0 && w.h >= 22 ? addDays(w.k, 1) : w.k;
   }
 
+  /* Evernote: notes exported as .enex (in the desktop app, right-click a notebook or notes → Export → ENEX), its
+     pictures and files left out on the way in (see readEnex). A note with checkboxes becomes a task: its checklist its
+     sub-tasks, the rest of it its note. Each of its Evernote Tasks becomes a task of its own, on its due day or on the
+     day it was done, the note's title as a tag. An older note with a reminder is a task on that day. Other notes stay
+     behind. The notebook is the file's name. The export's own markup is read as text, never run or shown. */
+  const ENX = /<en-export[\s>]/,
+    etpl = document.createElement('template');
+  // the text of one of a note's elements, its entities read (a CDATA section is kept as it is)
+  function enDecode(s) {
+    const c = /^\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*$/.exec(s);
+    if (c) return c[1];
+    etpl.innerHTML = s.replace(/</g, '&lt;');
+    return etpl.content.textContent.trim();
+  }
+  function enText(block, tag) {
+    const m = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`).exec(block);
+    return m ? enDecode(m[1]) : '';
+  }
+  function fromEvernote(text, name, ctx) {
+    const out = [],
+      book = name.replace(/\.enex$/i, '');
+    let plain = 0;
+    for (const m of text.matchAll(/<note>([\s\S]*?)<\/note>/g)) {
+      const c = /<content>([\s\S]*?)<\/content>/.exec(m[1]),
+        b = m[1].replace(/<content>[\s\S]*?<\/content>/, ''),
+        tasks = [...b.matchAll(/<task>([\s\S]*?)<\/task>/g)].map(t => t[1]),
+        nb = b.replace(/<task>[\s\S]*?<\/task>/g, ''),
+        title = enText(nb, 'title').replace(/\s+/g, ' ').trim() || 'Untitled note',
+        tags = [...nb.matchAll(/<tag>([\s\S]*?)<\/tag>/g)].map(t => enDecode(t[1])),
+        body = enBody(c ? enDecode(c[1]) : ''),
+        rem = imAt(enText(nb, 'reminder-time')),
+        remDone = imAt(enText(nb, 'reminder-done-time'));
+      let made = false;
+      if (body.items.length || (!tasks.length && (rem != null || remDone != null))) {
+        const it = { text: title, noteHtml: body.html, subs: body.items, tags: [book, ...tags], done: remDone != null };
+        if (it.done) {
+          it.at = remDone;
+          it.doneDay = keyOf(new Date(remDone));
+        } else if (rem != null) it.due = keyOf(new Date(rem));
+        out.push(it);
+        made = true;
+      }
+      // its tasks, in their order (sortWeight compares as written)
+      const weight = x => enText(x, 'sortWeight');
+      tasks.sort((x, y) => (weight(x) < weight(y) ? -1 : weight(x) > weight(y) ? 1 : 0));
+      for (const x of tasks) {
+        const tz = enText(x, 'timeZone') || undefined,
+          done = enText(x, 'taskStatus').toLowerCase() === 'completed',
+          due = imAt(enText(x, 'dueDate')),
+          day = due != null ? wall(due, tz).k : null,
+          it = { text: enText(x, 'title'), tags: [book, title, ...tags], done, due: done ? null : day };
+        if (done) {
+          const at = imAt(enText(x, 'statusUpdated'));
+          it.at = at;
+          it.doneDay = at != null ? keyOf(new Date(at)) : day;
+        } else {
+          // "DTSTART;TZID=…:20261124T090000\nRRULE:FREQ=…", the line break written as \n
+          const rec = enText(x, 'recurrence');
+          if (rec) {
+            const rr = rec
+              .split(/\\n|\r?\n/)
+              .map(l => l.trim())
+              .find(l => /^RRULE:/i.test(l));
+            it.rep = rr ? rruleRep(rr) : null;
+            if (!it.rep) it.repText = rr || rec;
+          }
+        }
+        out.push(it);
+        made = true;
+      }
+      if (!made) plain++;
+    }
+    if (plain) ctx.left.push([plain, 'note without a checklist or task', 'notes without a checklist or task']);
+    return out;
+  }
+  // A note's body as One Day keeps notes, its checklist apart: Evernote writes one as a list styled --en-todo (each item
+  // --en-checked), older notes as <en-todo> boxes among the words. The task groups' placeholders are left out.
+  function enBody(enml) {
+    const items = [],
+      style = a => ((/style\s*=\s*"([^"]*)"/i.exec(a) || /style\s*=\s*'([^']*)'/i.exec(a) || [])[1] || '');
+    etpl.innerHTML = String(enml)
+      .replace(/<en-todo\b([^>]*)>(?:\s*<\/en-todo>)?/gi, (m, a) => `<input data-c="${/checked\s*=\s*["']?true/i.test(a) ? 1 : 0}">`)
+      .replace(/<(ul|li|div)\b([^>]*)>/gi, (m, tag, a) => {
+        const st = style(a),
+          chk = /--en-checked\s*:\s*(true|false)/i.exec(st);
+        return `<${tag}${/--en-todo\s*:\s*true/i.test(st) ? ' data-todo=""' : ''}${chk ? ` data-c="${chk[1].toLowerCase() === 'true' ? 1 : 0}"` : ''}${/--en-task-group\s*:\s*true/i.test(st) ? ' data-group=""' : ''}>`;
+      });
+    const root = etpl.content,
+      stop = 'input[data-c], br, div, p, li, ul, ol, table, h1, h2, h3, h4, h5, h6';
+    root.querySelectorAll('[data-group], en-crypt, en-media, script, style').forEach(n => n.remove());
+    for (const el of root.querySelectorAll('ul[data-todo] > li, input[data-c]')) {
+      let t = '';
+      if (el.tagName === 'LI') t = [...el.childNodes].filter(n => !(n.nodeType === 1 && /^(UL|OL)$/.test(n.tagName))).map(n => n.textContent).join(' ');
+      else
+        for (let n = el.nextSibling; n && !(n.nodeType === 1 && n.matches(stop)); ) {
+          const next = n.nextSibling;
+          t += n.textContent;
+          n.remove();
+          n = next;
+        }
+      t = t.replace(/\s+/g, ' ').trim();
+      if (t) items.push({ text: t, done: el.getAttribute('data-c') === '1' });
+    }
+    // what is left once the checklist is out: its lists and boxes go, and the blocks they leave empty
+    root.querySelectorAll('ul[data-todo]').forEach(n => n.remove());
+    root.querySelectorAll('input[data-c]').forEach(n => {
+      const p = n.parentElement;
+      n.remove();
+      if (p && !p.textContent.trim()) p.remove();
+    });
+    const note = root.querySelector('en-note');
+    return { items, html: (note ? note.innerHTML : etpl.innerHTML).replace(/^\s+|\s+$/g, '') };
+  }
+
+  /* Any other table with a row of column names, as Coda, Any.do's boards, Notion, Airtable or a spreadsheet export one.
+     The columns are found by name, in English, French, German or Spanish: a task (or name, title) column at least, then
+     done, the day it was done, a due date, notes, tags (or list, project), a repeat. A date written 4/6/2026 is read day
+     first or month first as the column's other dates tell, else as this browser's language writes dates. */
+  const COLS = {
+    text: ['task', 'tasks', 'task name', 'name', 'title', 'to-do', 'to do', 'todo', 'item', 'subject', 'summary', 'tache', 'titre', 'nom', 'intitule', 'aufgabe', 'titel', 'tarea', 'titulo', 'nombre'],
+    done: ['done', 'completed', 'complete', 'is done', 'checked', 'finished', 'status', 'state', 'fait', 'termine', 'statut', 'etat', 'erledigt', 'hecho', 'completado', 'completada', 'estado'],
+    doneAt: ['completed at', 'completed on', 'completed date', 'completion date', 'date completed', 'done at', 'done on', 'done date', 'finished at', 'finished on', 'closed at', 'termine le', 'date de fin', 'erledigt am', 'fecha de finalizacion'],
+    due: ['due', 'due date', 'deadline', 'do date', 'when', 'scheduled', 'scheduled date', 'date', 'start date', 'day', 'echeance', "date d'echeance", 'date limite', 'jour', 'fallig', 'falligkeitsdatum', 'datum', 'fecha limite', 'vencimiento', 'fecha'],
+    note: ['notes', 'note', 'description', 'details', 'comments', 'comment', 'content', 'body', 'remarques', 'commentaire', 'beschreibung', 'notizen', 'notas', 'descripcion'],
+    tags: ['tags', 'tag', 'labels', 'label', 'list', 'lists', 'project', 'projects', 'category', 'categories', 'folder', 'area', 'context', 'etiquettes', 'etiquette', 'liste', 'projet', 'categorie', 'dossier', 'schlagworter', 'projekt', 'kategorie', 'etiquetas', 'lista', 'proyecto', 'categoria'],
+    rep: ['repeat', 'repeats', 'recurrence', 'recurring', 'rrule', 'repetition', 'wiederholung', 'repeticion'],
+  };
+  const YES = new Set(['true', 'yes', 'y', 'x', '✓', '✔', '☑', '✅', 'checked', 'done', 'completed', 'complete', 'finished', 'closed', '1', 'oui', 'fait', 'termine', 'fini', 'ja', 'erledigt', 'si', 'hecho', 'completado', 'completada']);
+  // A date as tables write them: 2026-11-24, 24/11/2026 or 11/24/2026 (by `order`), Nov 24, 2026, 24 novembre 2026,
+  // with a time or not; a range (Notion's "… → …") gives its start.
+  function tableDay(v, order) {
+    const iso = imDay(String(v).trim());
+    if (iso) return iso;
+    const s = norm(v)
+      .trim()
+      .replace(/\s*(?:→|->|–|—)\s.*$/, '')
+      .replace(/,? *(?:at|a|um|om)? *\d{1,2}[:.h]\d\d(?::\d\d)? *(?:am|pm|a\.?m\.?|p\.?m\.?)?(?: *\(?[a-z]{2,5}\)?)?$/, '')
+      .trim();
+    let m = /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/.exec(s);
+    if (m) return imDay(`${m[1]}-${p2(m[2])}-${p2(m[3])}`);
+    if ((m = /^(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})$/.exec(s))) {
+      const [d, mo] = order === 'mdy' ? [m[2], m[1]] : [m[1], m[2]],
+        y = m[3].length === 2 ? '20' + m[3] : m[3];
+      return imDay(`${y}-${p2(mo)}-${p2(d)}`);
+    }
+    for (const lang of [navigator.language || 'en', 'en', 'fr', 'de', 'es']) {
+      const k = shortDay(s, lang, todayKey().slice(0, 4));
+      if (k) return k;
+    }
+    return null;
+  }
+  const US = /^en-(US|PH|CA)$|^en$/i;
+  function fromTable(text, ctx) {
+    const first = text.slice(0, 2000).split(/\r\n|\r|\n/, 1)[0] || '',
+      sep = [',', ';', '\t'].map(s => [s, first.split(s).length]).sort((a, b) => b[1] - a[1])[0][0],
+      rows = csvRows(text, sep).filter(r => r.some(c => c.trim())),
+      head = (rows[0] || []).map(h => norm(h).replace(/^[\s"'#*]+|[\s"'*:]+$/g, '').replace(/\s+/g, ' ')),
+      used = new Set(),
+      col = role => {
+        for (const syn of COLS[role]) {
+          const i = head.indexOf(syn);
+          if (i > -1 && !used.has(i)) {
+            used.add(i);
+            return i;
+          }
+        }
+        return -1;
+      },
+      c = { text: col('text'), doneAt: col('doneAt'), done: col('done'), due: col('due'), note: col('note'), tags: col('tags'), rep: col('rep') };
+    if (c.text < 0 || rows.length < 2) return null;
+    const cell = (r, i) => (i < 0 ? '' : String(r[i] || '').trim()),
+      body = rows.slice(1);
+    // day first or month first: what the dates of the file tell, else this browser's way
+    let order = null;
+    for (const r of body)
+      for (const i of [c.due, c.doneAt, c.done]) {
+        const m = /^(\d{1,2})[./-](\d{1,2})[./-]\d{2,4}\b/.exec(cell(r, i));
+        if (m && +m[1] > 12) order = order || 'dmy';
+        if (m && +m[2] > 12) order = order || 'mdy';
+      }
+    const guess = !order && body.some(r => [c.due, c.doneAt, c.done].some(i => /^\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/.test(cell(r, i))));
+    if (!order) order = US.test(navigator.language || '') ? 'mdy' : 'dmy';
+    if (guess) ctx.said.add(`Dates such as 4/6/2026 are read as ${order === 'mdy' ? 'month/day' : 'day/month'}, as this browser writes them.`);
+    const out = [];
+    for (const r of body) {
+      const it = { text: cell(r, c.text), note: cell(r, c.note), tags: cell(r, c.tags).split(/[,;]/), done: false },
+        d = cell(r, c.done),
+        dd = tableDay(d, order),
+        at = cell(r, c.doneAt),
+        due = cell(r, c.due);
+      // done: a word that says so, or a date in the done column
+      it.done = YES.has(norm(d)) || !!dd || (!!at && !!tableDay(at, order));
+      it.due = due ? tableDay(due, order) : null;
+      if (due && !it.due) it.when = due;
+      if (it.done) {
+        // the day it was done, if the table says; else its due day, or today if that is still to come
+        it.doneDay = (at && tableDay(at, order)) || dd || (it.due && (it.due < todayKey() ? it.due : todayKey()));
+        it.when = null;
+      } else if (cell(r, c.rep)) {
+        const rp = cell(r, c.rep);
+        it.rep = rruleRep(rp) || wordsRep(rp);
+        if (!it.rep) it.repText = rp;
+      }
+      out.push(it);
+    }
+    return out;
+  }
+
   /* Google Tasks, from Google Takeout: Tasks.json holds every list. A task's day is the moment in its scheduled_time
      (due in older files), which is its maker's midnight written in UTC; a done task carries the moment it was done; a
      sub-task names its parent. Each list keeps its repeats, and every occurrence, done or not, names its own. */
@@ -4128,7 +4381,8 @@ try {
       if (hidden) continue;
       it.text = words.join(' ') || it.tags.map(g => '#' + g).join(' ');
       if (!it.done && !it.due && start && start > tk) it.due = start;
-      if (it.done && !it.doneDay && it.due) it.doneDay = it.due;
+      // done with no day of its own: its due day, or today if that is still to come
+      if (it.done && !it.doneDay && it.due) it.doneDay = it.due < tk ? it.due : tk;
       out.push(it);
     }
     return out;
@@ -4315,9 +4569,11 @@ try {
     guard('imp', () => closeImport());
     IM.impGo.focus({ preventScroll: true });
   }
+  // the list fades at its foot while more is below, and takes the keyboard's focus only when it scrolls
   const imFade = () => {
     const l = IM.impList;
     l.classList.toggle('more', l.scrollTop + l.clientHeight < l.scrollHeight - 2);
+    l.tabIndex = l.scrollHeight > l.clientHeight + 1 ? 0 : -1;
   };
   IM.impList.addEventListener('scroll', imFade, { passive: true });
   function closeImport() {

@@ -333,6 +333,8 @@ test.describe('importing from other apps', () => {
     // a title keeps the words of its link, the link goes to the note
     expect(texts('2026-11-24')).toEqual(['Read the guide before Monday #work', 'Müll rausbringen #zuhause']);
     expect(s.days['2026-11-24'].tasks[0].note).toContain('<a href="https://example.com/guide" target="_blank" rel="noopener noreferrer">the guide</a>');
+    // planned for the dialog, then again for Add all: the link is there once
+    expect(s.days['2026-11-24'].tasks[0].note.match(/example\.com\/guide/g)).toHaveLength(1);
     expect(s.days['2026-11-24'].tasks[1].note).toContain('Date in Todoist: jeden Dienstag');
     expect(Object.values(s.rules).map(r => [r.text, r.days])).toEqual([['Weekly review #work', [4]]]);
   });
@@ -412,12 +414,90 @@ test.describe('importing from other apps', () => {
 
   test('a file it cannot read, or a .zip that would grow too large, adds nothing', async ({ page }) => {
     await open(page);
-    await page.locator('#impf').setInputFiles([file('contacts.csv', 'Name,Phone\nSam,0102030405\n', 'text/csv')]);
+    // a table with no column that names a task
+    await page.locator('#impf').setInputFiles([file('budget.csv', 'Date,Amount\n2026-11-01,12.50\n', 'text/csv')]);
     await expect(page.locator('#toast')).toContainText('That file isn’t a backup or an export One Day can read');
     await page.locator('#impf').setInputFiles([file('big.zip', zip([['Tasks.json', Buffer.alloc(41e6, 32)]]), 'application/zip')]);
     await expect(page.locator('#toast')).toContainText('That file is too large to import');
     await expect(page.locator('#imp')).toBeHidden();
     expect((await stored(page)).days).toEqual({});
+  });
+
+  test('Evernote (.enex): a checklist note becomes a task and its sub-tasks; its Tasks land on their days', async ({ page }) => {
+    await open(page);
+    await pick(page, file('Errands.enex', fixture('Errands.enex'), 'application/xml'));
+    await expect(page.locator('#impT')).toHaveText('6 tasks from Evernote');
+    const rows = page.locator('#impList li');
+    await expect(rows.filter({ hasText: /^Today/ })).toContainText('Weekend errands, Packing list');
+    await expect(rows.filter({ hasText: /^Tomorrow/ })).toContainText('Call the bank about the card');
+    await expect(rows.filter({ hasText: /^Thu 26 Nov/ })).toContainText('Put the bins out');
+    await expect(rows.filter({ hasText: /^Sat 28 Nov/ })).toContainText('Book the car service');
+    await expect(rows.filter({ hasText: /^Put the bins out/ })).toContainText('Every Thursday');
+    await expect(rows.filter({ hasText: /^Sat 21 Nov/ })).toContainText('Pay the parking fine');
+    await expect(page.locator('#impNote')).toContainText('come in as tags: #errands, #home, #weekend-errands, #travel.');
+    await expect(page.locator('#impNote')).toContainText('1 note without a checklist or task is left out.');
+    await page.locator('#impGo').click();
+    const s = await stored(page),
+      texts = k => s.days[k].tasks.map(t => t.text);
+    expect(texts('2026-11-24')).toEqual(['Weekend errands #errands #home', 'Packing list #errands #travel']);
+    const [errands, packing] = s.days['2026-11-24'].tasks;
+    expect(errands.subs.map(x => [x.text, x.done])).toEqual([
+      ['Buy bin bags', true],
+      ['Return the library books', false],
+    ]);
+    expect(errands.note).toContain('<b>Saturday</b>');
+    expect(errands.note).toContain('<a href="https://example.com/shop" target="_blank" rel="noopener noreferrer">example.com/shop</a>');
+    expect(errands.note).not.toMatch(/Content not supported|placeholder|data-|<input/);
+    expect(packing.subs.map(x => [x.text, x.done])).toEqual([
+      ['Passport', true],
+      ['Phone charger', false],
+      ['Rain jacket', false],
+    ]);
+    expect(packing.note).toBe('<div>Check the weather the day before.</div>');
+    expect(texts('2026-11-25')).toEqual(['Call the bank about the card #errands']);
+    expect(s.days['2026-11-25'].tasks[0].note).toContain('Ask for a new card &amp; a new PIN.');
+    expect(texts('2026-11-26')).toEqual(['Put the bins out #errands #weekend-errands #home']);
+    expect(texts('2026-11-28')).toEqual(['Book the car service #errands #weekend-errands #home']);
+    expect(s.days['2026-11-21'].tasks.map(t => [t.text, t.done])).toEqual([['Pay the parking fine #errands #weekend-errands #home', true]]);
+    expect(Object.values(s.rules).map(r => [r.freq, r.start, r.days])).toEqual([['week', '2026-11-26', [3]]]);
+  });
+
+  test('a large Evernote export is read as it streams: its pictures stay out', async ({ page }) => {
+    await open(page);
+    const big = fixture('Errands.enex')
+      .toString()
+      .replace(/(<data encoding="base64">)[^<]*/, (m, a) => a + 'A'.repeat(21e6));
+    await pick(page, saved('Errands.enex', big));
+    await expect(page.locator('#impT')).toHaveText('6 tasks from Evernote');
+  });
+
+  test('a table from Coda or a spreadsheet: columns found by name, dates day first or month first', async ({ page }) => {
+    await open(page);
+    await pick(page, file('To-do list 2.csv', fixture('To-do list 2.csv'), 'text/csv'), file('Taches.csv', fixture('Taches.csv'), 'text/csv'));
+    await expect(page.locator('#impT')).toHaveText('6 tasks from To-do list 2 and Taches');
+    await expect(page.locator('#impNote')).not.toContainText('are read as');
+    await page.locator('#impGo').click();
+    const s = await stored(page),
+      texts = k => s.days[k].tasks.map(t => [t.text, t.done]);
+    // done with a due date still to come: done today
+    expect(texts('2026-11-24')).toEqual([
+      ['Order donuts for the party', true],
+      ['Find a popcorn machine rental', false],
+      ['Appeler le garage #voiture', false],
+      ['Arroser les plantes #maison', false],
+    ]);
+    expect(texts('2026-12-05')).toEqual([['Invite people to the tournament', false]]);
+    expect(texts('2026-11-20')).toEqual([['Réserver le train #voyage #vacances', true]]);
+    expect(s.days['2026-11-24'].tasks[2].note).toBe('<div>Demander un devis pour les pneus</div>');
+    expect(s.days['2026-11-24'].tasks[3].note).toBe('<div>Le ficus aussi ;</div><div>et le basilic</div>');
+  });
+
+  test('dates a table leaves open (4/6) are read as this browser writes them, and the dialog says so', async ({ page }) => {
+    await open(page);
+    await pick(page, file('Chores.csv', 'Task,Due\nCall Sam,4/6/2027\n', 'text/csv'));
+    await expect(page.locator('#impNote')).toContainText('Dates such as 4/6/2026 are read as month/day, as this browser writes them.');
+    await page.locator('#impGo').click();
+    expect((await stored(page)).days['2027-04-06'].tasks.map(t => t.text)).toEqual(['Call Sam']);
   });
 });
 

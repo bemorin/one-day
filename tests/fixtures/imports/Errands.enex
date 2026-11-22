@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE en-export SYSTEM "http://xml.evernote.com/pub/evernote-export4.dtd">
+<en-export export-date="20261124T101500Z" application="Evernote" version="11.21.5">
+  <note>
+    <title>Weekend errands</title>
+    <created>20261120T083000Z</created>
+    <updated>20261124T101200Z</updated>
+    <tag>home</tag>
+    <note-attributes>
+      <author>Sample User</author>
+      <application-data key="evernote.caption">Fish & chips receipt</application-data>
+    </note-attributes>
+    <content>
+      <![CDATA[<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd"><en-note><div>Before <b>Saturday</b>. The shop: <a href="https://example.com/shop">example.com/shop</a></div><ul style="--en-todo:true;"><li style="--en-checked:true;"><div>Buy bin bags</div></li><li style="--en-checked:false;"><div>Return the library books</div></li></ul><div style="--en-task-group:true; --en-id:5b1e7c2a-0c4d-4e8f-9a01-2f3b4c5d6e7f;"><div>Content not supported</div><div>This block is a placeholder for Tasks, which has been officially released on the newest version of Evernote and is no longer supported on this version.</div></div><en-media hash="0f8e4d1c2b3a49586776a5b4c3d2e1f0" type="image/png"/></en-note>      ]]>
+    </content>
+    <task>
+      <title>Pay the parking fine</title>
+      <created>20261119T083500Z</created>
+      <updated>20261121T160000Z</updated>
+      <taskStatus>completed</taskStatus>
+      <taskFlag>false</taskFlag>
+      <sortWeight>A</sortWeight>
+      <noteLevelID>1b2c3d4e-2222-4c2b-8d3e-5f6a7b8c9d0e</noteLevelID>
+      <taskGroupNoteLevelID>5b1e7c2a-0c4d-4e8f-9a01-2f3b4c5d6e7f</taskGroupNoteLevelID>
+      <statusUpdated>20261121T160000Z</statusUpdated>
+      <creator>12345678</creator>
+      <lastEditor>12345678</lastEditor>
+    </task>
+    <task>
+      <title>Put the bins out</title>
+      <created>20261120T083600Z</created>
+      <updated>20261124T101000Z</updated>
+      <taskStatus>open</taskStatus>
+      <taskFlag>false</taskFlag>
+      <sortWeight>J</sortWeight>
+      <noteLevelID>2c3d4e5f-3333-4c2b-8d3e-5f6a7b8c9d0e</noteLevelID>
+      <taskGroupNoteLevelID>5b1e7c2a-0c4d-4e8f-9a01-2f3b4c5d6e7f</taskGroupNoteLevelID>
+      <dueDate>20261126T225959Z</dueDate>
+      <dueDateUIOption>date_only</dueDateUIOption>
+      <timeZone>Europe/Paris</timeZone>
+      <recurrence>DTSTART;TZID=Europe/Paris:20261126T235959\nRRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=TH</recurrence>
+      <repeatAfterCompletion>false</repeatAfterCompletion>
+      <statusUpdated>20261120T083600Z</statusUpdated>
+      <creator>12345678</creator>
+      <lastEditor>12345678</lastEditor>
+    </task>
+    <task>
+      <title>Book the car service</title>
+      <created>20261120T083500Z</created>
+      <updated>20261124T101000Z</updated>
+      <taskStatus>open</taskStatus>
+      <taskFlag>true</taskFlag>
+      <sortWeight>D</sortWeight>
+      <noteLevelID>0a9f3d6e-1111-4c2b-8d3e-5f6a7b8c9d0e</noteLevelID>
+      <taskGroupNoteLevelID>5b1e7c2a-0c4d-4e8f-9a01-2f3b4c5d6e7f</taskGroupNoteLevelID>
+      <dueDate>20261128T090000Z</dueDate>
+      <dueDateUIOption>date_time</dueDateUIOption>
+      <timeZone>Europe/Paris</timeZone>
+      <repeatAfterCompletion>false</repeatAfterCompletion>
+      <statusUpdated>20261120T083500Z</statusUpdated>
+      <creator>12345678</creator>
+      <lastEditor>12345678</lastEditor>
+    </task>
+    <resource>
+      <data encoding="base64">iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==</data>
+      <mime>image/png</mime>
+      <resource-attributes><file-name>receipt.png</file-name></resource-attributes>
+    </resource>
+  </note>
+  <note>
+    <title>Packing list</title>
+    <created>20130412T091500Z</created>
+    <updated>20261118T190000Z</updated>
+    <tag>travel</tag>
+    <content>
+      <![CDATA[<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd">
+<en-note><div><en-todo checked="true"/>Passport</div><div><en-todo/>Phone&nbsp;charger</div><div><en-todo checked="false"/>Rain jacket</div><div>Check the weather the day before.</div></en-note>]]>
+    </content>
+  </note>
+  <note>
+    <title>Ideas for the garden</title>
+    <created>20261001T090000Z</created>
+    <updated>20261002T090000Z</updated>
+    <content>
+      <![CDATA[<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd"><en-note><div>Plant tulips in the autumn.</div></en-note>]]>
+    </content>
+  </note>
+  <note>
+    <title>Call the bank about the card</title>
+    <created>20261120T090000Z</created>
+    <updated>20261120T090000Z</updated>
+    <note-attributes>
+      <reminder-order>1795600000000</reminder-order>
+      <reminder-time>20261125T080000Z</reminder-time>
+    </note-attributes>
+    <content>
+      <![CDATA[<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd"><en-note><div>Ask for a new card &amp; a new PIN.</div></en-note>]]>
+    </content>
+  </note>
+</en-export>
