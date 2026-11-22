@@ -4300,7 +4300,7 @@ try {
         const pm = m - j * (sp.mo ? 12 : 1);
         if (new Date(y, pm + 1, 0).getDate() < sp.md) continue;
         const a = keyOf(new Date(y, pm, sp.md));
-        return { start: a, skip: a };
+        return { start: a, skip: a, lead: j };
       }
     }
     return null;
@@ -4341,11 +4341,11 @@ try {
     return keyOf(new Date(y, mm, date));
   }
   // A rule's n-th occurrence from its start, worked out rather than walked to (COUNT can be 1000), or null past the
-  // year 9999. Only a monthly rule can skip its start (see startOf).
-  function nthOcc(r, n) {
+  // year 9999. Only a monthly rule can skip its start (see startOf): its count then begins `lead` steps after it.
+  function nthOcc(r, n, lead = 0) {
     let k;
     if (r.freq === 'day') k = addDays(r.start, (n - 1) * r.every);
-    else if (r.freq === 'month') k = monthOcc(r, (n - 1 + (r.skip ? 1 : 0)) * r.every);
+    else if (r.freq === 'month') k = monthOcc(r, (n - 1 + lead) * r.every);
     else {
       const mon = addDays(r.start, -wdOf(r.start)),
         len = r.days.length,
@@ -4370,7 +4370,7 @@ try {
     const r = cleanRule({ ...f, text: t.text, note: t.note, subs: t.subs, start: st.start }, 'r' + uid());
     if (!r) return null;
     // COUNT ends it on its last occurrence
-    const last = sp.count && nthOcc(r, sp.count);
+    const last = sp.count && nthOcc(r, sp.count, st.lead || 0);
     if (last && !(r.until && r.until < last)) r.until = last;
     const tk = todayKey(),
       first = occFrom(r, r.start > tk ? r.start : tk).next().value;
@@ -4671,7 +4671,8 @@ try {
       toast('That day is full');
       return;
     }
-    if (made.some(p => p.r)) for (const id of over) delete S.rules[id];
+    // ended repeats go only when the new ones need their room
+    if (Object.keys(S.rules).length > 300) for (const id of over) delete S.rules[id];
     // a new repeat may also fall on the day on screen
     if (rules) ensure(cur);
     keys.forEach(commit);

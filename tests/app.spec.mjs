@@ -1245,6 +1245,7 @@ test.describe('links from assistants', () => {
       ['FREQ=MONTHLY;BYDAY=-1FR;COUNT=3', 'Every month on the last Friday, from Fri 27 Nov, until Fri 29 Jan 2027'],
       ['FREQ=MONTHLY;BYMONTHDAY=31;COUNT=3', 'Every month on the last day, from Mon 30 Nov, until Sun 31 Jan 2027'],
       ['FREQ=YEARLY;INTERVAL=8;COUNT=1000', 'Every 8 years on 23 November, from today'],
+      ['FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=29;COUNT=3', 'Every year on 29 February, from Sun 28 Feb 2027, until Wed 28 Feb 2029'],
       ['FREQ=HOURLY', 'Repeat not understood'],
       ['FREQ=MONTHLY;BYDAY=5MO', 'Repeat not understood'],
       ['FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=30', 'Repeat not understood'],
@@ -1269,6 +1270,7 @@ test.describe('links from assistants', () => {
     expect(rule(11)).toMatchObject({ start: '2026-10-31', skip: ['2026-10-31'] });
     expect(st.days['2026-11-30'].tasks.map(t => t.text)).toEqual(['R11', 'R12', 'R17']);
     expect(rule(18).until).toBeUndefined();
+    expect(rule(19)).toMatchObject({ start: '2024-02-29', skip: ['2024-02-29'], until: '2029-02-28' });
     // the rest came as plain tasks, today
     expect(st.days[MON].tasks.filter(t => reps[+t.text.slice(1)] && +t.text.slice(1) >= kept).map(t => t.rule || null)).toEqual(
       Array(reps.length - kept).fill(null),
@@ -1315,6 +1317,13 @@ test.describe('links from assistants', () => {
     // one undo brings everything back as it was
     await page.keyboard.press('Control+z');
     expect(Object.keys((await stored(page)).rules)).toHaveLength(299);
+    // with room to spare, ended repeats stay where they are
+    await page.goto('/#add?task=F&repeat=weekly');
+    await page.locator('#inYes').click();
+    await expect(page.locator('#toast')).toContainText('Every Monday, from today');
+    const kept = Object.keys((await stored(page)).rules);
+    expect(kept).toHaveLength(300);
+    expect(kept.filter(id => id[0] === 'e')).toHaveLength(2);
   });
 
   test('a repeat from a link keeps its end: Done with nothing changed changes nothing, a change keeps the end', async ({ page }) => {
