@@ -430,9 +430,8 @@ test.describe('filter by tag', () => {
     // the edge goes through the middle of a tag, so the list reads as one that goes on
     expect(r.half).toBeGreaterThan(0.3);
     expect(r.half).toBeLessThan(0.7);
-    // the last tag is reachable: the keyboard brings it into view
-    await page.keyboard.press('ArrowDown');
-    for (let i = 0; i < 8; i++) await page.keyboard.press('Tab');
+    // the last tag is reachable: the arrows bring it into view (Tab stops at each colour dot too)
+    for (let i = 0; i < 14; i++) await page.keyboard.press('ArrowDown');
     const last = page.locator('#ftags .ftag').last();
     await expect(last).toBeFocused();
     await expect(last).toBeInViewport({ ratio: 1 });
@@ -596,6 +595,43 @@ test('the dogood.day link says where it comes from; the progress rule has round 
     const f = await page.locator('.rule i').boundingBox();
     return Math.round(((f.x + f.width - rule.x) / rule.width) * 100);
   }).toBe(33);
+});
+
+test('a tag takes a colour in two taps from the filter, wears it everywhere, and keeps it', async ({ page }) => {
+  await open(page);
+  await page.keyboard.press('f');
+  await expect(page.locator('#fpop')).toHaveClass(/\bon\b/);
+  const dot = page.locator('#ftags .fdot[data-tag="work"]');
+  await expect(dot).toHaveAttribute('aria-label', 'Colour of #work: none');
+  await dot.click();
+  const sw = page.locator('#ftags .fsw');
+  await expect(sw.locator('button')).toHaveCount(9);
+  await expect(sw.locator('[aria-pressed="true"]')).toHaveAttribute('aria-label', 'No colour');
+  await sw.locator('[data-sw="blue"]').click();
+  await expect(page.locator('#ftags .fsw')).toHaveCount(0);
+  await expect(dot).toHaveAttribute('data-c', 'blue');
+  await expect(dot).toHaveAttribute('aria-label', 'Colour of #work: Blue');
+  // the task behind wears it at once, in a shade that stays readable
+  const tag = row(page, 'Write the report').locator('.tag[data-tag="work"]');
+  await expect(tag).toHaveAttribute('data-c', 'blue');
+  expect(await tag.evaluate(n => getComputedStyle(n).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
+  expect(JSON.parse(await page.evaluate(() => localStorage.getItem('oneday.v1'))).tags).toEqual({ work: 'blue' });
+  await page.reload();
+  await expect(row(page, 'Write the report').locator('.tag[data-tag="work"]')).toHaveAttribute('data-c', 'blue');
+  // the keyboard: the dot opens the colours on the one worn, the arrows move, Enter picks
+  await page.keyboard.press('f');
+  await page.locator('#ftags .fdot[data-tag="work"]').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#ftags .fsw [data-sw="blue"]')).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('#ftags .fsw [data-sw=""]')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#ftags .fdot[data-tag="work"]')).toBeFocused();
+  await expect(page.locator('#ftags .fdot[data-tag="work"]')).not.toHaveAttribute('data-c');
+  await expect(row(page, 'Write the report').locator('.tag[data-tag="work"]')).not.toHaveAttribute('data-c');
+  expect(JSON.parse(await page.evaluate(() => localStorage.getItem('oneday.v1'))).tags).toEqual({});
 });
 
 test('the footer: the croissant sits midway between dogood.day and the links', async ({ page }) => {
@@ -1773,6 +1809,21 @@ test.describe('the lock', () => {
     await expect(row(page, 'Sealed in the other tab')).toBeVisible();
   });
 
+  test('tag colours are sealed with the tasks, and come back once unlocked', async ({ page }) => {
+    await openLock(page);
+    await turnOn(page);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('f');
+    await page.locator('#ftags .fdot[data-tag="travel"]').click();
+    await page.locator('#ftags .fsw [data-sw="green"]').click();
+    await expect.poll(async () => (await stored(page)).vault).not.toContain('green');
+    expect((await stored(page)).plain).toBeNull();
+    await page.reload();
+    await unlock(page);
+    await page.locator('body').press('f');
+    await expect(page.locator('#ftags .fdot[data-tag="travel"]')).toHaveAttribute('data-c', 'green');
+  });
+
   test('locking leaves no tag behind: the filter, the field and its placeholder are cleared', async ({ page }) => {
     await openLock(page);
     await turnOn(page);
@@ -1872,6 +1923,17 @@ test.describe('accessibility (axe, WCAG 2.2 AA)', () => {
       await page.locator('#drep').click();
     },
     'tag filter': async page => page.keyboard.press('f'),
+    'tag colours': async page => {
+      await page.evaluate(() => {
+        const v = JSON.parse(localStorage.getItem('oneday.v1'));
+        v.tags = { work: 'yellow', travel: 'teal' };
+        localStorage.setItem('oneday.v1', JSON.stringify(v));
+      });
+      await page.reload();
+      await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
+      await page.keyboard.press('f');
+      await page.locator('#ftags .fdot[data-tag="work"]').click();
+    },
     'lock settings': async page => {
       await page.keyboard.press('/');
       await page.locator('#slist [data-act="lock"]').click();

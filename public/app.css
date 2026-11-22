@@ -702,6 +702,133 @@ header {
   color: inherit;
   opacity: 0.7;
 }
+/* Tag colours: Apple's eight, a little brighter in the dark. A tag wears a tint of its colour, its words in a
+   deeper shade of it (a lighter one in the dark), so they stay as readable as the grey ones. */
+[data-c='red'] {
+  --c: light-dark(#ff3b30, #ff453a);
+}
+[data-c='orange'] {
+  --c: light-dark(#ff9500, #ff9f0a);
+}
+[data-c='yellow'] {
+  --c: light-dark(#ffcc00, #ffd60a);
+}
+[data-c='green'] {
+  --c: light-dark(#34c759, #30d158);
+}
+[data-c='teal'] {
+  --c: light-dark(#30b0c7, #40c8e0);
+}
+[data-c='blue'] {
+  --c: light-dark(#007aff, #0a84ff);
+}
+[data-c='purple'] {
+  --c: light-dark(#af52de, #bf5af2);
+}
+[data-c='pink'] {
+  --c: light-dark(#ff2d55, #ff375f);
+}
+.tag[data-c] {
+  color: light-dark(color-mix(in oklab, var(--c) 50%, #000), color-mix(in oklab, var(--c) 62%, #fff));
+  background: color-mix(in srgb, var(--c) 16%, transparent);
+}
+.tag[data-c]:hover {
+  color: light-dark(color-mix(in oklab, var(--c) 42%, #000), color-mix(in oklab, var(--c) 52%, #fff));
+  background: color-mix(in srgb, var(--c) 26%, transparent);
+}
+.tdot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c);
+}
+/* in the filter, a dot beside each tag: a ring with no colour, filled with one */
+.frow {
+  display: flex;
+  align-items: center;
+}
+.frow .ftag {
+  flex: 1;
+  min-width: 0;
+}
+.fdot {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 38px;
+  margin-left: -6px;
+  border-radius: 10px;
+  transition: transform 0.25s var(--pop);
+}
+.fdot::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--c, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--c, var(--line2));
+  transition:
+    background-color 0.2s,
+    box-shadow 0.2s,
+    transform 0.25s var(--pop);
+}
+span.fdot::before {
+  content: none;
+}
+button.fdot:hover::before,
+.fdot[aria-expanded='true']::before {
+  transform: scale(1.2);
+}
+.fdot:focus-visible {
+  outline-offset: -4px;
+}
+/* the colours, under the tag, across the row: eight and none, the one worn ringed, each a 24-pixel target */
+.fsw {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0 8px;
+  overflow: hidden;
+}
+.fsw button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  transition: transform 0.25s var(--pop);
+}
+.fsw button::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--c);
+  transition: box-shadow 0.2s;
+}
+.fsw button:not([data-c])::before {
+  background: linear-gradient(135deg, transparent calc(50% - 0.75px), var(--mute) calc(50% - 0.75px) calc(50% + 0.75px), transparent calc(50% + 0.75px));
+  box-shadow: inset 0 0 0 1.5px var(--line2);
+}
+.fsw button[aria-pressed='true']::before {
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 3.5px var(--c, var(--mute));
+}
+.fsw button:hover {
+  transform: scale(1.12);
+}
+.fsw button:active {
+  transform: scale(0.9);
+}
+.fsw button:focus-visible {
+  outline-offset: 1px;
+}
+.fsw.out {
+  pointer-events: none;
+}
 .fempty {
   margin: 0 6px 4px;
   font-size: 14px;

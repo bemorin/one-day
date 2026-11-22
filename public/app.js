@@ -267,6 +267,16 @@ try {
     }
     return x;
   }
+  // a tag's colour: one of eight, kept by tag name with the tasks
+  const TCOL = ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink'],
+    TCOLN = { red: 'Red', orange: 'Orange', yellow: 'Yellow', green: 'Green', teal: 'Teal', blue: 'Blue', purple: 'Purple', pink: 'Pink' },
+    TAGNAME = /^[\p{L}\p{N}][\p{L}\p{N}_\-\/]*$/u;
+  const cleanTags = o => {
+    const out = {};
+    if (o && typeof o === 'object')
+      for (const g of Object.keys(o).slice(0, 500)) if (TAGNAME.test(g) && g === g.toLowerCase() && TCOL.includes(o[g])) out[g] = o[g];
+    return out;
+  };
   const cleanRules = o => {
     const out = {};
     if (o && typeof o === 'object')
@@ -314,7 +324,7 @@ try {
     try {
       S = JSON.parse(localStorage.getItem(LS));
     } catch (e) {}
-  if (locked) S = { days: {}, rules: {} };
+  if (locked) S = { days: {}, rules: {}, tags: {} };
   else if (!S || !S.days || typeof S.days !== 'object') {
     const T = (text, x = {}) => ({
       id: uid() + Math.random().toString(36).slice(2, 4),
@@ -322,7 +332,7 @@ try {
       done: false,
       ...x,
     });
-    S = { days: {}, rules: {} };
+    S = { days: {}, rules: {}, tags: {} };
     S.days[todayKey()] = {
       u: 0,
       tasks: [
@@ -343,6 +353,7 @@ try {
   } else {
     S.days = cleanDays(S.days);
     S.rules = cleanRules(S.rules);
+    S.tags = cleanTags(S.tags);
   }
   let cur = todayKey(),
     lastToday = cur,
@@ -572,6 +583,9 @@ try {
     '<i></i><svg viewBox="0 0 18 18"><circle class="rg" cx="9" cy="9" r="8.25"/><path d="M5.3 9.3l2.5 2.5 4.8-5.2"/></svg>';
   const TAGRE = /(^|\s)#([\p{L}\p{N}][\p{L}\p{N}_\-\/]*)/gu;
   const tagsOf = text => [...new Set([...String(text).matchAll(TAGRE)].map(m => m[2].toLowerCase()))];
+  const tcol = g => (S.tags && S.tags[g]) || '',
+    cAttr = g => (tcol(g) ? ` data-c="${tcol(g)}"` : ''),
+    tdot = g => (tcol(g) ? `<i class="tdot" data-c="${tcol(g)}" aria-hidden="true"></i>` : '');
   function titleHTML(text) {
     let h = '',
       last = 0;
@@ -579,7 +593,7 @@ try {
       const i = m.index + m[1].length;
       h +=
         esc(text.slice(last, i)) +
-        `<span class="tag" data-tag="${esc(m[2].toLowerCase())}">#${esc(m[2])}</span>`;
+        `<span class="tag" data-tag="${esc(m[2].toLowerCase())}"${cAttr(m[2].toLowerCase())}>#${esc(m[2])}</span>`;
       last = i + 1 + m[2].length;
     }
     return h + esc(text.slice(last));
@@ -2824,7 +2838,7 @@ try {
       picks = pq == null ? [] : allTags().filter(([g]) => norm(g).startsWith(pq) && norm(g) !== pq).slice(0, 12);
     $.spicks.hidden = !picks.length;
     $.spicks.innerHTML = picks
-      .map(([g, c]) => `<button type="button" class="chip" data-pick="${esc(g)}">#${esc(g)}<span>${c}</span></button>`)
+      .map(([g, c]) => `<button type="button" class="chip" data-pick="${esc(g)}">${tdot(g)}#${esc(g)}<span>${c}</span></button>`)
       .join('');
     $.sq.setAttribute('aria-expanded', SR.length ? 'true' : 'false');
     if (SR.length) $.slist.setAttribute('role', 'listbox');
@@ -2858,7 +2872,7 @@ try {
           sn = (a ? '…' : '') + hlText(raw.slice(a, b), words) + (b < raw.length ? '…' : '');
         }
       }
-      return `<button type="button" role="option" id="sr-${i}" tabindex="-1" class="sr${t.done ? ' done' : ''}" data-i="${i}" data-id="${esc(t.id)}"><span class="mini"></span><span class="tt"><span class="ti">${hlText(title, words)}</span>${tags.map(g => `<span class="tag" data-tag="${esc(g)}">#${esc(g)}</span> `).join('')}${sn ? `<span class="sn">${sn}</span>` : ''}</span><span class="dd">${esc(dayLabel(r.e.k))}</span></button>`;
+      return `<button type="button" role="option" id="sr-${i}" tabindex="-1" class="sr${t.done ? ' done' : ''}" data-i="${i}" data-id="${esc(t.id)}"><span class="mini"></span><span class="tt"><span class="ti">${hlText(title, words)}</span>${tags.map(g => `<span class="tag" data-tag="${esc(g)}"${cAttr(g)}>#${esc(g)}</span> `).join('')}${sn ? `<span class="sn">${sn}</span>` : ''}</span><span class="dd">${esc(dayLabel(r.e.k))}</span></button>`;
     }).join('');
     const now = new Set(SR.map(r => r.e.t.id));
     let i = 0;
@@ -3043,7 +3057,7 @@ try {
   // With the lock on, a backup holds the encrypted tasks and opens with the passphrase.
   async function exportData() {
     const at = new Date().toISOString();
-    let o = { app: 'one-day', version: 2, exported: at, days: S.days, rules: S.rules };
+    let o = { app: 'one-day', version: 2, exported: at, days: S.days, rules: S.rules, tags: S.tags || {} };
     if (vault) {
       await flush();
       const v = storedVault();
@@ -3086,7 +3100,7 @@ try {
     if (j && j.app === 'one-day' && !j.days && j.vault) {
       const inner = await openBackup(j.vault);
       if (!inner) return;
-      j = { app: 'one-day', days: inner.days, rules: inner.rules };
+      j = { app: 'one-day', days: inner.days, rules: inner.rules, tags: inner.tags };
     }
     if (!j || j.app !== 'one-day' || !j.days || typeof j.days !== 'object') {
       toast('That file isn’t a One Day backup');
@@ -3106,6 +3120,13 @@ try {
     for (const id in incRules)
       if (!S.rules[id]) {
         S.rules[id] = incRules[id];
+        ruled++;
+      }
+    const incTags = cleanTags(j.tags);
+    if (!S.tags) S.tags = {};
+    for (const g in incTags)
+      if (!S.tags[g]) {
+        S.tags[g] = incTags[g];
         ruled++;
       }
     if (ruled) persist();
@@ -3169,7 +3190,7 @@ try {
     $.sug.innerHTML = SG.items
       .map(
         ([g, c], i) =>
-          `<button type="button" role="option" data-i="${i}" class="${i === SG.sel ? 'sel' : ''}" aria-selected="${i === SG.sel}">#${esc(g)}<span>${c}</span></button>`,
+          `<button type="button" role="option" data-i="${i}" class="${i === SG.sel ? 'sel' : ''}" aria-selected="${i === SG.sel}">${tdot(g)}#${esc(g)}<span>${c}</span></button>`,
       )
       .join('');
     let r;
@@ -3315,9 +3336,12 @@ try {
     const rows = filterRows(q);
     let h = '';
     if (!q && (FX || rows.length))
-      h += `<button type="button" class="ftag" data-tag="" aria-pressed="${!FX}">All tasks<span>${tasks(cur).length}</span></button>`;
+      h += `<div class="frow"><span class="fdot" aria-hidden="true"></span><button type="button" class="ftag" data-tag="" aria-pressed="${!FX}">All tasks<span>${tasks(cur).length}</span></button></div>`;
     h += rows
-      .map(([g, c]) => `<button type="button" class="ftag" data-tag="${esc(g)}" aria-pressed="${g === FX}">#${esc(g)}<span>${c || ''}</span></button>`)
+      .map(
+        ([g, c]) =>
+          `<div class="frow"><button type="button" class="fdot" data-tag="${esc(g)}"${cAttr(g)} aria-expanded="false" aria-label="${esc(dotLabel(g))}"></button><button type="button" class="ftag" data-tag="${esc(g)}" aria-pressed="${g === FX}">#${esc(g)}<span>${c || ''}</span></button></div>`,
+      )
       .join('');
     $.ftags.innerHTML =
       h ||
@@ -3415,11 +3439,104 @@ try {
     if (!e.detail) $.fbtn.focus({ preventScroll: true });
   };
   $.ftags.onclick = e => {
+    const dot = e.target.closest('.fdot[data-tag]');
+    if (dot) return swatches(dot, !e.detail);
+    const sw = e.target.closest('[data-sw]');
+    if (sw) return pickColour(sw, !e.detail);
     const b = e.target.closest('.ftag');
     if (!b) return;
     closePops(true);
     setFilter(b.dataset.tag);
   };
+  /* A tag's colour, in two taps: its dot shows the colours under it, a colour is worn at once everywhere the tag
+     is shown, and the colours fold away. The keyboard moves along them with the arrows. */
+  const dotLabel = g => `Colour of #${g}: ${tcol(g) ? TCOLN[tcol(g)] : 'none'}`;
+  function swatches(dot, keys) {
+    const g = dot.dataset.tag,
+      open = $.ftags.querySelector('.fsw');
+    if (open) foldSwatches(open);
+    if (open && open.dataset.tag === g) return;
+    const c = tcol(g),
+      sw = D().createElement('div');
+    sw.className = 'fsw';
+    sw.dataset.tag = g;
+    sw.setAttribute('role', 'group');
+    sw.setAttribute('aria-label', `Colour of #${g}`);
+    sw.innerHTML = [...TCOL, '']
+      .map(
+        k =>
+          `<button type="button" data-sw="${k}"${k ? ` data-c="${k}"` : ''} aria-pressed="${k === c}" aria-label="${k ? TCOLN[k] : 'No colour'}"></button>`,
+      )
+      .join('');
+    dot.parentElement.after(sw);
+    dot.setAttribute('aria-expanded', 'true');
+    fitFilter();
+    an(sw, [{ height: '0px', opacity: 0 }, { height: sw.offsetHeight + 'px', opacity: 1 }], { duration: SNAP.dur * 0.7, easing: SNAP.ease });
+    [...sw.children].forEach((b, i) =>
+      an(b, [{ opacity: 0, transform: 'scale(.4)' }, { opacity: 1, transform: 'none' }], {
+        duration: POP.dur * 0.8,
+        easing: POP.ease,
+        delay: i * 18,
+        fill: 'backwards',
+      }),
+    );
+    if (keys) (sw.querySelector('[aria-pressed="true"]') || sw.firstElementChild).focus({ preventScroll: true });
+    sw.scrollIntoView({ block: 'nearest' });
+  }
+  function foldSwatches(sw) {
+    const dot = $.ftags.querySelector(`.fdot[data-tag="${CSS.escape(sw.dataset.tag)}"]`);
+    if (dot) dot.setAttribute('aria-expanded', 'false');
+    delete sw.dataset.tag;
+    sw.classList.add('out');
+    then(an(sw, [{ height: sw.offsetHeight + 'px', opacity: 1 }, { height: '0px', opacity: 0 }], { duration: 180, easing: 'ease-in' }), () => {
+      sw.remove();
+      if ($.fpop.classList.contains('on')) fitFilter();
+    });
+  }
+  function pickColour(b, keys) {
+    const sw = b.parentElement,
+      g = sw.dataset.tag;
+    if (!g) return;
+    setTagColour(g, b.dataset.sw);
+    const dot = $.ftags.querySelector(`.fdot[data-tag="${CSS.escape(g)}"]`);
+    foldSwatches(sw);
+    if (dot) {
+      an(dot, [{ transform: 'scale(.6)' }, { transform: 'none' }], { duration: POP.dur, easing: POP.ease });
+      if (keys) dot.focus({ preventScroll: true });
+    }
+  }
+  function setTagColour(g, c) {
+    if (!S.tags) S.tags = {};
+    if (c && TCOL.includes(c)) S.tags[g] = c;
+    else delete S.tags[g];
+    persist();
+    // everywhere the tag is shown, at once
+    for (const d of [D(), document]) {
+      d.querySelectorAll(`.tag[data-tag="${CSS.escape(g)}"], .fdot[data-tag="${CSS.escape(g)}"]`).forEach(n => {
+        if (c) n.dataset.c = c;
+        else delete n.dataset.c;
+        if (n.classList.contains('fdot')) n.setAttribute('aria-label', dotLabel(g));
+      });
+    }
+    if ($.srch.classList.contains('on')) renderSearch();
+  }
+  $.ftags.addEventListener('keydown', e => {
+    const b = e.target.closest('[data-sw]');
+    if (!b) return;
+    const d = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      const dot = $.ftags.querySelector(`.fdot[data-tag="${CSS.escape(b.parentElement.dataset.tag || '')}"]`);
+      foldSwatches(b.parentElement);
+      if (dot) dot.focus({ preventScroll: true });
+      return;
+    }
+    if (!d) return;
+    e.preventDefault();
+    const bs = [...b.parentElement.children];
+    bs[(bs.indexOf(b) + d + bs.length) % bs.length].focus();
+  });
   $.ftags.addEventListener('keydown', e => {
     const bs = [...$.ftags.querySelectorAll('.ftag')],
       i = bs.indexOf(D().activeElement),
@@ -4783,7 +4900,7 @@ try {
   }
   const unseal = async (key, b) =>
     new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(b.iv) }, key, fromB64(b.ct)));
-  const plain = () => TE.encode(JSON.stringify({ days: S.days, rules: S.rules }));
+  const plain = () => TE.encode(JSON.stringify({ days: S.days, rules: S.rules, tags: S.tags || {} }));
   // The passphrase opens the key, or nothing: a wrong one fails the AES-GCM check.
   async function passOpen(pass, v) {
     try {
@@ -4897,6 +5014,9 @@ try {
         a.u = Math.max(a.u || 0, b.u);
       }
       for (const id of Object.keys(rules)) if (!S.rules[id]) S.rules[id] = rules[id];
+      const tags = cleanTags(p.tags);
+      if (!S.tags) S.tags = {};
+      for (const g of Object.keys(tags)) if (!S.tags[g]) S.tags[g] = tags[g];
       IDX = null;
       TAGC = null;
     }
@@ -5096,7 +5216,7 @@ try {
       vault = st || vault;
       throw new Error('key changed');
     }
-    S = { days: cleanDays(j && j.days), rules: cleanRules(j && j.rules) };
+    S = { days: cleanDays(j && j.days), rules: cleanRules(j && j.rules), tags: cleanTags(j && j.tags) };
     DEK = dek;
     KID = v.kid || '';
     locked = false;
@@ -5187,7 +5307,7 @@ try {
     UN.length = 0;
     RE.length = 0;
     noteSnap = null;
-    S = { days: {}, rules: {} };
+    S = { days: {}, rules: {}, tags: {} };
     IDX = null;
     TAGC = null;
     FX = null;
@@ -5444,7 +5564,7 @@ try {
     const cur = storedVault();
     if (!still(cur)) return null;
     const j = JSON.parse(TD.decode(await unseal(DEK, cur.data))),
-      tasks = { days: cleanDays(j && j.days), rules: cleanRules(j && j.rules) },
+      tasks = { days: cleanDays(j && j.days), rules: cleanRules(j && j.rules), tags: cleanTags(j && j.tags) },
       data = await sealWith(dek, TE.encode(JSON.stringify(tasks))),
       now = storedVault();
     if (!still(now) || now.data.ct !== cur.data.ct) return null;
@@ -5557,7 +5677,7 @@ try {
       }
       const now = storedVault();
       if (!still(now) || now.data.ct !== cur.data.ct) return BUSY;
-      const data = { days: cleanDays(j && j.days), rules: cleanRules(j && j.rules) };
+      const data = { days: cleanDays(j && j.days), rules: cleanRules(j && j.rules), tags: cleanTags(j && j.tags) };
       localStorage.setItem(LS, JSON.stringify(data));
       localStorage.removeItem(VK);
       if (now.bio) forgetPasskey(now.bio.id);
