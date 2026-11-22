@@ -1,0 +1,21 @@
+# One Day
+
+> A calm to-do list that shows one day at a time. It runs in the browser, with no account, no server and no tracking: tasks stay in the browser's storage, on the user's device.
+
+One Day is free and open source (MIT). It works offline once it has been opened, and it can be installed as an app.
+
+Things people often need to know:
+
+- There is no sync and no account: each browser keeps its own list. Tasks move to another device as a link (Send, or Send this day) or as a backup file (Export backup, then Import backup, which only adds what is missing).
+- The lock is optional. A forgotten passphrase cannot be recovered by anyone; the only way out erases the tasks.
+- Safari can erase a website's data after seven days without a visit, unless One Day is installed (Add to Home Screen, or Add to Dock on a Mac).
+- An installed copy showing an old version updates after it is closed and opened again, twice.
+
+## Docs
+
+- [Guide](https://day.bemorin.com/guide/): every feature in plain words, the keyboard shortcuts, installing it, privacy, backups, the lock, and common questions
+
+## Optional
+
+- [Source code](https://github.com/bemorin/one-day): the app, its tests and its README
+- [Privacy policy](https://bemorin.com/privacy#one-day)

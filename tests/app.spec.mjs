@@ -1530,7 +1530,8 @@ test.describe('in a narrow window with a mouse', () => {
     await page.locator('#sb').click();
     const about = page.locator('#slist .about');
     await expect(about).toBeVisible();
-    await expect(about.locator('.links a')).toHaveCount(4);
+    await expect(about.locator('.links a')).toHaveCount(5);
+    await expect(about.locator('.links a').first()).toHaveText('Guide');
     await expect(about.locator('.kofi')).toHaveText('This app is free. If you want, buy me a 🥐.');
     await expect(about.locator('.kofi')).toHaveAttribute('aria-label', 'This app is free. If you want, buy me a croissant on Ko-fi.');
     expect(await about.evaluate(n => getComputedStyle(n).alignItems)).toBe('center');
@@ -1805,7 +1806,8 @@ test.describe('on a touch screen', () => {
     await page.locator('#mbMore').tap();
     await expect(page.locator('#more')).toBeVisible();
     await expect(page.locator('#more [data-act="export"]')).toBeVisible();
-    await expect(page.locator('#more .slinks a')).toHaveCount(4);
+    await expect(page.locator('#more .slinks a')).toHaveCount(5);
+    await expect(page.locator('#more .slinks a').first()).toHaveText('Guide');
     // the croissant says why it is there, on a row of its own under dogood.day
     await expect(page.locator('#more .spromo.kofi')).toHaveText('This app is free. If you want, buy me a 🥐.');
     await expect(page.locator('#more .spromo:not(.kofi) + .spromo.kofi')).toHaveCount(1);

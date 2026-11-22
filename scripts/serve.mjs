@@ -16,9 +16,11 @@ const TYPES = {
   '.webmanifest': 'application/manifest+json',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
+  '.webp': 'image/webp',
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
   '.txt': 'text/plain; charset=utf-8',
+  '.md': 'text/markdown; charset=utf-8',
 };
 
 // _headers: a path pattern on its own line, then indented "Name: value" lines.
@@ -51,7 +53,13 @@ createServer(async (req, res) => {
     if (path.endsWith('/')) path += 'index.html';
     const file = normalize(join(pub, path));
     if (!file.startsWith(pub + sep)) throw Object.assign(new Error('outside'), { code: 'ENOENT' });
-    if (!(await stat(file)).isFile()) throw Object.assign(new Error('dir'), { code: 'ENOENT' });
+    const st = await stat(file);
+    // Like Cloudflare Pages: a folder with a page of its own, asked without its slash, redirects to it (/guide -> /guide/).
+    if (st.isDirectory() && (await stat(join(file, 'index.html')).catch(() => null))) {
+      res.writeHead(308, { Location: url.pathname + '/' + url.search });
+      return res.end();
+    }
+    if (!st.isFile()) throw Object.assign(new Error('dir'), { code: 'ENOENT' });
     const body = await readFile(file);
     const rules = parseHeaders(await readFile(join(pub, '_headers'), 'utf8').catch(() => ''));
     for (const r of rules) if (r.re.test(url.pathname)) for (const [k, v] of r.headers) res.setHeader(k, v);

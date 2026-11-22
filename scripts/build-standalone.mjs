@@ -30,7 +30,9 @@ html = html
   .replace(/\s*<link rel="(manifest|icon|apple-touch-icon|preload)"[^>]*>/g, '')
   .replace('</title>', () => `</title>\n    <link rel="icon" href="data:image/svg+xml;base64,${icon}" />`)
   .replace(/<link rel="stylesheet" href="app\.css"\s*\/?>/, () => `<style>\n${css}</style>`)
-  .replace(/<script src="app\.js"><\/script>/, () => `<script>\n${js}</script>`);
+  .replace(/<script src="app\.js"><\/script>/, () => `<script>\n${js}</script>`)
+  // the guide is a page of its own: a single file links to the one online
+  .replace('href="guide/"', 'href="https://day.bemorin.com/guide/"');
 
 await mkdir(join(root, 'dist'), { recursive: true });
 const out = join(root, 'dist', artifact ? 'one-day.artifact.html' : 'one-day.html');

@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <title>One Day guide: how the calm to-do list works</title>
+    <meta
+      name="description"
+      content="How to use One Day, the calm to-do list for one day at a time: every feature in plain words, keyboard shortcuts, installing it, privacy, backups and questions."
+    />
+    <link rel="canonical" href="https://day.bemorin.com/guide/" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="How to use One Day" />
+    <meta property="og:description" content="Every feature of One Day, the calm to-do list that shows one day at a time, in plain words." />
+    <meta property="og:url" content="https://day.bemorin.com/guide/" />
+    <meta property="og:image" content="https://day.bemorin.com/guide/shots/day-light.webp" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0e0e0e" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="../favicon.ico" sizes="32x32" />
+    <link rel="icon" href="../icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png" />
+    <link rel="preload" href="../fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="guide.css" />
+    <script src="guide.js"></script>
+  </head>
+  <body>
+    <a class="skip" href="#start">Skip to the guide</a>
+    <header class="top">
+      <a class="brand" href="../"><img src="../icons/icon.svg" alt="" width="26" height="26" /><span>One Day</span></a>
+      <span class="crumb" aria-hidden="true">/</span>
+      <span class="here">Guide</span>
+      <a class="open" href="../">Open One Day</a>
+      <div class="read" aria-hidden="true"><i></i></div>
+    </header>
+
+    <main class="page" id="guide">
+      <header class="hero">
+        <h1>How to use One Day</h1>
+        <p class="lede">
+          One Day is a calm to-do list that shows one day at a time. There’s no account and nothing to set up: your tasks
+          stay in your browser, on your device. This guide covers everything it does, in plain words. Read it from top
+          to bottom, or jump to what you need.
+        </p>
+        <div class="acts">
+          <button class="btn" id="copy" type="button">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.25" y="5.25" width="8" height="8" rx="2" /><path d="M10.75 5.25V4.5a1.75 1.75 0 0 0-1.75-1.75H4.5A1.75 1.75 0 0 0 2.75 4.5V9c0 .97.78 1.75 1.75 1.75h.75" /></svg
+            ><span>Copy page as Markdown</span>
+          </button>
+          <span class="status" id="copied" role="status"></span>
+        </div>
+      </header>
+
+      <nav class="toc" aria-labelledby="toc-h">
+        <p class="toc-h" id="toc-h">On this page</p>
+        <ol>
+          <li><a href="#start">Getting started</a></li>
+          <li><a href="#day">Your day</a></li>
+          <li><a href="#add">Adding tasks</a></li>
+          <li><a href="#tasks">Working with tasks</a></li>
+          <li><a href="#notes">Notes and sub-tasks</a></li>
+          <li><a href="#repeat">Repeating tasks</a></li>
+          <li><a href="#tags">Tags</a></li>
+          <li><a href="#search">Search</a></li>
+          <li><a href="#timer">Timer</a></li>
+          <li><a href="#send">Sending tasks</a></li>
+          <li><a href="#keep-on-top">Keep on top</a></li>
+          <li><a href="#phone">On a phone</a></li>
+          <li><a href="#theme">Light and dark</a></li>
+          <li><a href="#keyboard">Keyboard shortcuts</a></li>
+          <li><a href="#install">Install it</a></li>
+          <li><a href="#privacy">Privacy</a></li>
+          <li><a href="#backups">Backups</a></li>
+          <li><a href="#lock">The lock</a></li>
+          <li><a href="#faq">Questions</a></li>
+        </ol>
+      </nav>
+
+      <div class="body">
+        <section id="start">
+          <h2>Getting started</h2>
+          <p>
+            Open <a href="https://day.bemorin.com">day.bemorin.com</a> in a current browser, on a computer or a phone.
+            It opens on today: a big date, a line that says how far along the day is, and a field to add tasks.
+          </p>
+          <p>
+            Write what today is for in <b>Add a task</b> and press <kbd>Enter</kbd>. Tick each task as you finish it:
+            the thick rule at the top fills as the day gets done, in red on today.
+          </p>
+          <p>That’s all there is to it. The rest of this page is for the days when you want a little more.</p>
+          <figure class="shot duo">
+            <div class="desk">
+              <img class="l" src="shots/day-light.webp" width="1392" height="1410" alt="One Day on a computer: Tuesday 14 April, today, 1 of 6 done, with tasks such as Prepare the weekly review and Book the train to Lisbon, their tags in colour, and Add a task at the bottom." decoding="async" loading="lazy" />
+              <img class="d" src="shots/day-dark.webp" width="1392" height="1410" alt="One Day on a computer: Tuesday 14 April, today, 1 of 6 done, with tasks such as Prepare the weekly review and Book the train to Lisbon, their tags in colour, and Add a task at the bottom." decoding="async" loading="lazy" />
+            </div>
+            <div class="phone">
+              <img class="l" src="shots/phone-day-light.webp" width="468" height="1013" alt="The same day on a phone, with Search, Timer, a red add button, Send day and More in a bar at the bottom." decoding="async" loading="lazy" />
+              <img class="d" src="shots/phone-day-dark.webp" width="468" height="1013" alt="The same day on a phone, with Search, Timer, a red add button, Send day and More in a bar at the bottom." decoding="async" loading="lazy" />
+            </div>
+            <figcaption>Today in One Day: a card on a computer, the whole screen on a phone, with a bar under your thumb.</figcaption>
+          </figure>
+          <aside class="note">
+            <p>
+              <b>Nothing to sign up for.</b> One Day has no account, no server and no tracking. Your tasks stay in this
+              browser on this device: <a href="#privacy">Privacy</a> explains what that means, and
+              <a href="#backups">Backups</a> how to keep a copy.
+            </p>
+          </aside>
+          <p>
+            To come back to this guide, click the <b>?</b> after the lock, above the day, on a computer; on a phone, it’s
+            <b>Guide</b> in More.
+          </p>
+        </section>
+
+        <section id="day">
+          <h2>Your day</h2>
+          <p>One Day shows one day at a time, like a desk calendar you tear a sheet off. To go to another day:</p>
+          <ul>
+            <li>click the <b>arrows</b> at the top left, or press <kbd>←</kbd> and <kbd>→</kbd>;</li>
+            <li>turn the <b>mouse wheel</b>: down for the next day, up for the one before (on a trackpad, swipe sideways);</li>
+            <li>on a phone, <b>swipe</b> sideways;</li>
+            <li>
+              click the <b>month</b> under the weekday to pick any day in a calendar. A dot under a day means it still has
+              tasks to do.
+            </li>
+          </ul>
+          <p>On any other day, <b>Today</b> appears beside the arrows; it, or <kbd>D</kbd>, brings you back.</p>
+          <p>
+            Under the weekday, a short line says which day it is next to today (“Tomorrow”, “3 days ago”) and how much
+            of it is done. The rule at the top fills as you tick tasks off.
+          </p>
+          <figure class="shot">
+            <img class="l" src="shots/picker-light.webp" width="1392" height="1140" alt="The calendar open under April 2026, with the 14th filled in and a dot under each day that has tasks left." decoding="async" loading="lazy" />
+            <img class="d" src="shots/picker-dark.webp" width="1392" height="1140" alt="The calendar open under April 2026, with the 14th filled in and a dot under each day that has tasks left." decoding="async" loading="lazy" />
+            <figcaption>The month under the weekday opens a calendar. Today is filled in; a dot marks the days with tasks left.</figcaption>
+          </figure>
+          <h3 id="leftovers">Leftovers</h3>
+          <p>
+            Unfinished tasks stay on their day: they don’t move by themselves. When earlier days still have some, today
+            says how many are left, and <b>Bring here</b> moves them all to today in one click. Repeating tasks are left
+            out, so a missed repeat never piles up.
+          </p>
+          <figure class="shot">
+            <img class="l" src="shots/leftovers-light.webp" width="1392" height="684" alt="Above today’s tasks, a line reads 2 tasks left from before, with a Bring here button." decoding="async" loading="lazy" />
+            <img class="d" src="shots/leftovers-dark.webp" width="1392" height="684" alt="Above today’s tasks, a line reads 2 tasks left from before, with a Bring here button." decoding="async" loading="lazy" />
+            <figcaption>Two tasks were left on earlier days. Bring here moves them to today.</figcaption>
+          </figure>
+        </section>
+
+        <section id="add">
+          <h2>Adding tasks</h2>
+          <p>
+            Click <b>Add a task</b> at the bottom of the day, or press <kbd>N</kbd>, type, then press <kbd>Enter</kbd>.
+            On a phone, the red <b>+</b> in the bottom bar opens the field as a sheet, just above the keyboard.
+          </p>
+          <p>
+            The new task goes to the day on screen. The chip at the end of the field names that day: click it to send the
+            task somewhere else without leaving the day you’re on, to <b>Today</b>, <b>Tomorrow</b>, <b>Next week</b> or
+            any date. From the field, <kbd>Tab</kbd> reaches the chip.
+          </p>
+          <figure class="shot">
+            <img class="l" src="shots/add-light.webp" width="1518" height="942" alt="Book a table for Friday typed in the field, and the day chip open: Today, Tomorrow, Next week, a calendar of April 2026 and, at the bottom, Repeat: Never." decoding="async" loading="lazy" />
+            <img class="d" src="shots/add-dark.webp" width="1518" height="942" alt="Book a table for Friday typed in the field, and the day chip open: Today, Tomorrow, Next week, a calendar of April 2026 and, at the bottom, Repeat: Never." decoding="async" loading="lazy" />
+            <figcaption>The day chip sends a new task to another day. Repeat, at the bottom, makes it come back.</figcaption>
+          </figure>
+          <h3 id="paste">Paste a list</h3>
+          <p>
+            Paste several lines into the field and each line becomes a task. Bullets, numbers and checkboxes are left
+            out, as notes, Markdown, Notion and other to-do apps write them, and items already ticked (<code>- [x]</code>,
+            ☑, ✅) come in done. A line set further in than the one above it becomes its sub-task.
+          </p>
+          <p>Pasted into a task’s sub-task field, each line becomes a sub-task. Either way, one undo takes the whole list back.</p>
+        </section>
+
+        <section id="tasks">
+          <h2>Working with tasks</h2>
+          <ul>
+            <li><b>Tick</b> a task with its circle. Done tasks go to the bottom of the day.</li>
+            <li>
+              <b>Reorder</b> by dragging a task up or down. On a phone, hold it a moment, then drag. With the keyboard:
+              <kbd>Alt</kbd> + <kbd>↑</kbd> or <kbd>↓</kbd>.
+            </li>
+            <li><b>Move it to the next day</b> with the arrow that appears when you point at it.</li>
+            <li><b>Delete</b> it with the cross beside that arrow.</li>
+            <li><b>Rename</b> it: double-click it, or click the title of an open task.</li>
+          </ul>
+          <p>On a phone, tap a task to open it: its arrow and its cross then appear on its row.</p>
+          <h3 id="undo">Undo</h3>
+          <p>
+            Everything can be undone. After a change such as deleting or moving a task, a message at the bottom of the
+            screen offers <b>Undo</b>. <kbd>Ctrl</kbd> <kbd>Z</kbd> (<kbd>⌘</kbd> <kbd>Z</kbd> on a Mac) goes back up to 80
+            steps, for as long as One Day stays open, and <kbd>Ctrl</kbd> <kbd>Y</kbd> or <kbd>⌘</kbd> <kbd>⇧</kbd>
+            <kbd>Z</kbd> redoes.
+          </p>
+        </section>
+
+        <section id="notes">
+          <h2>Notes and sub-tasks</h2>
+          <p>Click a task, anywhere but its circle, to open it. An open task holds:</p>
+          <ul>
+            <li>
+              a <b>note</b>, for anything longer than a title. Select text to format it, use the usual shortcuts
+              (<kbd>Ctrl</kbd> or <kbd>⌘</kbd> with <kbd>B</kbd> for bold, <kbd>I</kbd> italic, <kbd>E</kbd> code,
+              <kbd>K</kbd> a link), or type Markdown as you go: <code>**bold**</code>, <code>*italic*</code>,
+              <code>`code`</code>, <code>~~strike~~</code>, and <code>-</code> then a space to start a list;
+            </li>
+            <li>
+              <b>sub-tasks</b>, a checklist of smaller steps. As you tick them, the task’s circle fills, and the count under
+              its title keeps track;
+            </li>
+            <li>
+              <b>Repeat</b> and <b>Send</b>, for this task alone: see <a href="#repeat">Repeating tasks</a> and
+              <a href="#send">Sending tasks</a>.
+            </li>
+          </ul>
+          <figure class="shot">
+            <img class="l" src="shots/task-light.webp" width="1392" height="974" alt="The task Prepare the weekly review, open: a note with bold and italic words, three sub-tasks with the first one ticked, Add a sub-task, then Repeat and Send." decoding="async" loading="lazy" />
+            <img class="d" src="shots/task-dark.webp" width="1392" height="974" alt="The task Prepare the weekly review, open: a note with bold and italic words, three sub-tasks with the first one ticked, Add a sub-task, then Repeat and Send." decoding="async" loading="lazy" />
+            <figcaption>An open task: its note, its sub-tasks, and Repeat and Send at the bottom.</figcaption>
+          </figure>
+        </section>
+
+        <section id="repeat">
+          <h2>Repeating tasks</h2>
+          <p>
+            For what comes back, open the day chip of a new task, then <b>Repeat</b>. An existing task has
+            <b>Repeat</b> in its card. A task can come back:
+          </p>
+          <ul>
+            <li>every day, week or month, or every few of them (up to 99);</li>
+            <li>weekly, on the weekdays you pick;</li>
+            <li>monthly, on a date (the 14th) or on a weekday (the second Tuesday, the last Friday).</li>
+          </ul>
+          <p>
+            Each occurrence appears when its day comes. Ticking, moving or deleting one leaves the others alone, and missed
+            ones don’t pile up as leftovers. Under a repeating task, a small line says when it comes back. To end a repeat,
+            open the task, then <b>Repeat</b> and <b>Stop repeating</b>.
+          </p>
+          <figure class="shot">
+            <img class="l" src="shots/repeat-light.webp" width="1526" height="806" alt="The Repeat panel for Yoga class: Weekly, every 1 week, on Monday and Thursday. Below, Every Monday and Thursday, Next: Thu 16 Apr, with Cancel and Done." decoding="async" loading="lazy" />
+            <img class="d" src="shots/repeat-dark.webp" width="1526" height="806" alt="The Repeat panel for Yoga class: Weekly, every 1 week, on Monday and Thursday. Below, Every Monday and Thursday, Next: Thu 16 Apr, with Cancel and Done." decoding="async" loading="lazy" />
+            <figcaption>A weekly repeat on Mondays and Thursdays. The summary says when it comes next.</figcaption>
+          </figure>
+        </section>
+
+        <section id="tags">
+          <h2>Tags</h2>
+          <p>
+            Type <code>#</code> and a word anywhere in a task or a sub-task, like <code>#work</code> or <code>#home</code>.
+            Tags complete themselves as you type, and clicking one searches for it.
+          </p>
+          <p>
+            The filter at the right of the date (<kbd>F</kbd>) shows only the tasks with one tag; while it’s on, new tasks
+            get that tag too. Click the dot beside a tag to give it one of eight colours, which it then wears wherever it
+            appears.
+          </p>
+          <figure class="shot">
+            <img class="l" src="shots/tags-light.webp" width="1392" height="1002" alt="The Filter by tag panel under the date: All tasks, then #home in green, #travel in blue and #work in orange." decoding="async" loading="lazy" />
+            <img class="d" src="shots/tags-dark.webp" width="1392" height="1002" alt="The Filter by tag panel under the date: All tasks, then #home in green, #travel in blue and #work in orange." decoding="async" loading="lazy" />
+            <figcaption>Filter by tag, with each tag’s colour.</figcaption>
+          </figure>
+        </section>
+
+        <section id="search">
+          <h2>Search</h2>
+          <p>
+            Search (<kbd>/</kbd>, or <kbd>Ctrl</kbd> <kbd>K</kbd>) looks through every day at once: titles, notes and
+            sub-tasks. It ignores capitals and accents, so <i>cafe</i> finds <i>Café</i>. Start with <code>#</code> to
+            search by tag.
+          </p>
+          <p>
+            Pick a result, with a click or with <kbd>↑</kbd> <kbd>↓</kbd> and <kbd>Enter</kbd>, to go to its day, where
+            the task lights up. On a phone, search opens as a drawer over the day: drag it down to close it.
+          </p>
+          <figure class="shot">
+            <img class="l" src="shots/search-light.webp" width="1392" height="530" alt="Search for lisbon: Book the train to Lisbon, today, and Pack for Lisbon, tomorrow, both tagged #travel." decoding="async" loading="lazy" />
+            <img class="d" src="shots/search-dark.webp" width="1392" height="530" alt="Search for lisbon: Book the train to Lisbon, today, and Pack for Lisbon, tomorrow, both tagged #travel." decoding="async" loading="lazy" />
+            <figcaption>Search finds tasks on every day, and says which day each one is on.</figcaption>
+          </figure>
+          <p>Before you type anything, search lists your tags, then the buttons for <a href="#backups">backups</a> and <a href="#lock">the lock</a>.</p>
+        </section>
+
+        <section id="timer">
+          <h2>Timer</h2>
+          <p>
+            The timer (<kbd>T</kbd>) counts down 5, 15, 25 or 45 minutes, or any time from 1 minute to 3 hours with
+            <b>−</b> and <b>+</b>. It comes in two moods:
+          </p>
+          <ul>
+            <li><b>Calm</b> shows whole minutes, with a thin line that fills each minute;</li>
+            <li><b>Live</b> rolls the minutes and seconds, like the date.</li>
+          </ul>
+          <p>
+            While it runs, the time left shows in the bar, and <b>Pause</b>, <b>+1 min</b> and <b>Stop</b> are a click
+            away. When time’s up, One Day plays a soft chime. The timer keeps time even if you close One Day: open it again
+            to see what’s left.
+          </p>
+          <figure class="shot">
+            <img class="l" src="shots/timer-light.webp" width="1392" height="750" alt="The timer in its calm mood: 25 min left, with Pause, +1 min and Stop. The bar above shows 25m." decoding="async" loading="lazy" />
+            <img class="d" src="shots/timer-dark.webp" width="1392" height="750" alt="The timer in its calm mood: 25 min left, with Pause, +1 min and Stop. The bar above shows 25m." decoding="async" loading="lazy" />
+            <figcaption>The timer, calm: 25 minutes left, also shown in the bar.</figcaption>
+          </figure>
+        </section>
+
+        <section id="send">
+          <h2>Sending tasks</h2>
+          <p>A task can travel as a link: to someone else, or to yourself on another device.</p>
+          <ul>
+            <li><b>Send</b>, in an open task, sends that task with its note and sub-tasks.</li>
+            <li>
+              <b>Send this day</b>, the arrow out of a box at the top (<b>Send day</b> on a phone), sends all of the day’s
+              unfinished tasks at once.
+            </li>
+          </ul>
+          <p>
+            On a phone, this opens the share sheet. On a computer, the link is copied: paste it in a message, an email or a
+            note. Whoever opens it sees what it holds and picks the day to add it to, or ignores it. They need no account
+            and no app, just a browser.
+          </p>
+          <p>
+            The tasks travel inside the link itself, after the <code>#</code>. Browsers never send that part to a server,
+            so nothing is stored on the way. Anyone who has the link can read them, as with any message.
+          </p>
+          <figure class="shot">
+            <img class="l" src="shots/inbox-light.webp" width="1392" height="888" alt="A card titled A task for you: Pick a restaurant for Saturday, with a note and 2 sub-tasks, a Today chip, Ignore and Add." decoding="async" loading="lazy" />
+            <img class="d" src="shots/inbox-dark.webp" width="1392" height="888" alt="A card titled A task for you: Pick a restaurant for Saturday, with a note and 2 sub-tasks, a Today chip, Ignore and Add." decoding="async" loading="lazy" />
+            <figcaption>Opening a link: the task, what comes with it, and the day it will go to.</figcaption>
+          </figure>
+        </section>
+
+        <section id="keep-on-top">
+          <h2>Keep on top</h2>
+          <p>
+            In Chrome and Edge on a computer, <b>Keep on top</b> (<kbd>P</kbd>) pops One Day out into a small window that
+            floats above all your other windows: handy while you work in something else. Close that window, or click
+            <b>Bring it back</b> in the tab, to return. Safari and Firefox can’t do this yet, so the button only shows
+            where it works.
+          </p>
+        </section>
+
+        <section id="phone">
+          <h2>On a phone</h2>
+          <p>On a phone, One Day fills the screen and keeps everything within reach of your thumb, in a bar at the bottom:</p>
+          <ul>
+            <li><b>Search</b> opens as a drawer over the day;</li>
+            <li><b>Timer</b> opens as a sheet, and the bar shows the time left while it runs;</li>
+            <li>the red <b>+</b> opens the field to add a task, just above the keyboard;</li>
+            <li><b>Send day</b> sends the day’s unfinished tasks;</li>
+            <li><b>More</b> holds installing, backups, the lock and the links.</li>
+          </ul>
+          <p>
+            Swipe sideways to change day. Tap a task to open it; hold it, then drag, to reorder it. A sheet or the drawer
+            closes when you drag it down. On Android, the back button closes what is open first (a sheet, the drawer, an
+            open task) before it leaves One Day.
+          </p>
+          <figure class="shot strip">
+            <div class="row">
+              <figure class="phone">
+                <img class="l" src="shots/phone-add-light.webp" width="468" height="1013" alt="On a phone, the field to add a task rises from the bottom, with Book a table for Friday typed in and a Today chip." decoding="async" loading="lazy" />
+                <img class="d" src="shots/phone-add-dark.webp" width="468" height="1013" alt="On a phone, the field to add a task rises from the bottom, with Book a table for Friday typed in and a Today chip." decoding="async" loading="lazy" />
+                <figcaption>Adding a task</figcaption>
+              </figure>
+              <figure class="phone">
+                <img class="l" src="shots/phone-search-light.webp" width="468" height="1013" alt="On a phone, search open as a drawer over the day, with two results for lisbon." decoding="async" loading="lazy" />
+                <img class="d" src="shots/phone-search-dark.webp" width="468" height="1013" alt="On a phone, search open as a drawer over the day, with two results for lisbon." decoding="async" loading="lazy" />
+                <figcaption>Search, as a drawer</figcaption>
+              </figure>
+              <figure class="phone">
+                <img class="l" src="shots/phone-more-light.webp" width="468" height="1013" alt="On a phone, More: Install One Day in red, Import backup, Export backup, Protect with a passphrase, then the links." decoding="async" loading="lazy" />
+                <img class="d" src="shots/phone-more-dark.webp" width="468" height="1013" alt="On a phone, More: Install One Day in red, Import backup, Export backup, Protect with a passphrase, then the links." decoding="async" loading="lazy" />
+                <figcaption>More</figcaption>
+              </figure>
+            </div>
+          </figure>
+        </section>
+
+        <section id="theme">
+          <h2>Light and dark</h2>
+          <p>
+            One Day follows your device’s light or dark appearance. The sun or the moon at the top right switches it in one
+            click, and the choice is kept. To follow the device again, switch back to whatever it uses. This guide follows
+            the same choice.
+          </p>
+          <figure class="shot pair">
+            <div class="row">
+              <img src="shots/day-light.webp" width="1392" height="1410" alt="The day in light mode." decoding="async" loading="lazy" />
+              <img src="shots/day-dark.webp" width="1392" height="1410" alt="The same day in dark mode." decoding="async" loading="lazy" />
+            </div>
+            <figcaption>The same day, in light and in dark.</figcaption>
+          </figure>
+        </section>
+
+        <section id="keyboard">
+          <h2>Keyboard shortcuts</h2>
+          <p>On a computer, nearly everything has a key. On a Mac, use <kbd>⌘</kbd> where it says <kbd>Ctrl</kbd>.</p>
+          <table>
+            <caption>Anywhere</caption>
+            <thead>
+              <tr><th scope="col">Action</th><th scope="col">Keys</th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">Previous or next day</th><td><kbd>←</kbd> <kbd>→</kbd>, or <kbd>Alt</kbd> + <kbd>←</kbd> <kbd>→</kbd> while typing</td></tr>
+              <tr><th scope="row">Back to today</th><td><kbd>D</kbd> or <kbd>Home</kbd></td></tr>
+              <tr><th scope="row">New task</th><td><kbd>N</kbd>, then <kbd>Tab</kbd> to the day chip</td></tr>
+              <tr><th scope="row">Search</th><td><kbd>/</kbd> or <kbd>Ctrl</kbd> <kbd>K</kbd></td></tr>
+              <tr><th scope="row">Filter by tag</th><td><kbd>F</kbd></td></tr>
+              <tr><th scope="row">Timer</th><td><kbd>T</kbd></td></tr>
+              <tr><th scope="row">Keep on top</th><td><kbd>P</kbd></td></tr>
+              <tr><th scope="row">Lock now, with the lock on</th><td><kbd>L</kbd></td></tr>
+              <tr><th scope="row">Undo</th><td><kbd>Ctrl</kbd> <kbd>Z</kbd></td></tr>
+              <tr><th scope="row">Redo</th><td><kbd>Ctrl</kbd> <kbd>Y</kbd> or <kbd>Ctrl</kbd> <kbd>⇧</kbd> <kbd>Z</kbd></td></tr>
+              <tr><th scope="row">Close what is open</th><td><kbd>Esc</kbd></td></tr>
+            </tbody>
+          </table>
+          <table>
+            <caption>On a task’s circle</caption>
+            <thead>
+              <tr><th scope="col">Action</th><th scope="col">Keys</th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">Move between tasks</th><td><kbd>↑</kbd> <kbd>↓</kbd></td></tr>
+              <tr><th scope="row">Reorder the task</th><td><kbd>Alt</kbd> + <kbd>↑</kbd> <kbd>↓</kbd></td></tr>
+              <tr><th scope="row">Rename it</th><td><kbd>Enter</kbd>, then <kbd>Tab</kbd> to go on to its note</td></tr>
+              <tr><th scope="row">Delete it</th><td><kbd>Delete</kbd> or <kbd>Backspace</kbd></td></tr>
+            </tbody>
+          </table>
+          <table>
+            <caption>In a note</caption>
+            <thead>
+              <tr><th scope="col">Action</th><th scope="col">Keys</th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">Bold, italic</th><td><kbd>Ctrl</kbd> <kbd>B</kbd>, <kbd>Ctrl</kbd> <kbd>I</kbd></td></tr>
+              <tr><th scope="row">Code, link</th><td><kbd>Ctrl</kbd> <kbd>E</kbd>, <kbd>Ctrl</kbd> <kbd>K</kbd></td></tr>
+              <tr><th scope="row">Strikethrough</th><td><kbd>Ctrl</kbd> <kbd>⇧</kbd> <kbd>S</kbd></td></tr>
+              <tr><th scope="row">List</th><td><kbd>-</kbd> then a space, at the start of a line</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="install">
+          <h2>Install it</h2>
+          <p>
+            One Day works in any browser tab. Installed, it gets its own icon and window, opens without a connection, and
+            the browser holds on to its data. That matters most in Safari, which can erase the data of a site you haven’t
+            opened for a week, but not of an installed app.
+          </p>
+          <p>
+            Until it’s installed, One Day offers it: at the top of the page on a large screen, behind the <b>⋮</b> button
+            in a narrower window, and first in More on a phone. In Chrome and Edge, the offer opens the browser’s own
+            install prompt; in Safari, it tells you where to look. You can also install it yourself:
+          </p>
+          <ul>
+            <li><b>Chrome or Edge on a computer:</b> click the install icon at the right of the address bar.</li>
+            <li><b>Safari on a Mac:</b> in the menu bar, <b>File</b>, then <b>Add to Dock</b>.</li>
+            <li><b>iPhone and iPad:</b> tap <b>Share</b>, then <b>Add to Home Screen</b>.</li>
+            <li><b>Android:</b> in Chrome’s menu (<b>⋮</b>), <b>Add to Home screen</b> or <b>Install app</b>.</li>
+            <li><b>Firefox on a computer:</b> keep One Day in a tab. It works the same, offline included.</li>
+          </ul>
+          <figure class="shot">
+            <img class="l" src="shots/install-light.webp" width="1392" height="320" alt="Install One Day, in a pill at the top of the page, with a cross beside it, between the time and the sun." decoding="async" loading="lazy" />
+            <img class="d" src="shots/install-dark.webp" width="1392" height="320" alt="Install One Day, in a pill at the top of the page, with a cross beside it, between the time and the sun." decoding="async" loading="lazy" />
+            <figcaption>On a large screen, the offer sits at the top. Its cross puts it away for good, into a small button beside the sun.</figcaption>
+          </figure>
+          <p>
+            New versions arrive by themselves: One Day fetches them in the background and switches the next time it
+            opens. If an installed copy seems stuck, see <a href="#old-version">the installed app shows an old version</a>.
+          </p>
+        </section>
+
+        <section id="privacy">
+          <h2>Privacy</h2>
+          <p>
+            <b>Your tasks never leave your device.</b> One Day keeps them in your browser’s storage for this site. There
+            is no server, database or account behind it, so nobody else can see them, not even its maker.
+          </p>
+          <ul>
+            <li>
+              <b>No cookies, no analytics, no third-party requests.</b> The font comes with the app, and the site’s security
+              policy lets nothing else load. This guide makes the same promise.
+            </li>
+            <li>
+              <b>The links are plain links.</b> Nothing is contacted until you click one. The dogood.day link tells that
+              site you came from One Day; the others send nothing.
+            </li>
+            <li>
+              <b>It works offline</b> once you’ve opened it online one time. The browser keeps a copy of the app’s own
+              files, never of your tasks.
+            </li>
+            <li>
+              <b>What the browser keeps for One Day:</b> your tasks, the timer’s settings, your light or dark choice and,
+              if you put off the install offer, that you did.
+            </li>
+          </ul>
+          <p>
+            The other side of the coin: your tasks live in <b>this browser, on this device</b>. Another browser, another
+            device or a private window has its own separate list, and clearing the site’s data erases them. That’s what
+            <a href="#backups">backups</a> are for.
+          </p>
+          <figure class="shot">
+            <img class="l" src="shots/backups-light.webp" width="1392" height="806" alt="Search before typing: your tags, then Your tasks are stored only in this browser. Nothing is sent anywhere, with Import backup, Export backup and Protect with a passphrase." decoding="async" loading="lazy" />
+            <img class="d" src="shots/backups-dark.webp" width="1392" height="806" alt="Search before typing: your tags, then Your tasks are stored only in this browser. Nothing is sent anywhere, with Import backup, Export backup and Protect with a passphrase." decoding="async" loading="lazy" />
+            <figcaption>Search, before you type: where your tasks are, the backup buttons and the lock. On a phone, they’re in More.</figcaption>
+          </figure>
+          <p>For the legal details, read the <a href="https://bemorin.com/privacy#one-day">privacy policy</a>.</p>
+        </section>
+
+        <section id="backups">
+          <h2>Backups</h2>
+          <p>
+            <b>Export backup</b> downloads a file with all your days, repeats and tag colours, named like
+            <code>one-day-backup-2026-04-14.json</code>. You’ll find it in search before you type, or in More on a phone.
+            Keep the file somewhere safe: your documents, a cloud drive, an email to yourself.
+          </p>
+          <p>
+            <b>Import backup</b> reads one back. It only adds what’s missing and never overwrites the tasks you have, so
+            importing the same file twice changes nothing. One undo takes an import back.
+          </p>
+          <h3 id="moving">Moving to a new phone or computer</h3>
+          <p>One Day doesn’t sync, so you bring your tasks along yourself, in one of two ways:</p>
+          <ol>
+            <li>
+              <b>Everything:</b> on the old device, <b>Export backup</b>. Move the file to the new one (AirDrop, email, a
+              cloud drive), open One Day there and choose <b>Import backup</b>.
+            </li>
+            <li>
+              <b>Just a day’s open tasks:</b> on the old device, <b>Send this day</b>, then open the link on the new one,
+              for each day you need. The link carries the tasks with their notes and sub-tasks, but not their repeats.
+            </li>
+          </ol>
+          <p>With the lock on, backups are encrypted with your passphrase: you’ll need it to import them.</p>
+        </section>
+
+        <section id="lock">
+          <h2>The lock</h2>
+          <p>
+            If someone else might open your computer or phone, a passphrase keeps your tasks to yourself. Choose
+            <b>Protect with a passphrase</b>: the lock at the top right on a large screen, in the <b>⋮</b> menu of a
+            narrower window, in More on a phone, or in search before you type. One Day then encrypts your tasks in the
+            browser.
+          </p>
+          <p>
+            From then on, it asks for the passphrase when it opens, after five minutes away, and as soon as you press
+            <kbd>L</kbd> or click the lock. Where your device can, your fingerprint, face or device PIN opens it too;
+            setting that up asks for the passphrase once.
+          </p>
+          <figure class="shot pair">
+            <div class="row">
+              <div>
+                <img class="l" src="shots/protect-light.webp" width="920" height="1168" alt="Protect One Day: two passphrase fields, an option to also unlock with fingerprint, face or device PIN, and a red warning that a forgotten passphrase means the tasks are gone for good, with I understand ticked." decoding="async" loading="lazy" />
+                <img class="d" src="shots/protect-dark.webp" width="920" height="1168" alt="Protect One Day: two passphrase fields, an option to also unlock with fingerprint, face or device PIN, and a red warning that a forgotten passphrase means the tasks are gone for good, with I understand ticked." decoding="async" loading="lazy" />
+              </div>
+              <div>
+                <img class="l" src="shots/lock-light.webp" width="920" height="948" alt="One Day is locked: a passphrase field, Unlock, and Forgot it?" decoding="async" loading="lazy" />
+                <img class="d" src="shots/lock-dark.webp" width="920" height="948" alt="One Day is locked: a passphrase field, Unlock, and Forgot it?" decoding="async" loading="lazy" />
+              </div>
+            </div>
+            <figcaption>Turning the lock on asks you to confirm what a lost passphrase means. Locked, One Day shows nothing until it gets the passphrase.</figcaption>
+          </figure>
+          <aside class="note warn">
+            <p>
+              <b>A forgotten passphrase cannot be recovered.</b> Nobody else has it, not your browser and not the maker of
+              One Day, so there is no reset link and no back door. If you forget it, the only way out is
+              <b>Forgot it?</b> on the lock screen, which erases the tasks so you can start again with an empty list.
+              Before you turn the lock on, export a backup, and keep the passphrase somewhere safe, like a password
+              manager.
+            </p>
+          </aside>
+          <p>Good to know:</p>
+          <ul>
+            <li>Backups made while the lock is on are encrypted too, with the same passphrase.</li>
+            <li>
+              Changing the passphrase changes the key: the old passphrase opens nothing you write afterwards. Backups made
+              before keep the passphrase they were made with.
+            </li>
+            <li>If your browser saves the passphrase, it can fill it in for anyone using that browser.</li>
+            <li>Tasks saved before you turned the lock on can stay in the browser’s own files for a while, until it clears them.</li>
+            <li>The lock protects what is on this device. A link you send carries its tasks in the clear.</li>
+            <li><b>Turn off protection</b>, where you turned it on, stores your tasks without encryption again.</li>
+          </ul>
+        </section>
+
+        <section id="faq">
+          <h2>Questions</h2>
+
+          <h3 id="where">Where are my tasks stored?</h3>
+          <p>In your browser, on this device, for this site only. Nothing is sent anywhere, and there is no copy on a server.</p>
+
+          <h3 id="two-devices">Can I use One Day on my phone and my computer?</h3>
+          <p>
+            Yes, but each keeps its own list: One Day doesn’t sync, since there is no server to sync through. To get tasks
+            from one to the other, see the next question.
+          </p>
+
+          <h3 id="other-device">How do I get my tasks onto another device?</h3>
+          <p>
+            For a day’s open tasks, <b>Send this day</b> and open the link on the other device: send it by message, by
+            email or in a note to yourself. For everything, export a backup, move the file and import it there. Importing
+            adds what’s missing and keeps what’s there, so you can do it again later. See
+            <a href="#moving">Moving to a new phone or computer</a>.
+          </p>
+
+          <h3 id="old-version">The installed app shows an old version</h3>
+          <p>
+            Close it completely and open it again, twice. The first time, it opens the version it has and fetches the new
+            one in the background; the second time, it opens the new one. On a phone, close it from the app switcher:
+            going back to the home screen isn’t enough.
+          </p>
+
+          <h3 id="safari">I use Safari. Can my tasks disappear?</h3>
+          <p>
+            They can, if One Day isn’t installed: Safari may erase a site’s data when you haven’t opened it for seven days
+            of browsing, tasks included. Installed apps are kept (<b>Add to Home Screen</b> on an iPhone or iPad,
+            <b>Add to Dock</b> on a Mac). <a href="#install">Install it</a>, and export a backup now and then.
+          </p>
+
+          <h3 id="gone">My tasks are gone. What happened?</h3>
+          <p>
+            Usually one of these: a different browser or browser profile; a private window, whose data goes when it
+            closes; the site’s data was cleared, by you or by a cleaning app; or Safari’s seven-day rule. One Day can’t
+            bring them back, because there is no copy anywhere else, but <b>Import backup</b> restores your last backup.
+          </p>
+
+          <h3 id="forgot">I forgot my passphrase</h3>
+          <p>
+            It can’t be recovered: see <a href="#lock">The lock</a>. <b>Forgot it?</b> on the lock screen erases the tasks
+            so you can start again. Then you can import a backup made before the lock was on, or one whose passphrase you
+            know.
+          </p>
+
+          <h3 id="offline">Does it work offline?</h3>
+          <p>Yes, once you’ve opened it online one time, even in a tab. Installed, it opens like any other app.</p>
+
+          <h3 id="timer-closed">Does the timer ring when One Day is closed?</h3>
+          <p>
+            No: the chime only plays while One Day is open. The timer keeps time, though: open One Day again and it shows
+            what’s left, or that time’s up.
+          </p>
+
+          <h3 id="no-keep-on-top">Why don’t I see Keep on top?</h3>
+          <p>
+            It needs Chrome or Edge, version 116 or later, on a computer. Safari, Firefox and phones don’t offer it, so One
+            Day leaves the button out there.
+          </p>
+
+          <h3 id="erase">How do I erase everything?</h3>
+          <p>Clear this site’s data in your browser’s settings. With the lock on, <b>Forgot it?</b> on the lock screen erases the tasks too.</p>
+
+          <h3 id="free">Is there an account, a subscription or ads?</h3>
+          <p>
+            None of them. One Day is free and open source, under the MIT licence, and its code is on
+            <a href="https://github.com/bemorin/one-day">GitHub</a>. If it helps your days, you can
+            <a href="https://ko-fi.com/bemorin">buy me a croissant</a>.
+          </p>
+        </section>
+      </div>
+    </main>
+
+    <aside class="help" aria-labelledby="help-h">
+      <h2>Something unclear?</h2>
+      <p>If something here is unclear or missing, tell me. These are plain links: nothing is sent until you click one.</p>
+      <p class="links">
+        <a class="btn" href="https://github.com/bemorin/one-day/issues">Ask on GitHub</a>
+        <a class="btn" href="https://x.com/benmorinbm">Write to @benmorinbm on X</a>
+      </p>
+    </aside>
+
+    <footer class="foot">
+      <a class="brand" href="../"><img src="../icons/icon.svg" alt="" width="22" height="22" /><span>One Day</span></a>
+      <nav aria-label="About One Day">
+        <a href="https://bemorin.com/privacy#one-day">Privacy</a>
+        <a href="https://bemorin.com/legal">Legal</a>
+        <a href="https://github.com/bemorin/one-day">Source code</a>
+      </nav>
+      <p>Made by <a href="https://bemorin.com">Ben Morin</a></p>
+    </footer>
+  </body>
+</html>

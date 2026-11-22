@@ -1,5 +1,4 @@
 /* One Day service worker: makes the app open instantly and work offline, even from a cold start.
-   It only caches the app's own files. It never sees your tasks, which live in localStorage. */
 const CACHE = 'one-day-v48';
 const SHELL = [
   './',
@@ -13,8 +12,14 @@ const SHELL = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon.png',
+  // the guide's words, ready offline; its pictures are kept as they are seen
+  './guide/',
+  './guide/guide.css',
+  './guide/guide.js',
 ];
 const ROOT = new URL('./', self.registration.scope).pathname;
+// The pages it answers when opened: the app (also as /index.html) and the guide.
+const PAGES = { [ROOT]: './', [ROOT + 'index.html']: './', [ROOT + 'guide/']: './guide/' };
 
 // A response that went through a redirect cannot answer a page load: keep a clean copy instead.
 const plain = async r =>
@@ -50,14 +55,15 @@ self.addEventListener('fetch', event => {
     url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
 
-  // Opening the app (with any query, or as /index.html): the cached page at once, refreshed for next time.
+  // Opening the app or the guide (with any query): the cached page at once, refreshed for next time.
   if (request.mode === 'navigate') {
-    if (url.pathname !== ROOT && url.pathname !== ROOT + 'index.html') return;
+    const page = Object.hasOwn(PAGES, url.pathname) ? PAGES[url.pathname] : null;
+    if (!page) return;
     event.respondWith(
       caches.open(CACHE).then(async cache => {
-        const cached = await cache.match('./');
-        const fresh = fetch('./', { cache: 'no-cache' }).then(async r => {
-          if (r.ok) await cache.put('./', await plain(r.clone()));
+        const cached = await cache.match(page);
+        const fresh = fetch(page, { cache: 'no-cache' }).then(async r => {
+          if (r.ok) await cache.put(page, await plain(r.clone()));
           return r;
         });
         if (cached) {
