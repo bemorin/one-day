@@ -23,6 +23,36 @@ try {
     D = () => app.ownerDocument,
     W = () => D().defaultView || window;
   const TOUCH = matchMedia('(hover: none)').matches;
+  /* The device's back (Android's button or gesture) closes what is open, the one on top first, before it leaves the
+     app: each sheet, drawer, popover, open card and dialog holds a close watcher while it is open. On a phone only:
+     on a computer, Escape does this already. */
+  const BACKW = TOUCH && typeof window.CloseWatcher === 'function',
+    held = new Map();
+  function guard(k, close) {
+    if (!BACKW) return;
+    unguard(k);
+    try {
+      const w = new CloseWatcher();
+      w.onclose = () => {
+        if (held.get(k) === w) held.delete(k);
+        close();
+      };
+      held.set(k, w);
+    } catch (e) {}
+  }
+  function unguard(k) {
+    const w = held.get(k);
+    if (!w) return;
+    held.delete(k);
+    w.destroy();
+  }
+  // an open task holds one while any task is open
+  function cardGuard() {
+    if (!BACKW) return;
+    if ($.list.querySelector('.row.open')) {
+      if (!held.has('card')) guard('card', () => $.list.querySelectorAll('.row.open').forEach(li => setOpen(li, false)));
+    } else unguard('card');
+  }
   const MAC = /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent),
     MOD = MAC ? '⌘' : 'Ctrl+';
   app.querySelectorAll('[data-key]').forEach(b => {
@@ -713,6 +743,7 @@ try {
     }
   }
   function renderList(fresh) {
+    queueMicrotask(cardGuard);
     const ae = D().activeElement,
       want = FX ? ordered(cur).filter(t => hasTag(t, FX)) : ordered(cur),
       map = new Map(),
@@ -1179,6 +1210,7 @@ try {
     more.getAnimations().forEach(a => a.cancel());
     li.classList.toggle('open', open);
     li.querySelector('.ex').setAttribute('aria-expanded', open);
+    cardGuard();
     if (open) {
       more.hidden = false;
       const h = more.scrollHeight;
@@ -2359,6 +2391,7 @@ try {
     popM = new Date(d.getFullYear(), d.getMonth(), 1);
     renderPop(0);
     $.pop.classList.add('on');
+    guard('pops', () => closePops(true));
     $.meta.setAttribute('aria-expanded', 'true');
     const s = $.grid.querySelector('.s');
     if (s) s.focus({ preventScroll: true });
@@ -2366,6 +2399,7 @@ try {
   function openTimer() {
     closePops();
     $.tpop.classList.add('on');
+    guard('pops', () => closePops(true));
     $.tmb.setAttribute('aria-expanded', 'true');
     $.mbTimer.setAttribute('aria-expanded', 'true');
     segRender(false);
@@ -2377,6 +2411,7 @@ try {
     syncScrim();
   }
   function closePops(back) {
+    unguard('pops');
     const wasF = $.fpop.classList.contains('on');
     $.fpop.classList.remove('on');
     $.fbtn.setAttribute('aria-expanded', 'false');
@@ -2962,6 +2997,7 @@ try {
     $.srch.classList.remove('out');
     $.srch.inert = false;
     $.srch.classList.add('on');
+    guard('search', () => closeSearch());
     if (phone)
       an($.srch, [{ transform: y0 != null ? `translateY(${y0}px)` : 'translateY(calc(100% + 24px))' }, { transform: 'none' }], {
         easing: SP.ease,
@@ -3002,6 +3038,7 @@ try {
   }
   function closeSearch(restore = true, from) {
     if (!$.srch.classList.contains('on')) return;
+    unguard('search');
     if (W().matchMedia(BARQ).matches) {
       const y = from != null ? from : presentY($.srch),
         r = $.srch.getBoundingClientRect(),
@@ -3458,6 +3495,7 @@ try {
     $.ftags.scrollTop = 0;
     fitFilter();
     $.fpop.classList.add('on');
+    guard('pops', () => closePops(true));
     $.fbtn.setAttribute('aria-expanded', 'true');
     hideTip(0);
     // no ring on opening: the field takes the focus, or the popover itself; the arrows lead into the list
@@ -3607,10 +3645,12 @@ try {
     else bs[Math.max(0, Math.min(bs.length - 1, i + d))].focus();
   });
 
-  /* A pasted list: one item per line. Bullets, numbers and checkboxes are left out ("- [x]" makes it done);
-     a single line pastes as usual. */
+  /* A pasted list: one item per line. Bullets, numbers and checkboxes are left out, as Markdown, Notion, notes and
+     to-do apps write them ("- [x]", ☑, ✅ make it done); a single line pastes as usual. In the composer, a line set
+     further in than the one above becomes its sub-task, as Notion and Markdown nest them. */
   const BUL = /^(?:[•◦▪·‣⁃]\s*|(?:[-*+–—]|\d{1,3}[.)]|\(\d{1,3}\)|[a-zA-Z][.)])\s+)/,
-    BOX = /^(?:\[( |x|X)\]|([☐☑✅✔✓]))\s*/;
+    BOX = /^(?:\[( |x|X)?\]|([☐☑☒✅✔✓□▢◻⬜]))\uFE0F?\s*/,
+    OPEN = '☐□▢◻⬜';
   function listItems(txt) {
     const out = [];
     for (const raw of String(txt).split(/\r\n|\r|\n/)) {
@@ -3619,12 +3659,24 @@ try {
       l = l.replace(BUL, '');
       const b = BOX.exec(l);
       if (b) {
-        done = (b[1] && b[1] !== ' ') || (!!b[2] && b[2] !== '☐');
+        done = (!!b[1] && b[1] !== ' ') || (!!b[2] && !OPEN.includes(b[2]));
         l = l.slice(b[0].length);
       }
       l = l.trim().slice(0, 500);
-      if (l) out.push({ text: l, done });
+      // how far in the line starts (a tab counts as four spaces)
+      if (l) out.push({ text: l, done, ind: raw.match(/^[ \t]*/)[0].replace(/\t/g, '    ').length });
       if (out.length >= 100) break;
+    }
+    return out;
+  }
+  // lines further in than the list's own margin go under the line above them, as its sub-tasks
+  function nestItems(items) {
+    const base = Math.min(...items.map(it => it.ind)),
+      out = [];
+    for (const it of items) {
+      const top = out[out.length - 1];
+      if (it.ind > base && top) (top.subs || (top.subs = [])).push({ text: it.text, done: it.done });
+      else out.push({ text: it.text, done: it.done });
     }
     return out;
   }
@@ -3645,7 +3697,7 @@ try {
   });
   $.input.addEventListener('blur', hideSug);
   // A pasted list (one item per line) becomes as many tasks; what was typed stays in the composer.
-  $.input.addEventListener('paste', e => pasteList(e, items => addTasks(items)));
+  $.input.addEventListener('paste', e => pasteList(e, items => addTasks(nestItems(items))));
   $.input.addEventListener('keydown', e => {
     if (sugKey(e)) return;
     if (e.key === 'Enter' && !e.isComposing) {
@@ -3723,6 +3775,8 @@ try {
     renderChip(k !== was);
   }
   function addTasks(items) {
+    // a repeating task brings no sub-tasks here: what was nested comes in as tasks of its own
+    if (addRule) items = items.flatMap(it => [{ text: it.text, done: it.done }, ...(it.subs || [])]);
     if (FX) items = items.map(it => (tagsOf(it.text).includes(FX) ? it : { ...it, text: it.text + ' #' + FX }));
     const k = addDay(),
       room = 300 - tasks(k).length,
@@ -3746,13 +3800,18 @@ try {
       } else {
         const t = { id: uid(), text: it.text, done: it.done };
         if (it.done) t.at = now;
+        if (it.subs && it.subs.length)
+          t.subs = it.subs.slice(0, 100).map(s => ({ id: uid(), text: s.text.slice(0, 300), done: !!s.done }));
         day(k).tasks.push(t);
         made.push(t.id);
       }
     }
     commit(k);
     const n = list.length,
-      what = `${n} ${addRule ? 'repeating tasks' : 'tasks'}`,
+      ns = addRule ? 0 : list.reduce((a, it) => a + (it.subs ? Math.min(100, it.subs.length) : 0), 0),
+      what =
+        `${n} ${addRule ? 'repeating task' : 'task'}${n === 1 ? '' : 's'}` +
+        (ns ? ` and ${ns} sub-task${ns === 1 ? '' : 's'}` : ''),
       cut = items.length > list.length ? ` (that day is full, ${items.length - list.length} left out)` : '';
     if (k === cur && made.length) {
       flip(() => {
@@ -3805,6 +3864,7 @@ try {
     $.drep.hidden = DPX === 'in';
     renderDpop(0);
     place($.dpop, from.getBoundingClientRect(), DPX === 'in' ? 'down' : 'up');
+    guard('pops', () => closePops(true));
     from.setAttribute('aria-expanded', 'true');
     const s = $.dgrid.querySelector('.s');
     if (s) s.focus({ preventScroll: true });
@@ -3896,6 +3956,7 @@ try {
     // Lay it out first, then place() shows it where it belongs: no flight from the corner.
     renderRp(false);
     place($.rpop, o.anchor, o.prefer);
+    guard('pops', () => closePops(true));
     if (o.from) o.from.setAttribute('aria-expanded', 'true');
     const a = $.rseg.querySelector('[aria-checked="true"]');
     if (a) a.focus({ preventScroll: true });
@@ -4176,6 +4237,7 @@ try {
     $.inbox.style.top = q('header').offsetHeight - 6 + 'px';
     $.inbox.getAnimations().forEach(x => x.cancel());
     $.inbox.hidden = false;
+    guard('inbox', () => closeInbox());
     an($.inbox, [{ opacity: 0, transform: 'translateY(-14px) scale(.97)' }, { opacity: 1, transform: 'none' }], {
       easing: POP.ease,
       duration: POP.dur,
@@ -4189,6 +4251,7 @@ try {
   }
   function closeInbox() {
     if ($.inbox.hidden) return;
+    unguard('inbox');
     IN = null;
     if ($.dpop.classList.contains('on') && DPX === 'in') closePops();
     then(
@@ -4263,6 +4326,8 @@ try {
   function compose(on) {
     if (on === app.classList.contains('composing')) return;
     app.classList.toggle('composing', on);
+    if (on) guard('compose', () => compose(false));
+    else unguard('compose');
     $.mbAdd.setAttribute('aria-expanded', on);
     $.mbAdd.setAttribute('aria-label', on ? 'Close' : 'Add a task');
     syncScrim();
@@ -4309,6 +4374,7 @@ try {
     closePops();
     sheetIn($.more);
     moreOpen = true;
+    guard('more', () => closeMore());
     syncScrim();
     $.mbMore.setAttribute('aria-expanded', 'true');
     const first = $.moreList.querySelector('button');
@@ -4317,6 +4383,7 @@ try {
   function closeMore(from) {
     if (!moreOpen) return;
     moreOpen = false;
+    unguard('more');
     sheetOut($.more, from);
     $.mbMore.setAttribute('aria-expanded', 'false');
     syncScrim();
@@ -5530,6 +5597,7 @@ try {
     $.kpop.style.top = Math.round(b.bottom - p.top + 4) + 'px';
     $.kpop.style.right = Math.round(p.right - b.right) + 'px';
     $.kpop.classList.add('on');
+    guard('pops', () => closePops(true));
     $.kb.setAttribute('aria-expanded', 'true');
     hideTip(0);
     $.kpop.querySelector('.kit').focus({ preventScroll: true });
@@ -5648,6 +5716,7 @@ try {
       ae = D().activeElement,
       old = mode !== 'on' && mode !== 'reset';
     LSM = { mode, done, check, from: ae && ae !== D().body ? ae : null };
+    guard('lockset', () => closeLockset(null));
     L.lsT.textContent = t;
     L.lsSub.textContent = sub;
     L.lsGo.textContent = go;
@@ -5734,6 +5803,7 @@ try {
     const m = LSM;
     if (!m) return;
     LSM = null;
+    unguard('lockset');
     modalOut();
     for (const i of [L.lsOld, L.lsPass, L.lsPass2]) i.value = '';
     if (!locked) home.inert = false;

@@ -551,6 +551,48 @@ test.describe('pasting a list', () => {
     await expect(page.locator('#toast')).toContainText('Added 3 sub-tasks');
     await expect(row(page, 'Plan the trip').locator('.sub .st')).toHaveText(['Book the train #travel', 'Find a hotel', 'Pack', 'Print the tickets', 'Water the plants']);
   });
+
+  test('a Notion to-do list: its boxes are read, and what is nested comes in under its task', async ({ page }) => {
+    await open(page);
+    await page.locator('#input').focus();
+    const notion = [
+      '- [ ] Plan the weekend',
+      '    - [x] Book the cabin',
+      '\t- [ ] Pack the bags',
+      '- [ ] Call the bank',
+      '1. Water the ferns',
+      '2) Buy bread',
+      '☑️ Emoji box, ticked',
+      '[] Empty box',
+      '☒ Crossed box',
+    ].join('\n');
+    expect(await paste(page, '#input', notion)).toBe(true);
+    await expect(page.locator('#toast')).toContainText('Added 7 tasks and 2 sub-tasks');
+    const t = row(page, 'Plan the weekend');
+    await t.locator('.mt').click();
+    await expect(t.locator('.sub .st')).toHaveText(['Book the cabin', 'Pack the bags']);
+    await expect(t.locator('.sub').first()).toHaveClass(/\bdone\b/);
+    await expect(t.locator('.sub').nth(1)).not.toHaveClass(/\bdone\b/);
+    for (const x of ['Call the bank', 'Water the ferns', 'Buy bread', 'Empty box']) await expect(row(page, x)).not.toHaveClass(/\bdone\b/);
+    for (const x of ['Emoji box, ticked', 'Crossed box']) await expect(row(page, x)).toHaveClass(/\bdone\b/);
+    // nothing invisible is left before the words
+    expect(await row(page, 'Emoji box, ticked').locator('.t').evaluate(n => n.textContent.codePointAt(0))).toBe(69);
+    // one undo takes it all back
+    await page.locator('#undo').click();
+    await expect(row(page, 'Plan the weekend')).toHaveCount(0);
+    await expect(row(page, 'Crossed box')).toHaveCount(0);
+  });
+
+  test('pasted into a repeat, what was nested comes in as repeating tasks of its own', async ({ page }) => {
+    await open(page);
+    await page.locator('#input').click();
+    await page.locator('#dchip').click();
+    await page.locator('#drep').click();
+    await page.locator('#rdone').click();
+    await page.locator('#input').focus();
+    expect(await paste(page, '#input', '- Stretch\n  - Neck\n- Read')).toBe(true);
+    await expect(page.locator('#toast')).toContainText('Added 3 repeating tasks');
+  });
 });
 
 test('phones: the page can run under the system bars, and keeps clear of them', async ({ page }) => {
@@ -2153,6 +2195,92 @@ test.describe('installing One Day', () => {
       await page.locator('#moreList .sins').tap();
       await expect(page.locator('#toast')).toContainText('then Add to Home Screen');
     });
+  });
+});
+
+test.describe("the device's back", () => {
+  // A stand-in for the browser's CloseWatcher: the device's back closes the newest one still open; with none, it
+  // would leave the app.
+  const fakeBack = page =>
+    page.addInitScript(() => {
+      const live = [];
+      window.CloseWatcher = class {
+        constructor() {
+          live.push(this);
+        }
+        destroy() {
+          const i = live.indexOf(this);
+          if (i > -1) live.splice(i, 1);
+        }
+        requestClose() {
+          this.close();
+        }
+        close() {
+          this.destroy();
+          if (this.onclose) this.onclose(new Event('close'));
+        }
+      };
+      window.__back = () => {
+        const w = live[live.length - 1];
+        if (!w) return false;
+        w.close();
+        return true;
+      };
+      window.__held = () => live.length;
+    });
+  const back = page => page.evaluate(() => window.__back());
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    test('closes what is open, the one on top first, before it leaves the app', async ({ page }) => {
+      await fakeBack(page);
+      await open(page);
+      expect(await page.evaluate(() => window.__held())).toBe(0);
+      // More
+      await page.locator('#mbMore').tap();
+      await expect(page.locator('#more')).toBeVisible();
+      expect(await back(page)).toBe(true);
+      await expect(page.locator('#more')).toBeHidden();
+      // search's drawer
+      await page.locator('#mbSearch').tap();
+      await expect(page.locator('#srch')).toHaveClass(/\bon\b/);
+      await back(page);
+      await expect(page.locator('#srch')).not.toHaveClass(/\bon\b/);
+      // the composer, and the day picker over it: the picker goes first
+      await page.locator('#mbAdd').tap();
+      await expect(page.locator('#app')).toHaveClass(/\bcomposing\b/);
+      await page.locator('#dchip').tap();
+      await expect(page.locator('#dpop')).toHaveClass(/\bon\b/);
+      await back(page);
+      await expect(page.locator('#dpop')).not.toHaveClass(/\bon\b/);
+      await expect(page.locator('#app')).toHaveClass(/\bcomposing\b/);
+      await back(page);
+      await expect(page.locator('#app')).not.toHaveClass(/\bcomposing\b/);
+      // the timer
+      await page.locator('#mbTimer').tap();
+      await expect(page.locator('#tpop')).toHaveClass(/\bon\b/);
+      await back(page);
+      await expect(page.locator('#tpop')).not.toHaveClass(/\bon\b/);
+      // an open task
+      await row(page, 'Plan the trip').locator('.tx').tap();
+      await expect(row(page, 'Plan the trip')).toHaveClass(/\bopen\b/);
+      await back(page);
+      await expect(row(page, 'Plan the trip')).not.toHaveClass(/\bopen\b/);
+      // closed some other way, nothing is held: the next back leaves the app
+      await page.locator('#mbMore').tap();
+      await page.locator('#scrim').tap({ position: { x: 60, y: 120 } });
+      await expect(page.locator('#more')).toBeHidden();
+      expect(await page.evaluate(() => window.__held())).toBe(0);
+      expect(await back(page)).toBe(false);
+    });
+  });
+
+  test('on a computer, Escape does it: nothing is held', async ({ page }) => {
+    await fakeBack(page);
+    await open(page);
+    await page.keyboard.press('t');
+    await expect(page.locator('#tpop')).toHaveClass(/\bon\b/);
+    expect(await page.evaluate(() => window.__held())).toBe(0);
   });
 });
 
