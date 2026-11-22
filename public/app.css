@@ -166,7 +166,9 @@ svg {
   --sn-d: 0.38s;
   --pop: cubic-bezier(0.34, 1.56, 0.64, 1);
   --pop-d: 0.52s;
-  height: 100dvh;
+  /* the page's height, not 100dvh: an installed app on Android can keep a 100dvh from before its system buttons
+     showed (taller than the window) until the keyboard comes and goes, which hid the bottom bar under them */
+  height: 100%;
   max-width: 660px;
   margin: 0 auto;
   display: flex;
@@ -2764,7 +2766,7 @@ mark {
   right: 0;
   bottom: var(--mbar, 0px);
   z-index: 47;
-  max-height: calc(100dvh - var(--mbar, 0px) - 70px);
+  max-height: calc(100% - var(--mbar, 0px) - 70px);
   overflow: auto;
   padding: 4px 12px 14px;
   background: var(--bg);
@@ -3711,7 +3713,7 @@ mark {
     display: flex;
     flex-direction: column;
     align-items: center;
-    height: 100dvh;
+    height: 100%;
     padding: var(--top) 0;
   }
   #home > * {

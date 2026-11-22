@@ -3001,10 +3001,12 @@ try {
       $.srch.style.bottom = 'auto';
       $.srch.style.height = r.height + 'px';
       $.srch.classList.add('out');
+      // all the way off the screen: the keyboard folding away meanwhile makes the window taller than it is now
+      const far = Math.max(W().innerHeight, (W().screen && W().screen.height) || 0) - top + 24;
       then(
-        an($.srch, [{ transform: `translateY(${y}px)` }, { transform: `translateY(${Math.ceil(W().innerHeight - top + 24)}px)` }], {
+        an($.srch, [{ transform: `translateY(${y}px)` }, { transform: `translateY(${Math.ceil(far)}px)` }], {
           easing: SNAP.ease,
-          duration: SNAP.dur,
+          duration: SNAP.dur * 1.1,
           fill: 'forwards',
         }),
         () => {

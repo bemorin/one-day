@@ -1237,10 +1237,14 @@ test.describe('on a touch screen', () => {
       document.documentElement.style.setProperty('--kb', '0px');
       await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
       const n = document.getElementById('srch'),
-        t = new DOMMatrixReadOnly(getComputedStyle(n).transform);
-      return { top: Math.round(n.getBoundingClientRect().top - t.m42), height: Math.round(n.getBoundingClientRect().height), out: n.classList.contains('out') };
+        t = new DOMMatrixReadOnly(getComputedStyle(n).transform),
+        top = Math.round(n.getBoundingClientRect().top - t.m42),
+        a = n.getAnimations()[0],
+        end = a ? parseFloat(String(a.effect.getKeyframes().slice(-1)[0].transform).replace(/[^\d.-]/g, '')) : 0;
+      // it goes all the way off the screen, whatever height the window takes once the keyboard is gone
+      return { top, height: Math.round(n.getBoundingClientRect().height), out: n.classList.contains('out'), gone: top + end >= screen.height };
     });
-    expect(during).toEqual({ ...before, out: true });
+    expect(during).toEqual({ ...before, out: true, gone: true });
     // once gone, it is hidden and its place is free again
     await expect(page.locator('#srch')).not.toHaveClass(/\bout\b/);
     await expect(page.locator('#srch')).toBeHidden();
