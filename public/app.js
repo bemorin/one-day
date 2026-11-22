@@ -1,7 +1,7 @@
 /*! One Day — a calm, one-day-at-a-time task list. MIT License. */
 'use strict';
-// Chrome on Android can report no bottom inset at launch for a page drawn under the system buttons (viewport-fit=cover):
-// the bottom bar then sits under them until the keyboard comes and goes. There, the browser keeps the page above them.
+// On Android the page stays between the status bar and the system buttons, not under them (no viewport-fit=cover):
+// the browser places it there itself, so nothing depends on the insets it reports while an installed app starts.
 if (/Android/i.test(navigator.userAgent)) {
   const vp = document.querySelector('meta[name="viewport"]');
   if (vp) vp.content = vp.content.replace(/,\s*viewport-fit=cover/, '');
@@ -4458,61 +4458,6 @@ try {
     vv.addEventListener('scroll', kb);
   }
   window.addEventListener('hashchange', readIncoming);
-
-  /* A readout of the window's measures, to find why an installed app's bottom bar can sit under Android's own
-     buttons: five quick taps on the day's big number show it, five more hide it. It reads, it changes nothing. */
-  let vpTaps = [],
-    vpEl = null,
-    vpT = null;
-  $.num.addEventListener('pointerup', () => {
-    const now = Date.now();
-    vpTaps = vpTaps.filter(t => now - t < 1600);
-    vpTaps.push(now);
-    if (vpTaps.length < 5) return;
-    vpTaps = [];
-    if (vpEl) {
-      vpEl.remove();
-      vpEl = null;
-      clearInterval(vpT);
-      return;
-    }
-    vpEl = document.createElement('pre');
-    vpEl.id = 'vpinfo';
-    document.body.append(vpEl);
-    vpRead();
-    vpT = setInterval(vpRead, 500);
-  });
-  function vpProbe(v) {
-    const d = document.createElement('div');
-    d.style.position = 'fixed';
-    d.style.visibility = 'hidden';
-    d.style.top = '0';
-    d.style.width = '1px';
-    d.style.height = v;
-    document.body.append(d);
-    const h = d.getBoundingClientRect().height;
-    d.remove();
-    return Math.round(h * 10) / 10;
-  }
-  function vpRead() {
-    if (!vpEl) return;
-    const vv = window.visualViewport,
-      ua = navigator.userAgent,
-      box = el => {
-        const b = el.getBoundingClientRect();
-        return `${Math.round(b.top)}-${Math.round(b.bottom)}`;
-      };
-    vpEl.textContent = [
-      `${matchMedia('(display-mode: standalone)').matches ? 'installed' : 'browser'} · Chrome ${(ua.match(/Chrome\/(\d+)/) || [])[1] || '?'} · Android ${(ua.match(/Android ([\d.]+)/) || [])[1] || '?'}`,
-      `inner ${innerWidth}x${innerHeight} · outer ${outerWidth}x${outerHeight} · dpr ${devicePixelRatio}`,
-      `visual ${vv ? `${Math.round(vv.width)}x${Math.round(vv.height)} at ${Math.round(vv.offsetTop)}` : '?'} · client ${document.documentElement.clientHeight}`,
-      `screen ${screen.width}x${screen.height} · avail ${screen.availWidth}x${screen.availHeight}`,
-      `dvh ${vpProbe('100dvh')} · svh ${vpProbe('100svh')} · lvh ${vpProbe('100lvh')}`,
-      `safe top ${vpProbe('env(safe-area-inset-top, 0px)')} · bottom ${vpProbe('env(safe-area-inset-bottom, 0px)')} · max ${vpProbe('env(safe-area-max-inset-bottom, 0px)')}`,
-      `app ${box(app)} · bar ${$.mbar.getClientRects().length ? box($.mbar) : '-'} · kb ${getComputedStyle(document.documentElement).getPropertyValue('--kb').trim() || '0'}`,
-      `${(document.querySelector('meta[name="viewport"]') || {}).content || ''}`,
-    ].join('\n');
-  }
 
   /* toast */
   let toastTm = null,

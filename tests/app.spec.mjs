@@ -1251,16 +1251,6 @@ test.describe('on a touch screen', () => {
     expect(await page.locator('#srch').evaluate(n => n.style.top)).toBe('');
   });
 
-  test('five taps on the day\'s big number show a readout of the window, five more hide it', async ({ page }) => {
-    await open(page);
-    for (let i = 0; i < 5; i++) await page.locator('#num').tap();
-    await expect(page.locator('#vpinfo')).toBeVisible();
-    await expect(page.locator('#vpinfo')).toContainText('inner ');
-    await expect(page.locator('#vpinfo')).toContainText('dvh ');
-    for (let i = 0; i < 5; i++) await page.locator('#num').tap();
-    await expect(page.locator('#vpinfo')).toHaveCount(0);
-  });
-
   test('an open panel lights its button in the bar, which stays above it and switches panels', async ({ page }) => {
     await open(page);
     const lit = id =>

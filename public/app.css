@@ -2787,21 +2787,6 @@ mark {
 .sgrab {
   display: none;
 }
-#vpinfo {
-  position: fixed;
-  z-index: 999;
-  top: calc(env(safe-area-inset-top) + 6px);
-  left: 6px;
-  right: 6px;
-  margin: 0;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: rgb(0 0 0 / 0.84);
-  color: #fff;
-  font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace;
-  white-space: pre-wrap;
-  pointer-events: none;
-}
 #moreList {
   display: flex;
   flex-direction: column;
