@@ -4527,6 +4527,7 @@ try {
     } catch (e) {
       IN = null;
       $.inbox.hidden = true;
+      unguard('inbox');
     }
     toast('That link doesn’t hold a task');
   }
