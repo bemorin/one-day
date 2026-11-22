@@ -15,10 +15,10 @@ It speaks the Model Context Protocol over stdio, in its stateless 2026-07-28 ver
 The One Day extension is one file, `one-day.mcpb`. It runs on the Node.js that comes with Claude Desktop, so there is nothing else to install.
 
 1. Download [`one-day.mcpb`](https://github.com/bemorin/one-day/releases/latest/download/one-day.mcpb) from the latest release.
-2. In Claude Desktop, go to **Settings → System** and click **Manage** next to **Extensions**. Drag `one-day.mcpb` onto that page.
+2. In Claude Desktop, go to **Settings → Desktop app** and click **Manage** next to **Extensions**. Drag `one-day.mcpb` onto that page.
 3. Check what it is and click **Install**. Leave “One Day address” as it is, unless you have [your own copy of One Day](#your-own-copy-of-one-day).
 
-One Day is then listed on that page, where **Configure** changes its address and **Uninstall** removes it. Claude Desktop does not update an extension installed from a file: for a newer version, install the new `one-day.mcpb` the same way.
+One Day then appears in **Settings → Plugins**, where its **Settings** hold the One Day address and **Uninstall**. After you save a new address, Claude restarts the extension, which takes a few seconds: its page may say it cannot connect until then. Claude Desktop does not update an extension installed from a file: for a newer version, install the new `one-day.mcpb` the same way.
 
 ### Claude Code
 
@@ -63,7 +63,7 @@ Links point to `https://day.bemorin.com/`. For another address (your own copy, o
 claude mcp add -e ONE_DAY_URL=https://day.example.com/ --scope user one-day -- node /path/to/one-day/mcp/server.mjs
 ```
 
-In `claude_desktop_config.json`, add `"env": { "ONE_DAY_URL": "https://day.example.com/" }` next to `"args"`. In the extension, it is the “One Day address” setting (Settings → System → Extensions, **Configure** next to One Day).
+In `claude_desktop_config.json`, add `"env": { "ONE_DAY_URL": "https://day.example.com/" }` next to `"args"`. In the extension, it is the “One Day address” setting (Settings → Plugins → One Day → Settings).
 
 ## What the tool takes
 
