@@ -47,6 +47,7 @@ const seed = {
     },
   },
   rules: {},
+  tags: { work: 'orange' },
 };
 const phoneSeed = {
   days: {
@@ -64,10 +65,12 @@ const phoneSeed = {
       tasks: [
         { id: 'p5', text: 'Send the invoices #work', done: false },
         { id: 'p6', text: 'Water the plants #home', done: false },
+        { id: 'p7', text: 'Pack for London #travel', done: false },
       ],
     },
   },
   rules: {},
+  tags: { travel: 'blue', home: 'green', work: 'orange' },
 };
 
 // The overlay lives in the page, above the app: cursor, ripples, keystroke bar, titles, progress rule.
@@ -169,6 +172,17 @@ function overlay() {
     };
     window.__bar = ms => {
       const b = vo.querySelector('.bar');
+      b.style.transition = `transform ${ms}ms linear`;
+      b.style.transform = 'scaleX(1)';
+    };
+    // From wherever it is, the rule fills in what is left (the phone part's length is known before it plays).
+    window.__barTo = ms => {
+      const b = vo.querySelector('.bar'),
+        m = getComputedStyle(b).transform.match(/matrix\(([^,]+)/),
+        x = m ? parseFloat(m[1]) : 0;
+      b.style.transition = 'none';
+      b.style.transform = `scaleX(${x})`;
+      void b.offsetWidth;
       b.style.transition = `transform ${ms}ms linear`;
       b.style.transform = 'scaleX(1)';
     };
@@ -336,16 +350,20 @@ async function recordPhone(browser) {
     await touch('touchEnd', x, y);
   }
   const ease = t => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
-  async function swipe(x0, x1, y, ms = 300) {
-    await touch('touchStart', x0, y);
+  // A finger's path, timed by the clock: each step lands where the finger is by then, whatever a step costs.
+  async function path([x0, y0], [x1, y1], ms) {
+    await touch('touchStart', x0, y0);
     await sleep(40);
-    const n = Math.round(ms / 16);
-    for (let i = 1; i <= n; i++) {
-      await touch('touchMove', x0 + (x1 - x0) * ease(i / n), y);
-      await sleep(ms / n);
+    const t0 = Date.now();
+    for (let k = 0; k < 1; ) {
+      k = Math.min(1, (Date.now() - t0) / ms);
+      const e = ease(k);
+      await touch('touchMove', x0 + (x1 - x0) * e, y0 + (y1 - y0) * e);
     }
-    await touch('touchEnd', x1, y);
+    await touch('touchEnd', x1, y1);
   }
+  const swipe = (x0, x1, y, ms = 320) => path([x0, y], [x1, y], ms);
+  const drag = (x, y0, y1, ms = 260) => path([x, y0], [x, y1], ms);
   const row = text => page.locator('#list .row', { hasText: text }).first();
 
   await page.goto(`http://localhost:${PORT}/`);
@@ -377,6 +395,18 @@ async function recordPhone(browser) {
   await swipe(290, 70, 430);
   await sleep(1250);
   await swipe(70, 290, 430);
+  await sleep(900);
+  await tap(page.locator('#mbSearch'));
+  await sleep(700);
+  // what follows is typed into the search field, never into the day (where T would open the timer)
+  if (!(await page.evaluate(() => document.activeElement && document.activeElement.id === 'sq'))) await page.locator('#sq').focus();
+  for (const ch of '#travel') {
+    await page.keyboard.type(ch);
+    await sleep(60 + Math.random() * 30);
+  }
+  await sleep(1300);
+  const g = await page.locator('#srch .sgrab').boundingBox();
+  await drag(g.x + g.width / 2, g.y + g.height / 2, g.y + 330, 240);
   await sleep(1000);
   await cdp.send('Page.stopScreencast');
   await Promise.all(writes);
@@ -439,20 +469,41 @@ async function main() {
   let mx = 1150,
     my = 430;
   const ease = t => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
-  async function glide(x, y, ms = 430) {
+  // Timed by the clock: each step lands where the cursor is by then (a step costs a round trip to the browser,
+  // so counting steps made every glide last twice as long as planned).
+  async function glide(x, y, ms = 600) {
     const x0 = mx,
       y0 = my,
-      n = Math.max(12, Math.round(ms / 16));
-    for (let i = 1; i <= n; i++) {
-      const e = ease(i / n);
+      t0 = Date.now();
+    for (let k = 0; k < 1; ) {
+      k = Math.min(1, (Date.now() - t0) / ms);
+      const e = ease(k);
       await page.mouse.move(x0 + (x - x0) * e, y0 + (y - y0) * e);
-      await sleep(ms / n);
     }
     mx = x;
     my = y;
   }
+  // A day longer than the card scrolls inside it: a task out of sight glides into view before the cursor goes
+  // to it, as a scroll would bring it.
+  async function reveal(loc) {
+    const d = await loc.evaluate(el => {
+      const sc = el.closest('#sc');
+      if (!sc || !el.getClientRects().length) return 0;
+      const r = el.getBoundingClientRect(),
+        s = sc.getBoundingClientRect(),
+        m = 14;
+      if (r.top < s.top + m) return r.top - s.top - m;
+      if (r.bottom > s.bottom - m) return r.bottom - s.bottom + m;
+      return 0;
+    });
+    if (!d) return;
+    await loc.evaluate((el, by) => el.closest('#sc').scrollBy({ top: by, behavior: 'smooth' }), d);
+    await sleep(560);
+  }
   async function at(target, dx = 0.5, dy = 0.5) {
-    const b = await (typeof target === 'string' ? page.locator(target).first() : target).boundingBox();
+    const loc = typeof target === 'string' ? page.locator(target).first() : target;
+    await reveal(loc);
+    const b = await loc.boundingBox();
     return [b.x + b.width * dx, b.y + b.height * dy];
   }
   async function click(target, label, opts = {}) {
@@ -484,8 +535,10 @@ async function main() {
   await page.mouse.move(mx, my);
   await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 92, maxWidth: 1920, maxHeight: 1080, everyNthFrame: 1 });
   const PHONE_IN = 800;
-  const TOTAL = 74500 + PHONE_IN + phone.dur + 450;
+  const DESK = 96000;
+  const TOTAL = DESK + PHONE_IN + phone.dur + 450;
   await page.evaluate(ms => window.__bar(ms), TOTAL);
+  const t0 = Date.now();
 
   // 1. Intro
   await sleep(370);
@@ -556,7 +609,7 @@ async function main() {
   await sleep(220);
   await cap('Scroll through the days', 'Down for the next day, up for the one before.');
   const [nx, ny] = await at('#num');
-  await glide(nx, ny, 420);
+  await glide(nx, ny, 600);
   await sleep(160);
   await page.evaluate(([i, l]) => window.__hud([i], l), [ICON_WHEEL, 'Next day']);
   await page.mouse.wheel(0, 120);
@@ -602,7 +655,26 @@ async function main() {
   await click('#inNo', 'Ignore');
   await sleep(520);
 
-  // 10. Search
+  // 10. Tags in colour (#work has its own from the start), and the day filtered by one
+  await cap('Tags in colour', 'Give each tag a colour. Show one tag at a time.');
+  await sleep(370);
+  await click('#fbtn', 'Filter by tag');
+  await sleep(560);
+  for (const [tag, c, name] of [
+    ['travel', 'blue', 'Blue'],
+    ['home', 'green', 'Green'],
+  ]) {
+    await click(`#ftags .fdot[data-tag="${tag}"]`, 'Colour of #' + tag);
+    await sleep(400);
+    await click(`#ftags .fsw [data-sw="${c}"]`, name);
+    await sleep(560);
+  }
+  await click('#ftags .ftag[data-tag="travel"]', 'Only #travel');
+  await sleep(1350);
+  await click('#fclr', 'All tasks');
+  await sleep(720);
+
+  // 11. Search
   await cap('Search', 'Every day, every note, every sub-task.');
   await sleep(370);
   await press('Control+k', ['Ctrl', 'K'], 'Search');
@@ -612,7 +684,7 @@ async function main() {
   await press('Control+k', ['Ctrl', 'K'], 'Close');
   await sleep(590);
 
-  // 11. Timer, live
+  // 12. Timer, live
   await cap('Calm or live', 'A timer that rolls like the date.');
   await sleep(370);
   await press('t', ['T'], 'Timer');
@@ -624,11 +696,11 @@ async function main() {
   await click([1120, 600], null);
   await sleep(520);
 
-  // 12. Light and dark, in one click, crossfaded
+  // 13. Light and dark, in one click, crossfaded
   await cap('Light and dark', 'It follows your system, or switches in one click.');
   await sleep(670);
   const [tx, ty] = await at('#theme');
-  await glide(tx, ty, 450);
+  await glide(tx, ty, 620);
   await sleep(150);
   const still = (await page.screenshot({ type: 'jpeg', quality: 95 })).toString('base64');
   await page.evaluate(src => {
@@ -643,7 +715,7 @@ async function main() {
   await sleep(90);
   await page.mouse.up();
   await page.evaluate(() => window.__dark(true));
-  await glide(1180, 650, 500);
+  await glide(1180, 650, 700);
   await sleep(200);
   await page.evaluate(() => {
     const img = document.querySelector('#vo .fade');
@@ -652,12 +724,43 @@ async function main() {
   });
   await sleep(1780);
 
-  // 13. Also on a phone
+  // 14. The lock: a passphrase, locked in one click, open again
+  const PASS = 'maple sunrise';
+  await cap('Lock it', 'A passphrase encrypts your tasks in this browser.');
+  await sleep(420);
+  await click('#lpill', 'Protect with a passphrase');
+  await page.locator('#lsPass').waitFor({ state: 'visible' });
+  await sleep(420);
+  await click('#lsPass', null);
+  await type(PASS);
+  await sleep(140);
+  await page.keyboard.press('Tab');
+  if (!(await page.evaluate(() => document.activeElement && document.activeElement.id === 'lsPass2'))) await click('#lsPass2', null);
+  await type(PASS);
+  await sleep(200);
+  await click('#lsOkT', 'I understand');
+  await sleep(380);
+  await click('#lsGo', 'Protect');
+  await page.locator('#lockset').waitFor({ state: 'hidden', timeout: 20000 });
+  await sleep(900);
+  await click('#lpill', 'Lock now');
+  await page.locator('#lockPass').waitFor({ state: 'visible' });
+  await sleep(560);
+  await click('#lockPass', null);
+  await type(PASS);
+  await sleep(200);
+  await press('Enter', ['Enter'], 'Unlock');
+  await page.locator('#lock').waitFor({ state: 'hidden', timeout: 20000 });
+  await sleep(1000);
+  console.log(`Desktop part: ${((Date.now() - t0) / 1000).toFixed(1)} s (the bar plans ${DESK / 1000} s)`);
+
+  // 15. Also on a phone
   await cap('Also on your phone', 'Add it to your Home Screen. It works offline, too.');
+  await page.evaluate(ms => window.__barTo(ms), PHONE_IN + phone.dur + 450 + 2520);
   await page.evaluate(ms => window.__phone(ms), PHONE_IN);
   await sleep(PHONE_IN + phone.dur + 450);
 
-  // 14. Outro
+  // 16. Outro
   await cap('day.bemorin.com', 'Free, private and open source.');
   await page.evaluate(() => window.__barEnd());
   await sleep(2520);
