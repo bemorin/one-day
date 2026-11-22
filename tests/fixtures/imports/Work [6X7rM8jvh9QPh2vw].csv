@@ -1,0 +1,8 @@
+﻿TYPE,CONTENT,DESCRIPTION,ICON,IS_COLLAPSED,PRIORITY,INDENT,AUTHOR,RESPONSIBLE,DATE,DATE_LANG,TIMEZONE,DURATION,DURATION_UNIT,DEADLINE,DEADLINE_LANG,REMINDER_TYPE,REMINDER_OFFSET,REMINDER_DATE,REMINDER_DATE_LANG
+meta,view_style=board,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+task,Send the invoice,,,,2,1,Sam (10000001),,Nov 26,en,Europe/Paris,,,,,,,,
+task,Prepare the slides,,,,3,1,Sam (10000001),,Dec 3 2026 2:00 PM,en,Europe/Paris,,,,,,,,
+task,Weekly review,,,,4,1,Sam (10000001),,every fri,en,Europe/Paris,,,,,,,,
+task,Read [the guide](https://example.com/guide) before **Monday**,,,,4,1,Sam (10000001),,,,Europe/Paris,,,,,,,,
+,,,,,,,,,,,,,,,,,,,

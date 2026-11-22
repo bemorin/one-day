@@ -1,0 +1,6 @@
+﻿TYPE,CONTENT,DESCRIPTION,ICON,IS_COLLAPSED,PRIORITY,INDENT,AUTHOR,RESPONSIBLE,DATE,DATE_LANG,TIMEZONE,DURATION,DURATION_UNIT,DEADLINE,DEADLINE_LANG,REMINDER_TYPE,REMINDER_OFFSET,REMINDER_DATE,REMINDER_DATE_LANG
+meta,view_style=list,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+task,Fenster putzen,,,,4,1,Sam (10000001),,27 Nov 17:15,de,Europe/Berlin,,,,,,,,
+task,Müll rausbringen,,,,4,1,Sam (10000001),,jeden Dienstag,de,Europe/Berlin,,,,,,,,
+,,,,,,,,,,,,,,,,,,,

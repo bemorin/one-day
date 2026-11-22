@@ -1,0 +1,18 @@
+﻿TYPE,CONTENT,DESCRIPTION,ICON,IS_COLLAPSED,PRIORITY,INDENT,AUTHOR,RESPONSIBLE,DATE,DATE_LANG,TIMEZONE,DURATION,DURATION_UNIT,DEADLINE,DEADLINE_LANG,REMINDER_TYPE,REMINDER_OFFSET,REMINDER_DATE,REMINDER_DATE_LANG
+meta,view_style=list,Home and errands,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+task,Call the plumber @phone,,,,1,1,Sam (10000001),,tomorrow at 09:30,en,Europe/Paris,30,minute,2026-11-28,en,,,,
+note,Ask about the kitchen tap too,,,,,,Sam (10000001),,2026-11-20T08:15:42.120000Z,,,,,,,,,,
+task,"Renew the passport, finally","Bring two photos.
+The old passport is in the ""misc"" drawer.",,,2,1,Sam (10000001),,3 days ago,en,Europe/Paris,,,,,,,,
+task,Book the photo booth,,,,4,2,Sam (10000001),,,,Europe/Paris,,,,,,,,
+task,Water the plants @home @green\ thumb,,,,4,1,Sam (10000001),,every Monday at 8am,en,Europe/Paris,,,,,,,,
+task,Pay the rent,,,,4,1,Sam (10000001),,every last day,en,Europe/Paris,,,,,,,,
+task,Clean the gutters,,,,4,1,Sam (10000001),,every 2nd and 4th sat,en,Europe/Paris,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+section,Groceries,,,False,,,,,,,,,,,,,,,
+task,Weekly shop @errands,Check the list on the [shared note](https://example.com/list),,,3,1,Sam (10000001),,in 4 days,en,Europe/Paris,,,,,,,,
+task,Oat milk,,,,4,2,Sam (10000001),,,,Europe/Paris,,,,,,,,
+note,Barista edition if they have it,,,,,,Sam (10000001),,2026-11-21T10:00:00Z,,,,,,,,,,
+task,* Pantry staples,,,,4,1,Sam (10000001),,,,Europe/Paris,,,,,,,,
+,,,,,,,,,,,,,,,,,,,

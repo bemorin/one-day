@@ -3305,13 +3305,15 @@ try {
   /* importing from other apps: an export from Todoist, TickTick, Google Tasks or todo.txt is read here, in the page,
      and nothing is sent anywhere. Each file becomes plain items (words, note, sub-tasks, tags, a day, a repeat); a
      dialog shows where they will go before anything is added, and one undo takes them all back. */
+  // Each file as text, with the moment it was saved (Todoist counts its dates from the day of the export).
   async function readFiles(files) {
     const out = [];
     for (const f of files) {
-      const u8 = new Uint8Array(await f.arrayBuffer());
+      const u8 = new Uint8Array(await f.arrayBuffer()),
+        at = f.lastModified || Date.now();
       if (u8[0] === 0x50 && u8[1] === 0x4b && u8[2] === 3 && u8[3] === 4)
-        for (const e of await unzip(u8)) out.push({ name: e.name, text: utf8(e.bytes) });
-      else out.push({ name: f.name, text: utf8(u8) });
+        for (const e of await unzip(u8)) out.push({ name: e.name, text: utf8(e.bytes), at });
+      else out.push({ name: f.name, text: utf8(u8), at });
     }
     return out;
   }
@@ -3440,7 +3442,10 @@ try {
   function imNote(text) {
     let h = '',
       list = '';
-    const lines = String(text || '').slice(0, 30000).replace(/\r\n?/g, '\n').trim();
+    const lines = String(text || '')
+      .slice(0, 30000)
+      .replace(/\r\n?|[\u2028\u2029]/g, '\n')
+      .trim();
     if (!lines) return '';
     for (const ln of lines.split('\n')) {
       const m = /^\s*(?:([-*+•])|\d{1,3}[.)])\s+(.*)$/.exec(ln),
@@ -3474,30 +3479,42 @@ try {
     if (!m) return null;
     let k = `${m[1]}-${m[2]}-${m[3]}`;
     if (m[7]) {
-      const z = m[7].toUpperCase() === 'Z' ? 'Z' : m[7].replace(/^([+-]\d\d):?(\d\d)$/, '$1:$2'),
-        t = new Date(`${k}T${m[4]}:${m[5]}:${m[6] || '00'}${z}`);
-      if (isNaN(t)) return null;
-      k = tz ? zoneDay(t, tz) || keyOf(t) : keyOf(t);
+      const t = imAt(s);
+      if (t == null) return null;
+      k = wall(t, tz).k;
     }
     return keyOf(fromKey(k)) === k ? k : null;
   }
-  const zoneDay = (t, tz) => {
+  // The day and time a moment shows on a wall clock, in a zone (this browser's if none, or if it is unknown)
+  function wall(t, tz) {
     try {
       const p = Object.fromEntries(
-        new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
+        new Intl.DateTimeFormat('en-CA', {
+          timeZone: tz || undefined,
+          hourCycle: 'h23',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        })
           .formatToParts(t)
           .map(x => [x.type, x.value]),
       );
-      return `${p.year}-${p.month}-${p.day}`;
+      return { k: `${p.year}-${p.month}-${p.day}`, h: +p.hour % 24, m: +p.minute, s: +p.second };
     } catch (e) {
-      return null;
+      const d = new Date(t);
+      return { k: keyOf(d), h: d.getHours(), m: d.getMinutes(), s: d.getSeconds() };
     }
-  };
+  }
   // A moment from a date-time with a zone, in milliseconds, or null.
   function imAt(v) {
-    const m = /^(\d{4}-\d\d-\d\d)[T ](\d\d:\d\d(?::\d\d)?(?:\.\d+)?)\s*(Z|[+-]\d\d:?\d\d)$/i.exec(String(v || '').trim());
+    const m = /^(\d{4})-?(\d\d)-?(\d\d)[T ](\d\d:?\d\d(?::?\d\d)?)(\.\d+)?\s*(Z|[+-]\d\d:?\d\d)$/i.exec(String(v || '').trim());
     if (!m) return null;
-    const t = Date.parse(`${m[1]}T${m[2]}${m[3].toUpperCase() === 'Z' ? 'Z' : m[3].replace(/^([+-]\d\d):?(\d\d)$/, '$1:$2')}`);
+    const hms = m[4].replace(/^(\d\d):?(\d\d)(?::?(\d\d))?$/, (x, h, mi, s) => `${h}:${mi}:${s || '00'}`),
+      z = m[6].toUpperCase() === 'Z' ? 'Z' : m[6].replace(/^([+-]\d\d):?(\d\d)$/, '$1:$2'),
+      t = Date.parse(`${m[1]}-${m[2]}-${m[3]}T${hms}${(m[5] || '').slice(0, 4)}${z}`);
     return isNaN(t) ? null : t;
   }
   /* A repeat from another app as a One Day rule from the task's day, or null when One Day can't follow it. A repeat is
@@ -3559,7 +3576,7 @@ try {
      day, 100 sub-tasks a task, 300 repeats, and what this browser can keep (the oldest done tasks go first). */
   function imPlan(items) {
     const tk = todayKey(),
-      P = { days: {}, rules: {}, reps: [], n: 0, noted: 0, cut: 0, full: new Set(), undated: 0, subcut: 0, old: 0, tags: new Map(), big: false },
+      P = { days: {}, rules: {}, reps: [], n: 0, noted: 0, whens: 0, cut: 0, full: new Set(), undated: 0, subcut: 0, old: 0, tags: new Map(), big: false },
       left = {},
       put = (k, t) => {
         if (!(k in left)) left[k] = 300 - tasks(k).length;
@@ -3573,8 +3590,18 @@ try {
       };
     let rules = Object.keys(S.rules).length;
     for (const it of items) {
-      const words = String(it.text || '').replace(/\s+/g, ' ').trim();
+      // a title holds words only: a Markdown link keeps its words there and goes to the note, **bold** loses its stars
+      const links = [],
+        words = String(it.text || '')
+          .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, (m, t, u) => {
+            links.push(`- [${t}](${u})`);
+            return t;
+          })
+          .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+          .replace(/\s+/g, ' ')
+          .trim();
       if (!words) continue;
+      if (links.length) it.note = [it.note, links.join('\n')].filter(x => x && x.trim()).join('\n\n');
       const own = tagsOf(words),
         tags = [...new Set((it.tags || []).map(imTag))].filter(g => g && !own.includes(g)),
         tail = tags.map(g => ' #' + g).join(''),
@@ -3582,6 +3609,11 @@ try {
       const subs0 = (it.subs || []).filter(x => x && String(x.text || '').trim()),
         subs = subs0.slice(0, 100).map(x => ({ id: uid(), text: String(x.text).replace(/\s+/g, ' ').trim().slice(0, 300), done: !!x.done }));
       let note = imNote(it.note);
+      // a date One Day couldn't read is kept in the note, in the words it was written in
+      if (it.when) {
+        note += `<div>${esc(`Date in ${it.app}: ${it.when}`)}</div>`;
+        P.whens++;
+      }
       if (it.done) {
         if (!it.doneDay) {
           P.undated++;
@@ -3643,10 +3675,12 @@ try {
      repText (the repeat as the app wrote it, for the note when One Day can't follow it) }. */
   function readExports(got) {
     const apps = [],
-      items = [];
+      items = [],
+      left = [],
+      said = new Set();
     let known = false;
     for (const f of got) {
-      const r = readExport(f.name.split('/').pop(), f.text);
+      const r = readExport(f.name.split('/').pop(), f.text, { left, said, at: f.at });
       if (!r) continue;
       known = true;
       if (!apps.includes(r.app)) apps.push(r.app);
@@ -3656,9 +3690,12 @@ try {
         items.push(it);
       }
     }
-    return known ? { apps, items } : null;
+    return known ? { apps, items, left, said: [...said] } : null;
   }
-  function readExport(name, text) {
+  // ctx.left gathers what an export holds that One Day doesn't bring, as [count, one, many]; ctx.said, what the dialog
+  // should say about how it was read; ctx.at is when the file was saved.
+  function readExport(name, text, ctx) {
+    const { left } = ctx;
     const head = text.slice(0, 3000);
     if (/^\s*[[{]/.test(head)) {
       let j = null;
@@ -3667,8 +3704,8 @@ try {
       } catch (e) {}
       return j && j.kind === 'tasks#taskLists' && Array.isArray(j.items) ? { app: 'Google Tasks', items: fromGoogle(j) } : null;
     }
-    if (TDH.test(head)) return { app: 'Todoist', items: fromTodoist(text, name) };
-    if (TTH.test(head)) return { app: 'TickTick', items: fromTickTick(text) };
+    if (TDH.test(head)) return { app: 'Todoist', items: fromTodoist(text, name, ctx) };
+    if (TTH.test(head)) return { app: 'TickTick', items: fromTickTick(text, left) };
     if (/\.(csv|json)$/i.test(name)) return null;
     if (/^(todo|done)\.txt$/i.test(name) || (!/\.(md|markdown)$/i.test(name) && TXT.test(text.slice(0, 20000))))
       return { app: 'todo.txt', items: fromTodoTxt(text) };
@@ -3681,17 +3718,315 @@ try {
     return null;
   }
 
-  const TDH = /^"?TYPE"?,"?CONTENT"?,/,
-    TTH = /"Folder Name","List Name","Title"/;
-  function fromTodoist() {
-    return [];
+  /* Todoist: a project exported as CSV (its ⋯ menu → Import & export → Export to CSV) or a backup (Settings → Backups:
+     a .zip of one CSV per project, named after it). Columns are found by name, as they keep changing. A task's
+     sub-tasks follow it, one INDENT further in; a "note" row is a comment on the row above it; labels end the CONTENT
+     (@label, a space in one written "\ "). By default a date is written from the day of the export ("today", "in 4
+     days", "3 days ago"), else (and in backups) as a short date in the account's language ("Aug 2", "2 Jan 2026"); a
+     repeat is written as it was typed. Done tasks are never exported. */
+  const TDH = /^"?TYPE"?[,;]"?CONTENT"?[,;]/;
+  function fromTodoist(text, name, ctx) {
+    const rows = csvRows(text, /^"?TYPE"?;/.test(text) ? ';' : ','),
+      col = {};
+    rows[0].forEach((n, i) => (col[n.trim().toUpperCase()] = i));
+    const get = (r, n) => (n in col ? String(r[col[n]] || '') : ''),
+      project = name.replace(/\.csv$/i, '').replace(/\s*\[[^\]]*\]$/, '').replace(/\s*\(\d+\)$/, ''),
+      from = keyOf(new Date(ctx.at || Date.now())),
+      out = [];
+    let top = null,
+      last = null,
+      relative = false;
+    for (const r of rows.slice(1)) {
+      const type = get(r, 'TYPE').trim().toLowerCase();
+      if (type === 'section') top = last = null;
+      if (type === 'note' && top) {
+        // a comment, with its files as links
+        const words = get(r, 'CONTENT')
+          .replace(/\s*\[\[file (\{.*?\})\]\]/g, (m, j) => {
+            try {
+              const f = JSON.parse(j);
+              return /^https?:\/\//i.test(f.file_url) ? ` [${String(f.file_name || 'File').replace(/[[\]\n]/g, ' ')}](${f.file_url})` : '';
+            } catch (e) {
+              return '';
+            }
+          })
+          .trim();
+        if (words) top.note = `${top.note.trim() ? top.note + '\n\n' : ''}${last !== top ? `**${last.replace(/\*/g, '')}:** ` : ''}${words}`;
+      }
+      if (type !== 'task') continue;
+      let words = get(r, 'CONTENT').trim(),
+        m;
+      const labels = [];
+      while ((m = /(?:^|\s)@((?:\\ |[^\s\\@])+)$/.exec(words))) {
+        labels.unshift(m[1].replace(/\\ /g, ' '));
+        words = words.slice(0, m.index).trimEnd();
+      }
+      // "* " makes a task that can't be ticked: a heading, in fact
+      words = words.replace(/^\*\s+/, '');
+      if (!words) continue;
+      const desc = get(r, 'DESCRIPTION');
+      if ((parseInt(get(r, 'INDENT'), 10) || 1) > 1 && top) {
+        const sub = [words, ...labels.map(imTag).filter(Boolean).map(g => '#' + g)].join(' ');
+        top.subs.push({ text: sub, done: false });
+        if (desc.trim()) top.note = `${top.note.trim() ? top.note + '\n\n' : ''}**${words.replace(/\*/g, '')}**\n${desc}`;
+        last = words;
+        continue;
+      }
+      const it = { text: words, note: desc, subs: [], tags: [project, ...labels], done: false },
+        date = get(r, 'DATE').trim(),
+        lang = get(r, 'DATE_LANG').trim() || 'en',
+        dl = imDay(get(r, 'DEADLINE').trim());
+      if (/^(?:every|ev)!?\s|^(?:daily|weekly|monthly|yearly|annually)\b/i.test(date)) {
+        // a repeat; its next date isn't exported, so it counts from today
+        const [, head, end] = /^(.*?)(?:\s+(?:until|ending|ends)\s+(.+))?$/i.exec(date),
+          until = end ? tdDay(end, lang, from) : null;
+        it.rep = end && !until ? null : wordsRep(head, until && until.k);
+        if (!it.rep) it.repText = date;
+        if (dl) it.note = `${it.note.trim() ? it.note + '\n\n' : ''}Deadline: ${LONG.format(fromKey(dl))}`;
+      } else if (date) {
+        const d = tdDay(date, lang, from);
+        if (d) {
+          it.due = d.k;
+          relative = relative || d.rel;
+        } else it.when = date;
+        if (dl) it.note = `${it.note.trim() ? it.note + '\n\n' : ''}Deadline: ${LONG.format(fromKey(dl))}`;
+      } else if (dl) it.due = dl;
+      out.push(it);
+      top = it;
+      last = top;
+    }
+    if (relative && from !== todayKey())
+      ctx.said.add(`Todoist wrote its dates from the day of the export (“today”, “in 4 days”): they count from ${dayName(from)}, when the file was saved.`);
+    return out;
   }
-  function fromTickTick() {
-    return [];
+  // A Todoist date as a day, and whether it was written from the day of the export: "today", "tomorrow", "in 4
+  // days", "3 days ago", or a short date in the account's language, with a time or not. An ISO date is read too.
+  function tdDay(v, lang, from) {
+    const s = norm(v)
+        .replace(/\s+/g, ' ')
+        .replace(/,? *(?:at|@|a|a las|as|alle|um|om|kl\.?|в)? *\d{1,2}(?:[:.h]\d\d *(?:am|pm|a\.?m\.?|p\.?m\.?)?|(?:am|pm))$/, '')
+        .trim(),
+      n = (x, u) => {
+        const d = fromKey(from);
+        if (u === 'day') d.setDate(d.getDate() + x);
+        else if (u === 'week') d.setDate(d.getDate() + 7 * x);
+        else if (u === 'month') d.setMonth(d.getMonth() + x);
+        else d.setFullYear(d.getFullYear() + x);
+        return { k: keyOf(d), rel: true };
+      };
+    let m;
+    if (s === 'today') return n(0, 'day');
+    if (s === 'tomorrow') return n(1, 'day');
+    if (s === 'yesterday') return n(-1, 'day');
+    if ((m = /^in (\d{1,5}) (day|week|month|year)s?$/.exec(s))) return n(+m[1], m[2]);
+    if ((m = /^(\d{1,5}) (day|week|month|year)s? ago$/.exec(s))) return n(-m[1], m[2]);
+    const iso = imDay(s.replace(/ .*$/, ''));
+    if (iso) return { k: iso, rel: false };
+    const k = shortDay(s, lang, from.slice(0, 4));
+    return k ? { k, rel: false } : null;
+  }
+  // "aug 2", "2 jan 2026", "7 мар 2026", "nov 20", "2. august": a month's name in that language (short, long or
+  // begun) and a day, with the year or in the year of the export.
+  const MNAMES = new Map();
+  function monthsOf(lang) {
+    const key = String(lang).replace('_', '-');
+    if (MNAMES.has(key)) return MNAMES.get(key);
+    const out = [];
+    for (const style of ['long', 'short'])
+      try {
+        const f = new Intl.DateTimeFormat(key, { month: style, timeZone: 'UTC' });
+        for (let i = 0; i < 12; i++) out.push([norm(f.format(new Date(Date.UTC(2026, i, 15)))).replace(/\./g, ''), i + 1]);
+      } catch (e) {}
+    MNAMES.set(key, out);
+    return out;
+  }
+  function shortDay(s, lang, year) {
+    const parts = s.split(/[\s,./-]+/).filter(Boolean),
+      names = monthsOf(lang).length ? monthsOf(lang) : monthsOf('en');
+    let mo = 0,
+      d = 0,
+      y = 0;
+    for (const p of parts) {
+      if (/^\d{4}$/.test(p)) y = +p;
+      else if (/^\d{1,2}$/.test(p) && !d) d = +p;
+      else if (!mo && /^\p{L}{3,}$/u.test(p)) {
+        const hit = names.find(([nm]) => nm === p || (nm.startsWith(p) && p.length >= 3) || (p.startsWith(nm) && nm.length >= 3));
+        if (hit) mo = hit[1];
+        else return null;
+      } else return null;
+    }
+    if (!mo || !d) return null;
+    const k = `${y || year}-${p2(mo)}-${p2(d)}`;
+    return keyOf(fromKey(k)) === k ? k : null;
   }
 
-  // Google Tasks, from Google Takeout (Tasks.json): its lists, each with its tasks. A done task carries the moment it
-  // was done; a due date is a day (written as midnight UTC); a sub-task names its parent. Recurrence isn't exported.
+  /* TickTick's backup (web app: Settings → Account → Backup & Import → Generate Backup), a CSV file: a few lines about
+     the file, then a row a task. Dates are UTC: an all-day one is midnight in the row's zone, a timed one a moment. A
+     checklist keeps its items in Content (▫ open, ▪ done), a sub-task names its parent's row, Repeat is an RRULE.
+     Status 2 (1 in older files) is done, -1 won't do; those, and notes, are not brought. */
+  const TTH = /"Folder Name","List Name","Title"/;
+  function fromTickTick(text, left) {
+    const rows = csvRows(text),
+      h = rows.findIndex(r => r[0] === 'Folder Name' && r.includes('Title'));
+    if (h < 0) return [];
+    const col = {};
+    rows[h].forEach((n, i) => (col[n.trim()] = i));
+    const get = (r, n) => (n in col ? String(r[col[n]] || '').trim() : ''),
+      items = [],
+      byId = new Map(),
+      kids = [];
+    let wont = 0,
+      notes = 0;
+    for (const r of rows.slice(h + 1)) {
+      if (r.length < 3) continue;
+      const kind = get(r, 'Kind').toUpperCase(),
+        status = get(r, 'Status');
+      if (kind === 'NOTE' || get(r, 'projectKind').toUpperCase() === 'NOTE') {
+        notes++;
+        continue;
+      }
+      if (status === '-1') {
+        wont++;
+        continue;
+      }
+      const tz = get(r, 'Timezone') || undefined,
+        subs = [];
+      let content = 'Content' in col ? String(r[col.Content] || '') : '';
+      if (kind === 'CHECKLIST' || /^y/i.test(get(r, 'Is Check list'))) {
+        const desc = [];
+        for (const ln of content.split(/\r\n|\r|\n/)) {
+          const m = /^\s*([▫▪])(.*)$/.exec(ln);
+          if (!m) desc.push(ln);
+          else if (m[2].trim()) subs.push({ text: m[2].trim(), done: m[1] === '▪' });
+        }
+        content = desc.join('\n');
+      }
+      const done = status === '2' || status === '1',
+        day = ttDay(get(r, 'Start Date') || get(r, 'Due Date'), /^true$/i.test(get(r, 'Is All Day')), /^true$/i.test(get(r, 'Is Floating')), tz),
+        it = { text: get(r, 'Title'), note: content, subs, tags: [get(r, 'List Name'), ...get(r, 'Tags').split(',')], done, due: done ? null : day };
+      if (done) {
+        const v = get(r, 'Completed Time'),
+          at = imAt(v);
+        it.at = at;
+        it.doneDay = at != null ? wall(at, tz).k : imDay(v.slice(0, 10)) || day;
+      } else if (get(r, 'Repeat')) {
+        it.rep = rruleRep(get(r, 'Repeat'));
+        if (!it.rep) it.repText = get(r, 'Repeat');
+      }
+      const id = get(r, 'taskId'),
+        parent = get(r, 'parentId');
+      if (id) byId.set(id, { it, parent });
+      if (parent) kids.push([parent, it]);
+      else items.push(it);
+    }
+    // A sub-task joins the task at the top of its line (a child's row may come before its parent's); one whose parent
+    // isn't in the file is a task of its own.
+    const rootOf = e => {
+      for (let i = 0; i < 20 && e.parent && byId.has(e.parent); i++) e = byId.get(e.parent);
+      return e;
+    };
+    for (const [p, it] of kids) {
+      const root = byId.has(p) ? rootOf(byId.get(p)).it : null;
+      if (!root || root === it) {
+        items.push(it);
+        continue;
+      }
+      root.subs.push({ text: it.text, done: it.done }, ...it.subs);
+      if (it.note.trim()) root.note = `${root.note.trim() ? root.note + '\n\n' : ''}**${it.text.replace(/\*/g, '')}**\n${it.note}`;
+    }
+    if (wont) left.push([wont, 'task marked Won’t do', 'tasks marked Won’t do']);
+    if (notes) left.push([notes, 'note', 'notes']);
+    return items;
+  }
+  // The day of a TickTick date: an all-day one in the row's zone (its midnight, or an hour or two before it when the
+  // zone changed), a floating one there too, a timed one where this browser is.
+  function ttDay(v, allDay, floating, tz) {
+    const t = imAt(v);
+    if (t == null) return imDay(String(v).slice(0, 10));
+    const w = wall(t, allDay || floating ? tz : undefined);
+    return allDay && w.m === 0 && w.s === 0 && w.h >= 22 ? addDays(w.k, 1) : w.k;
+  }
+
+  /* Google Tasks, from Google Takeout: Tasks.json holds every list. A task's day is the moment in its scheduled_time
+     (due in older files), which is its maker's midnight written in UTC; a done task carries the moment it was done; a
+     sub-task names its parent. Each list keeps its repeats, and every occurrence, done or not, names its own. */
+  const GDOW = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
+  // the moment a task is set for (some exports write that list as Python rather than JSON)
+  function gStart(t) {
+    const st = t.scheduled_time;
+    if (typeof st === 'string') {
+      const all = [...st.matchAll(/\{[^{}]*\}/g)].map(m => m[0]),
+        c = all.find(x => /'current':\s*True/.test(x)) || all[0] || '',
+        m = /'start':\s*'([^']+)'/.exec(c);
+      return m ? m[1] : null;
+    }
+    if (Array.isArray(st)) {
+      const c = st.find(x => x && x.current) || st[0];
+      if (c && typeof c.start === 'string') return c.start;
+    }
+    return typeof t.due === 'string' ? t.due : null;
+  }
+  // A date alone (midnight UTC, as the Tasks API writes it) is that day. Midnight on its maker's clock is that day here,
+  // an hour or two either side included (another zone, a change of time); any other time, the day it shows here.
+  function gDay(v, tz) {
+    const s = String(v || '').trim();
+    if (/^\d{4}-\d\d-\d\d(?:T00:00:00(?:\.0+)?Z)?$/i.test(s)) return imDay(s.slice(0, 10));
+    const t = imAt(s);
+    if (t == null) return null;
+    const w = wall(t, tz);
+    return w.m === 0 && w.s === 0 && w.h === 23 ? addDays(w.k, 1) : w.k;
+  }
+  // a list's repeat as One Day's, or null; one that has stopped is no repeat at all
+  function gRep(r) {
+    const sc = r && r.schedule,
+      iv = sc && sc.interval;
+    if (!iv || r.stopped === true || /^true$/i.test(r.stopped)) return null;
+    const every = Math.round(+iv.interval_multiplier || 1),
+      dow = d => GDOW.indexOf(String(d).toUpperCase());
+    let rep = null;
+    if (iv.daily) rep = { freq: 'day', every };
+    else if (iv.weekly) {
+      const ds = (Array.isArray(iv.weekly.day_of_week) ? iv.weekly.day_of_week : []).map(dow).filter(i => i > -1);
+      rep = { freq: 'week', every, days: [...new Set(ds)].sort((a, b) => a - b) };
+    } else if (iv.monthly) {
+      const mo = iv.monthly,
+        dw = mo.monthly_day_of_week;
+      if (mo.day_of_month != null) {
+        const d = +mo.day_of_month;
+        if (d === -1 || (d >= 1 && d <= 31)) rep = { freq: 'month', every, md: d === -1 ? 31 : d };
+      } else if (dw) {
+        const wd = dow(dw.day_of_week),
+          n = typeof dw.week_number === 'string' && !/^-?\d+$/.test(dw.week_number) ? ORD[dw.week_number.toLowerCase()] : +dw.week_number;
+        if (wd > -1 && (n === -1 || (n >= 1 && n <= 4))) rep = { freq: 'month', every, nth: n, wd };
+      }
+    } else if (iv.yearly && iv.yearly.date_of_year) {
+      const mo = +iv.yearly.date_of_year.month,
+        md = +iv.yearly.date_of_year.day;
+      if (mo >= 1 && mo <= 12 && md >= 1 && md <= MAXD[mo - 1]) rep = { freq: 'year', every, mo, md };
+    }
+    const end = sc.end_condition;
+    if (rep && end) {
+      const b = end.date_boundary,
+        k =
+          typeof b === 'string'
+            ? gDay(b, sc.time_zone)
+            : b && b.year
+              ? imDay(`${b.year}-${String(b.month).padStart(2, '0')}-${String(b.day).padStart(2, '0')}`)
+              : null;
+      if (!k) return null;
+      rep.until = k;
+    }
+    return rep;
+  }
+  // how a repeat that doesn't fit is written in the task's note
+  function gWords(r) {
+    const sc = (r && r.schedule) || {},
+      iv = sc.interval || {},
+      n = Math.round(+iv.interval_multiplier || 1),
+      u = iv.daily ? 'day' : iv.weekly ? 'week' : iv.monthly ? 'month' : iv.yearly ? 'year' : '',
+      lim = sc.end_condition && sc.end_condition.instance_number_limit;
+    return u ? `every ${n > 1 ? `${n} ${u}s` : u}${lim ? `, ${lim} times` : ''}` : 'a repeat';
+  }
   function fromGoogle(j) {
     const out = [];
     for (const list of j.items.slice(0, 1000)) {
@@ -3700,7 +4035,10 @@ try {
         byId = new Map(all.map(t => [t.id, t])),
         pos = t => (typeof t.position === 'string' ? t.position : ''),
         made = new Map(),
+        reps = new Map((Array.isArray(list.recurrences) ? list.recurrences : []).filter(r => r && typeof r.id === 'string').map(r => [r.id, r])),
+        ruled = new Set(),
         tag = typeof list.title === 'string' ? list.title : '';
+      // older files keep the list's order in position; newer ones in the order of the file
       all.sort((a, b) => (pos(a) < pos(b) ? -1 : pos(a) > pos(b) ? 1 : 0));
       const words = t => {
         const title = typeof t.title === 'string' ? t.title.trim() : '',
@@ -3718,11 +4056,18 @@ try {
         if (t.parent && byId.has(t.parent)) continue;
         const w = words(t),
           done = t.status === 'completed',
+          rec = typeof t.task_recurrence_id === 'string' ? reps.get(t.task_recurrence_id) : null,
+          day = gDay(gStart(t), rec && rec.schedule ? rec.schedule.time_zone : undefined),
           at = done ? imAt(t.completed) : null;
-        const it = { text: w.title, note: w.notes, subs: [], tags: [tag], done, due: done ? null : imDay(String(t.due || '').slice(0, 10)) };
+        const it = { text: w.title, note: w.notes, subs: [], tags: [tag], done, due: done ? null : day };
         if (done) {
           it.at = at;
-          it.doneDay = at != null ? keyOf(new Date(at)) : imDay(String(t.due || '').slice(0, 10));
+          it.doneDay = at != null ? keyOf(new Date(at)) : day;
+        } else if (rec && !ruled.has(rec.id)) {
+          // the occurrence still open carries the repeat; the done ones are its history
+          ruled.add(rec.id);
+          it.rep = gRep(rec);
+          if (!it.rep && !(rec.stopped === true || /^true$/i.test(rec.stopped))) it.repText = gWords(rec);
         }
         made.set(t.id, it);
         out.push(it);
@@ -3754,28 +4099,32 @@ try {
         m;
       if (!l) continue;
       const it = { text: '', tags: [], done: false };
-      if ((m = /^x\s+(?:(\d{4}-\d\d-\d\d)\s+)?(?:\d{4}-\d\d-\d\d\s+)?(?:\([A-Z]\)\s+)?/.exec(l))) {
+      // done: "x", then the day it was done and the day it was made (a single date is the first), a priority either side
+      if ((m = /^x\s+(?:\([A-Z]\)\s+)?(?:(\d{4}-\d\d-\d\d)\s+)?(?:\d{4}-\d\d-\d\d\s+)?(?:\([A-Z]\)\s+)?/.exec(l))) {
         it.done = true;
         it.doneDay = m[1] ? imDay(m[1]) : null;
         l = l.slice(m[0].length);
       } else if ((m = /^(?:\([A-Z]\)\s+)?(?:\d{4}-\d\d-\d\d\s+)?/.exec(l))) l = l.slice(m[0].length);
+      // sleek writes a multi-line task with U+0010 where its lines break: the first is the task, the rest its note
+      const [first, ...more] = l.split('\u0010');
+      it.note = more.join('\n');
       const words = [];
       let start = null,
         hidden = false;
-      for (const w of l.split(/\s+/)) {
-        const kv = /^([^\s:]+):([^\s:]+)$/.exec(w),
+      for (const w of first.split(/\s+/)) {
+        const kv = /^([^\s:]+):(\S*)$/.exec(w),
           k = kv && kv[1].toLowerCase();
-        if (/^[+@][^\s]/.test(w)) it.tags.push(w.slice(1));
-        else if (kv && !/^\/\//.test(kv[2]) && ['due', 't', 'rec', 'pri', 'h'].includes(k)) {
+        if (/^[+@]\S/.test(w)) it.tags.push(w.slice(1));
+        else if (kv && ['due', 't', 'rec', 'pri', 'h', 'hide'].includes(k)) {
           if (k === 'due') it.due = imDay(kv[2]);
           else if (k === 't') start = imDay(kv[2]);
           else if (k === 'rec') {
             it.rep = recRep(kv[2]);
             it.repText = w;
-          } else if (k === 'h') hidden = kv[2] === '1';
+          } else if (k === 'h' || k === 'hide') hidden = kv[2] !== '' && kv[2] !== '0';
         } else words.push(w);
       }
-      // Simpletask's h:1 lines only hold its lists
+      // a hidden line (h:1) only holds lists and tags for its app
       if (hidden) continue;
       it.text = words.join(' ') || it.tags.map(g => '#' + g).join(' ');
       if (!it.done && !it.due && start && start > tk) it.due = start;
@@ -3783,6 +4132,57 @@ try {
       out.push(it);
     }
     return out;
+  }
+  // A Todoist repeat, in the English words its dates are written in: "every day", "every 3 weeks", "every mon, fri",
+  // "every weekday", "every other month", "every 15th", "every last day", "every 2nd tue", "every jan 15", "every!
+  // 3 days" (from the day it is done), with a time or an end ("until dec 31") or not. Anything else is null.
+  const MON = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'],
+    ORD = { first: 1, second: 2, third: 3, fourth: 4, last: -1 };
+  const wdIn = w =>
+    w.length >= 2
+      ? WDL.findIndex(n => {
+          const l = n.toLowerCase();
+          return l.startsWith(w) || w === l + 's';
+        })
+      : -1;
+  function wordsRep(s, until) {
+    let v = String(s || '')
+      .toLowerCase()
+      .replace(/[.,]+$/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const m0 = /^(?:every|ev)!?\s+(.+)$/.exec(v);
+    if (/^(daily|weekly|monthly|yearly|annually)$/.test(v)) v = { daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year', annually: 'year' }[v];
+    else if (m0) v = m0[1];
+    else return null;
+    // a time of day is left out
+    v = v
+      .replace(/\s+(?:at|@)\s+\S.*$/, '')
+      .replace(/\s+\d{1,2}(?::\d\d\s*(?:am|pm)?|\s*(?:am|pm))$/, '')
+      .trim();
+    let m,
+      rep = null;
+    const n = x => (x === 'other' ? 2 : x ? +x : 1);
+    if ((m = /^(other |\d{1,2} )?days?$/.exec(v))) rep = { freq: 'day', every: n(m[1] && m[1].trim()) };
+    else if (/^(week|work)days?$/.test(v)) rep = { freq: 'week', every: 1, days: [0, 1, 2, 3, 4] };
+    else if (/^weekends?$/.test(v)) rep = { freq: 'week', every: 1, days: [5, 6] };
+    else if ((m = /^(other |\d{1,2} )?(week|month|year)s?$/.exec(v))) rep = { freq: m[2], every: n(m[1] && m[1].trim()) };
+    else if ((m = /^(?:(other) )?([a-z]+(?:(?:, ?| and | & )[a-z]+)*)$/.exec(v)) && m[2].split(/, ?| and | & /).every(w => wdIn(w) > -1)) {
+      rep = { freq: 'week', every: m[1] ? 2 : 1, days: [...new Set(m[2].split(/, ?| and | & /).map(wdIn))].sort((a, b) => a - b) };
+    } else if ((m = /^(?:the )?(\d{1,2})(?:st|nd|rd|th)?(?: day)?(?: of (?:the|each|every) month)?$/.exec(v)) && +m[1] >= 1 && +m[1] <= 31)
+      rep = { freq: 'month', every: 1, md: +m[1] };
+    else if (/^(?:the )?last day(?: of (?:the|each|every) month)?$/.test(v)) rep = { freq: 'month', every: 1, md: 31 };
+    else if ((m = /^(?:the )?([1-4])(?:st|nd|rd|th)|^(?:the )?(first|second|third|fourth|last)/.exec(v))) {
+      const rest = v.slice(m[0].length).trim().replace(/ of (?:the|each|every) month$/, ''),
+        w = wdIn(rest);
+      if (w > -1) rep = { freq: 'month', every: 1, nth: m[1] ? +m[1] : ORD[m[2]], wd: w };
+    } else if ((m = /^([a-z]{3,9}) (\d{1,2})(?:st|nd|rd|th)?$|^(\d{1,2})(?:st|nd|rd|th)? ([a-z]{3,9})$/.exec(v))) {
+      const mo = MON.indexOf((m[1] || m[4]).slice(0, 3)) + 1,
+        d = +(m[2] || m[3]);
+      if (mo && d <= MAXD[mo - 1]) rep = { freq: 'year', every: 1, mo, md: d };
+    }
+    if (rep && until) rep.until = until;
+    return rep && rep.every >= 1 && rep.every <= 99 ? rep : null;
   }
   // An iCalendar RRULE (TickTick writes its repeats so): the parts One Day can follow, or null. A repeat that ends after
   // a number of times, skips holidays or happens several times a day is not one of them.
@@ -3826,7 +4226,7 @@ try {
       if (!rep.md || rep.nth || (freq !== 'month' && !rep.mo) || (rep.mo && rep.md > MAXD[rep.mo - 1])) return null;
     }
     if (o.UNTIL) {
-      rep.until = imDay(o.UNTIL.replace(/^(\d{8})T.*$/, '$1'));
+      rep.until = imDay(o.UNTIL);
       if (!rep.until) return null;
     }
     return rep;
@@ -3834,12 +4234,12 @@ try {
   // rec:1w, rec:+2m, rec:3d, rec:1y, rec:1b (business days): "+" counts from the due date rather than from the day it
   // was done. One Day counts from the day either way.
   function recRep(v) {
-    const m = /^\+?(\d{0,2})([dbwmy])$/i.exec(v);
+    const m = /^\+?(?:(\d{1,3})([dbwmy])?|([dbwmy]))$/i.exec(v);
     if (!m) return null;
-    const n = +(m[1] || 1),
-      u = m[2].toLowerCase();
+    const n = +m[1] || 1,
+      u = (m[2] || m[3] || 'd').toLowerCase();
     if (u === 'b') return n === 1 ? { freq: 'week', every: 1, days: [0, 1, 2, 3, 4] } : null;
-    return n ? { freq: { d: 'day', w: 'week', m: 'month', y: 'year' }[u], every: n } : null;
+    return { freq: { d: 'day', w: 'week', m: 'month', y: 'year' }[u], every: n };
   }
 
   /* the import dialog: how many tasks, on which days, before they are added */
@@ -3898,6 +4298,10 @@ try {
     if (P.undated) notes.push(`${s(P.undated, 'done task', 'done tasks')} without a date ${P.undated > 1 ? 'are' : 'is'} left out.`);
     if (P.old) notes.push(`The oldest ${s(P.old, 'done task is', 'done tasks are')} left out: this browser can’t keep more.`);
     if (P.subcut) notes.push(`${s(P.subcut, 'sub-task', 'sub-tasks')} over 100 in a task ${P.subcut > 1 ? 'are' : 'is'} left out.`);
+    if (P.whens) notes.push(`${s(P.whens, 'date', 'dates')} One Day couldn’t read ${P.whens > 1 ? 'are written in their notes' : 'is written in its note'}.`);
+    if (found.left.length)
+      notes.push(`${AND.format(found.left.map(([n, one, many]) => s(n, one, many)))} ${found.left.length > 1 || found.left[0][0] > 1 ? 'are' : 'is'} left out.`);
+    notes.push(...found.said);
     IM.impNote.innerHTML = notes.map(x => `<p>${esc(x)}</p>`).join('');
     IM.impNote.hidden = !notes.length;
     IM.impT.textContent = P.n > 1 ? `${P.n} tasks from ${from}` : `A task from ${from}`;

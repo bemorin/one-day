@@ -2,3 +2,5 @@
 *.png binary
 *.woff2 binary
 *.ico binary
+# sample exports keep the bytes each app writes (BOM, CRLF, a bare CR inside a cell)
+tests/fixtures/** -text

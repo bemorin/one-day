@@ -1,0 +1,18 @@
+﻿"Date: 2026-11-24+0000"
+"Version: 7.2"
+"Status: 
+0 Normal
+-1 Abandoned 
+2 Completed"
+"Folder Name","List Name","Title","Kind","Tags","Content","Is Check list","Start Date","Due Date","Reminder","Repeat","Priority","Status","Created Time","Completed Time","Order","Timezone","Is All Day","Is Floating","Column Name","Column Order","View Mode","taskId","parentId","projectKind"
+"Work","Projects","Send the quarterly report","TEXT","work, finance","Attach the **summary** sheet.The numbers: https://example.com/q4","N","2026-11-26T13:00:00+0000","2026-11-26T13:00:00+0000","-PT30M","","5","0","2026-11-20T08:15:00+0000","","-1099511627776","Europe/Paris","false","false",,,"list","1","","TASK"
+"Work","Projects","Check the totals","TEXT","","","N","","","","","0","2","2026-11-20T08:17:00+0000","2026-11-21T09:00:00+0000","0","Europe/Paris","false","false",,,"list","2","3","TASK"
+"Work","Projects","Collect the figures","TEXT","","","N","","","","","0","0","2026-11-20T08:16:30+0000","","1099511627776","Europe/Paris","false","false",,,"list","3","1","TASK"
+"Work","Projects","Book the meeting room","TEXT","","","N","2026-11-22T23:00:00+0000","2026-11-22T23:00:00+0000","","","0","2","2026-11-10T09:00:00+0000","2026-11-23T10:42:07+0000","0","Europe/Paris","true","false",,,"list","4","","TASK"
+"Work","Projects","Old vendor follow-up","TEXT","","","N","","","","","0","-1","2026-10-02T10:00:00+0000","2026-10-30T16:12:44+0000","2199023255552","Europe/Paris","false","false",,,"list","5","","TASK"
+"","Inbox","Weekend groceries","CHECKLIST","shopping","▪Milk▫Eggs▫Coffee beans▫","Y","","","","","0","0","2026-11-21T17:05:00+0000","","-2199023255552","Europe/Paris","false","false",,,"list","6","","TASK"
+"","Inbox","Water the plants","TEXT","","","N","2026-11-25T23:00:00+0000","2026-11-25T23:00:00+0000","P0DT9H0M0S","FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TH","1","0","2026-10-01T07:30:00+0000","","-3298534883328","Europe/Paris","true","false",,,"list","7","","TASK"
+"","Reading notes","Book ideas","NOTE","","## Ideas- **Habit loops**: cue, routine, reward","N","","","","","0","0","2026-09-14T19:20:00+0000","","1099510906880","Europe/Paris","false","false","General","-1","kanban","8","","NOTE"
+"","Home","Pay the rent","TEXT","home","","N","2026-11-29T23:00:00+0000","2026-11-29T23:00:00+0000","","FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=-1","0","0","2026-09-01T10:00:00+0000","","0","Europe/Paris","true","false",,,"list","9","","TASK"
+"","Home","Take the bins out","TEXT","","","N","2026-11-24T23:00:00+0000","2026-11-24T23:00:00+0000","","ERULE:NAME=CUSTOM;BYDATE=20261125,20261209","0","0","2026-11-01T10:00:00+0000","","0","Europe/Paris","true","false",,,"list","10","","TASK"
+"","Inbox","Renew the insurance","TEXT","","","N","2026-11-02T23:00:00+0000","2026-11-02T23:00:00+0000","","","0","2","2026-10-20T10:00:00+0000","2026-11-03T15:20:00+0000","0","Europe/Paris","true","false",,,"list","11","","TASK"

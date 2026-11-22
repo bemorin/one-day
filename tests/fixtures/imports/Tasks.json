@@ -2,120 +2,195 @@
   "kind": "tasks#taskLists",
   "items": [
     {
-      "kind": "tasks#taskList",
-      "id": "MDE0NjY1NjIxNjM5NjI4MTE5NTI6MDow",
+      "visibility_on_web_fullscreen": "VISIBLE",
+      "create_time": "2019-03-14T09:12:45.101Z",
+      "kind": "tasks#tasks",
+      "id": "c2FtcGxlLWxpc3QtMQ",
       "title": "My Tasks",
-      "updated": "2026-11-23T18:02:11.000Z",
+      "updated": "2026-11-23T18:02:11.481233Z",
       "items": [
         {
-          "kind": "tasks#task",
-          "id": "aGtUa3FwT2VhSUxwV0pVaQ",
-          "title": "Renew the passport",
           "notes": "Two photos first.\nThe form: https://example.org/passport-form",
-          "status": "needsAction",
-          "due": "2026-11-25T00:00:00.000Z",
-          "updated": "2026-11-22T08:15:30.000Z",
-          "position": "00000000000000000000",
-          "links": [],
-          "web_view_link": "https://tasks.google.com/task/aGtUa3FwT2VhSUxwV0pVaQ"
+          "kind": "tasks#task",
+          "created": "2026-11-18T10:02:11.204518Z",
+          "id": "c2FtcGxlLXRhc2stMDE",
+          "title": "Renew the passport",
+          "scheduled_time": [{ "current": true, "start": "2026-11-24T23:00:00Z" }],
+          "task_type": "PERSONAL_TASK",
+          "updated": "2026-11-18T10:03:40.118220Z",
+          "selfLink": "https://www.googleapis.com/tasks/v1/lists/c2FtcGxlLWxpc3QtMQ/tasks/c2FtcGxlLXRhc2stMDE",
+          "status": "needsAction"
         },
         {
           "kind": "tasks#task",
-          "id": "bU9vV2JGc2Z4b0JmcGxZYQ",
+          "created": "2026-11-18T10:04:00.301655Z",
+          "id": "c2FtcGxlLXRhc2stMDI",
           "title": "Print the photos",
-          "status": "needsAction",
-          "parent": "aGtUa3FwT2VhSUxwV0pVaQ",
-          "updated": "2026-11-22T08:16:02.000Z",
-          "position": "00000000000000000000",
-          "links": []
+          "task_type": "PERSONAL_TASK",
+          "updated": "2026-11-18T10:04:00.442017Z",
+          "parent": "c2FtcGxlLXRhc2stMDE",
+          "selfLink": "https://www.googleapis.com/tasks/v1/lists/c2FtcGxlLWxpc3QtMQ/tasks/c2FtcGxlLXRhc2stMDI",
+          "status": "needsAction"
         },
         {
-          "kind": "tasks#task",
-          "id": "Y1NkU2l4bkZ6ZWlmY3VJZQ",
-          "title": "Fill in the form",
           "notes": "Use black ink.",
-          "status": "completed",
+          "kind": "tasks#task",
+          "created": "2026-11-18T10:05:00.000318Z",
+          "id": "c2FtcGxlLXRhc2stMDM",
           "completed": "2026-11-23T09:30:00.000Z",
-          "parent": "aGtUa3FwT2VhSUxwV0pVaQ",
-          "updated": "2026-11-23T09:30:00.000Z",
-          "position": "00000000000000000001",
-          "links": []
+          "title": "Fill in the form",
+          "task_type": "PERSONAL_TASK",
+          "updated": "2026-11-23T09:30:00.611904Z",
+          "parent": "c2FtcGxlLXRhc2stMDE",
+          "selfLink": "https://www.googleapis.com/tasks/v1/lists/c2FtcGxlLWxpc3QtMQ/tasks/c2FtcGxlLXRhc2stMDM",
+          "status": "completed"
         },
         {
           "kind": "tasks#task",
-          "id": "ZkRiNkFRNmVqTUdCa1JxbA",
+          "created": "2026-11-15T16:40:00.512Z",
+          "id": "c2FtcGxlLXRhc2stMDQ",
+          "completed": "2026-11-20T16:45:07.518Z",
           "title": "Call the bank",
-          "status": "completed",
-          "due": "2026-11-20T00:00:00.000Z",
-          "completed": "2026-11-20T16:45:00.000Z",
-          "updated": "2026-11-20T16:45:00.000Z",
-          "position": "00000000000000000001",
-          "links": []
+          "scheduled_time": [{ "current": true, "start": "2026-11-19T23:00:00Z" }],
+          "task_type": "PERSONAL_TASK",
+          "updated": "2026-11-20T16:45:07.611904Z",
+          "selfLink": "https://www.googleapis.com/tasks/v1/lists/c2FtcGxlLWxpc3QtMQ/tasks/c2FtcGxlLXRhc2stMDQ",
+          "status": "completed"
         },
         {
           "kind": "tasks#task",
-          "id": "a3FpN0V5RlRiWkFUeUJ1dw",
+          "created": "2026-11-21T11:00:00.000318Z",
+          "id": "c2FtcGxlLXRhc2stMDU",
           "title": "Reply to the landlord",
-          "status": "needsAction",
-          "updated": "2026-11-21T11:00:00.000Z",
-          "position": "00000000000000000002",
-          "links": [
-            {
-              "type": "email",
-              "description": "About the heating",
-              "link": "https://mail.google.com/mail/#all/18c2f0e1a2b3c4d5"
-            }
-          ]
+          "task_type": "PERSONAL_TASK",
+          "updated": "2026-11-21T11:00:00.442017Z",
+          "links": [{ "link": "https://keep.google.com/#NOTE/1a2b3c4d5e6f", "is_creation_point": true, "type": "keep" }],
+          "selfLink": "https://www.googleapis.com/tasks/v1/lists/c2FtcGxlLWxpc3QtMQ/tasks/c2FtcGxlLXRhc2stMDU",
+          "status": "needsAction"
         },
         {
           "kind": "tasks#task",
-          "id": "dFJ0a2ZQbXdYS0Q0M2xHZw",
+          "created": "2026-11-12T08:00:00.000318Z",
+          "id": "c2FtcGxlLXRhc2stMDY",
+          "title": "Dentist",
+          "scheduled_time": [{ "current": true, "start": "2026-11-26T14:30:00.000958Z" }],
+          "task_type": "PERSONAL_TASK",
+          "updated": "2026-11-12T08:00:00.442017Z",
+          "selfLink": "https://www.googleapis.com/tasks/v1/lists/c2FtcGxlLWxpc3QtMQ/tasks/c2FtcGxlLXRhc2stMDY",
+          "status": "needsAction"
+        },
+        {
+          "kind": "tasks#task",
+          "created": "2026-09-30T08:00:00Z",
+          "id": "c2FtcGxlLXRhc2stMDc",
+          "completed": "2026-10-02T08:00:00Z",
           "title": "Sort the old photos",
-          "status": "completed",
-          "completed": "2026-10-02T08:00:00.000Z",
-          "hidden": true,
-          "updated": "2026-10-03T08:00:00.000Z",
-          "position": "00000000000000000003",
-          "links": []
-        },
-        {
-          "kind": "tasks#task",
-          "id": "cWtjTkRDeEVSVnlFcm1aZg",
-          "title": "A task that was deleted",
-          "status": "needsAction",
-          "deleted": true,
-          "updated": "2026-11-01T10:00:00.000Z",
-          "position": "00000000000000000004",
-          "links": []
+          "task_type": "PERSONAL_TASK",
+          "updated": "2026-10-02T08:00:00.442017Z",
+          "selfLink": "https://www.googleapis.com/tasks/v1/lists/c2FtcGxlLWxpc3QtMQ/tasks/c2FtcGxlLXRhc2stMDc",
+          "status": "completed"
         }
-      ]
+      ],
+      "selfLink": "https://www.googleapis.com/tasks/v1/users/@me/lists/c2FtcGxlLWxpc3QtMQ"
     },
     {
-      "kind": "tasks#taskList",
-      "id": "UkZ3d3pNcVpWa2NJMnBSeQ",
-      "title": "Groceries",
-      "updated": "2026-11-23T07:40:00.000Z",
+      "recurrences": [
+        {
+          "external_reference_task_id": "c2FtcGxlLXRhc2stMTE",
+          "schedule": {
+            "first_instance_date": "2026-11-16T00:00:00Z",
+            "interval": { "interval_multiplier": 1, "weekly": { "day_of_week": ["MONDAY", "THURSDAY"] } },
+            "time_zone": "Europe/Paris"
+          },
+          "kind": "tasks#taskRecurrence",
+          "created": "2026-11-10T19:05:33.871204Z",
+          "id": "c2FtcGxlLXJ1bGUtMDE",
+          "title": "Take out the recycling"
+        },
+        {
+          "external_reference_task_id": "c2FtcGxlLXRhc2stMTM",
+          "schedule": {
+            "first_instance_date": "2026-11-10T00:00:00Z",
+            "interval": { "interval_multiplier": 1, "monthly": { "monthly_day_of_week": { "week_number": 2, "day_of_week": "TUESDAY" } } },
+            "time_zone": "Europe/Paris"
+          },
+          "kind": "tasks#taskRecurrence",
+          "created": "2026-11-01T19:05:33.871204Z",
+          "id": "c2FtcGxlLXJ1bGUtMDI",
+          "title": "Book club"
+        },
+        {
+          "external_reference_task_id": "c2FtcGxlLXRhc2stMTQ",
+          "schedule": {
+            "first_instance_date": "2026-11-20T00:00:00Z",
+            "interval": { "interval_multiplier": 1, "daily": {} },
+            "end_condition": { "instance_number_limit": 10 },
+            "time_zone": "Europe/Paris"
+          },
+          "kind": "tasks#taskRecurrence",
+          "created": "2026-11-19T19:05:33.871204Z",
+          "id": "c2FtcGxlLXJ1bGUtMDM",
+          "title": "Stretch"
+        }
+      ],
+      "visibility_on_web_fullscreen": "VISIBLE",
+      "create_time": "2024-02-03T11:20:09.334Z",
+      "kind": "tasks#tasks",
+      "id": "c2FtcGxlLWxpc3QtMg",
+      "title": "Home",
+      "updated": "2026-11-23T19:58:41.402117Z",
       "items": [
         {
           "kind": "tasks#task",
-          "id": "SEN0Ql9YdFZqV1l4a0hYbg",
-          "title": "Oat milk",
-          "status": "needsAction",
-          "updated": "2026-11-23T07:40:00.000Z",
-          "position": "00000000000000000000",
-          "links": []
+          "created": "2026-11-23T19:58:41.300772Z",
+          "id": "c2FtcGxlLXRhc2stMTI",
+          "title": "Take out the recycling",
+          "scheduled_time": [{ "current": true, "start": "2026-11-25T23:00:00Z" }],
+          "task_type": "PERSONAL_TASK",
+          "updated": "2026-11-23T19:58:41.402117Z",
+          "task_recurrence_id": "c2FtcGxlLXJ1bGUtMDE",
+          "selfLink": "https://www.googleapis.com/tasks/v1/lists/c2FtcGxlLWxpc3QtMg/tasks/c2FtcGxlLXRhc2stMTI",
+          "status": "needsAction"
         },
         {
           "kind": "tasks#task",
-          "id": "eW1aSGpVaUNoS1lMRnRCbg",
-          "title": "Coffee beans",
-          "status": "completed",
-          "completed": "2026-11-22T17:10:00.000Z",
-          "updated": "2026-11-22T17:10:00.000Z",
-          "position": "00000000000000000001",
-          "links": []
+          "created": "2026-11-10T19:05:33.871180Z",
+          "id": "c2FtcGxlLXRhc2stMTE",
+          "completed": "2026-11-23T19:58:41.220Z",
+          "title": "Take out the recycling",
+          "scheduled_time": [{ "current": true, "start": "2026-11-22T23:00:00Z" }],
+          "task_type": "PERSONAL_TASK",
+          "updated": "2026-11-23T19:58:41.402117Z",
+          "task_recurrence_id": "c2FtcGxlLXJ1bGUtMDE",
+          "selfLink": "https://www.googleapis.com/tasks/v1/lists/c2FtcGxlLWxpc3QtMg/tasks/c2FtcGxlLXRhc2stMTE",
+          "status": "completed"
+        },
+        {
+          "kind": "tasks#task",
+          "created": "2026-11-10T19:06:00.000000Z",
+          "id": "c2FtcGxlLXRhc2stMTM",
+          "title": "Book club",
+          "scheduled_time": "[{'current': True, 'start': '2026-12-07T23:00:00Z'}]",
+          "task_type": "PERSONAL_TASK",
+          "updated": "2026-11-10T19:06:00.000000Z",
+          "task_recurrence_id": "c2FtcGxlLXJ1bGUtMDI",
+          "selfLink": "https://www.googleapis.com/tasks/v1/lists/c2FtcGxlLWxpc3QtMg/tasks/c2FtcGxlLXRhc2stMTM",
+          "status": "needsAction"
+        },
+        {
+          "kind": "tasks#task",
+          "created": "2026-11-19T19:05:33.871180Z",
+          "id": "c2FtcGxlLXRhc2stMTQ",
+          "title": "Stretch",
+          "scheduled_time": [{ "current": true, "start": "2026-11-23T23:00:00Z" }],
+          "task_type": "PERSONAL_TASK",
+          "updated": "2026-11-19T19:05:33.871180Z",
+          "task_recurrence_id": "c2FtcGxlLXJ1bGUtMDM",
+          "selfLink": "https://www.googleapis.com/tasks/v1/lists/c2FtcGxlLWxpc3QtMg/tasks/c2FtcGxlLXRhc2stMTQ",
+          "status": "needsAction"
         }
-      ]
+      ],
+      "selfLink": "https://www.googleapis.com/tasks/v1/users/@me/lists/c2FtcGxlLWxpc3QtMg"
     }
   ]
 }

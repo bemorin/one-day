@@ -16,6 +16,7 @@ One Day is a single-page web app with no framework, no runtime dependencies, no 
 - **A sheet that fits its content.** On a large screen the day is a card on the page, resting in a thin frame of glass. It grows and shrinks on a spring as tasks come and go. On a phone it fills the screen.
 - **Add to any day.** The composer adds to the day on screen. Its day chip sends a task to another day (Today, Tomorrow, Next week or any date) without leaving the one you are on.
 - **Paste a list.** Paste several lines into the composer, or into a card's sub-task field, and each line becomes a task (or a sub-task). Bullets, numbers and checkboxes are left out, as Markdown, Notion, notes and to-do apps write them, and ticked items (`- [x]`, ☑, ✅) come in done. In the composer, a line set further in than the one above (as Notion and Markdown nest them) comes in as its sub-task. One undo takes them all back.
+- **Bring your tasks from another app.** _Import backup_ also reads Todoist, TickTick, Google Tasks and todo.txt exports, in the browser, and shows where they will go before adding them (see [Coming from another app](#coming-from-another-app)).
 - **Repeat.** A task can come back every few days, weeks or months: on chosen weekdays, or on a date or a weekday of the month. Each occurrence appears when its day comes; ticking or deleting one leaves the others alone, and missed ones don't pile up as leftovers.
 - **Send a task, or the whole day.** Share a task as a link from its card, or all of the day's open tasks at once (to someone else, or to yourself on another device). The task travels inside the link, after the `#`, which browsers never send to a server; whoever opens it can add it to their own One Day, on the day they choose.
 - **Tasks from your assistant.** Claude, ChatGPT or any assistant can write such a link for you: several tasks at once, each with a note, sub-tasks, a day and a repeat. One Day shows them all, each with a box to untick it, and adds them in one go, with one undo. The [link format](docs/links.md) is open, Claude Desktop and Claude Code get a small local [MCP server](mcp), and other assistants only need a paragraph of instructions.
@@ -32,6 +33,31 @@ One Day is a single-page web app with no framework, no runtime dependencies, no 
 - **Light and dark**, following your system, or switched in one click (the sun and moon at the top right). **Works offline** once installed, and installs as an app.
 
 ![One Day in light mode with an open task card, and in dark mode with the timer running](docs/hero.png)
+
+## Coming from another app
+
+Search → _Import backup_ (More on a phone) also reads what other to-do apps export. Pick the file, or the `.zip` it came in: One Day knows it by what it holds, whatever it is called. Before anything is added, it shows how many tasks will come and on which days; _Add all_ brings them in one step, and one undo takes them all back. The file is read here, in your browser: nothing is sent anywhere.
+
+| App              | What to pick                                                                                                                                                                                                                       | What comes over                                                                                                                                                                                                 | What stays behind                                                                                                                                  |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Todoist**      | One project: its ⋯ menu → _Import & export → Export to CSV_. Every project at once: _Settings → Backups_ (paid plans), the `.zip` as it is.                                                                                          | Open tasks, their descriptions and comments (with their files as links), sub-tasks, labels and the project as tags, dates, deadlines, repeats written in English                                                 | Done tasks: Todoist never exports them, so no history. Sections, priorities, times, reminders, durations, assignees; repeats in other languages go in the note |
+| **TickTick**     | In the web app: _Settings → Account → Backup & Import → Generate Backup_, a `.csv`                                                                                                                                                  | Open and done tasks (each on the day it was done), their content, checklist items and sub-tasks, tags and the list as tags, dates, repeats                                                                        | Tasks marked _Won't do_, notes, priorities, times, reminders, folders and kanban columns                                                           |
+| **Google Tasks** | [Google Takeout](https://takeout.google.com) with only _Tasks_ ticked: the `.zip` as it is, or the `Tasks.json` inside                                                                                                             | Open and done tasks (each on the day it was done), notes and links, sub-tasks, the list as a tag, dates, and the repeats each list keeps                                                                         | Times, stars, assignees                                                                                                                            |
+| **todo.txt**     | `todo.txt` and `done.txt`, both at once                                                                                                                                                                                            | Open and done tasks (each on the day it was done), `+projects` and `@contexts` as tags, `due:` (else `t:`, the day it may start), `rec:` repeats                                                                  | Priorities and creation dates; other `key:value` tags stay in the task's words                                                                     |
+
+How the tasks land:
+
+- **A done task goes on the day it was done**, so your history comes too, where the export has it. A task with a date goes on that day (an overdue one on its day, so it waits among the leftovers), and the rest on today.
+- **Lists, projects and labels become `#tags`**, in lower case, with hyphens for spaces. The list every account starts with (Inbox, My Tasks) brings none.
+- **Notes come along**, with their links, bold and lists, and so do **sub-tasks**. One Day has one level of them: deeper ones join the task at the top, and their own notes join its note.
+- **A repeat becomes a One Day repeat when it fits:** every few days, weeks, months or years, on weekdays, or on a date or a weekday of the month (the 15th, the last day, the second Tuesday). It shows up next on its day, and the dialog lists every repeat before anything is added. One that counts from the day it was done (Todoist's `every!`, todo.txt's `rec:` without `+`) counts from the task's day instead. Todoist doesn't export a repeat's next date, so its repeats count from today. Any other repeat (every other weekday, twice a month, a set number of times…) comes in once, with the repeat written in its note.
+- **Todoist writes its dates from the day of the export** ("today", "in 4 days") unless _Use relative dates_ is unticked: One Day counts them from the day the file was saved, and the dialog says so when that isn't today. Backups write short dates in the account's language ("Aug 2", "10 Apr"); a date One Day can't read goes in the task's note.
+- **Left behind everywhere:** priorities, times of day, reminders and durations. One Day plans days, not hours.
+- **One Day's limits hold:** 300 tasks a day, 100 sub-tasks a task, 300 repeating tasks, and what the browser can keep (about 5 MB: past that, the oldest done tasks are left out). The dialog says what was left out.
+
+Things, Apple Reminders, Microsoft To Do and Notion have no export One Day can read. Select the tasks there, copy them, and paste them into the composer: each line becomes a task (see _Paste a list_ above). A plain `.txt` or Markdown list file is read the same way.
+
+Made-up sample exports, one per app, are in [`tests/fixtures/imports`](tests/fixtures/imports).
 
 ## Keyboard
 
@@ -62,7 +88,7 @@ On a phone: tap a task to open it, hold then drag to reorder, swipe sideways to 
 - **The service worker caches the app's files only**, so it opens instantly and works offline. It never reads your tasks.
 - **Sent tasks travel in the link itself**, after the `#`, never through a server. Anyone who has the link can read the task, as with any message. The same goes for links written by an assistant: its provider sees what you ask it, as always, but no One Day server is involved, and the [MCP server](mcp) runs on your computer without any network access. See [docs/links.md](docs/links.md#privacy-plainly).
 - **Works offline, even from a cold start**, once you have opened it online one time. Install it (or add it to your Home Screen) so the browser keeps its storage: Safari can clear the data of sites you have not opened for a week.
-- **Backups are yours.** Search → _Export backup_ downloads a JSON file (encrypted when the lock is on). _Import backup_ merges one back without overwriting existing tasks.
+- **Backups are yours.** Search → _Export backup_ downloads a JSON file (encrypted when the lock is on). _Import backup_ merges one back without overwriting existing tasks. It reads other apps' exports the same way: in the browser, with nothing sent anywhere, and nothing stored but the tasks it adds.
 - **The lock is optional, and only yours.** With a passphrase, your tasks are kept encrypted in the browser and backups are encrypted too. Nobody can open them without it, not even the maker of One Day, so a forgotten passphrase cannot be recovered: the only way out is to erase the tasks and start again. Changing the passphrase changes the key that encrypts them, so an old copy and the old passphrase open nothing written since. If your browser saves the passphrase, it can fill it in for anyone using that browser. Tasks saved before you turned the lock on can stay in the browser’s own files for a while, until it clears them.
 - **Erasing everything:** clear this site's data in your browser settings.
 
@@ -82,7 +108,7 @@ Found a problem? See [SECURITY.md](SECURITY.md).
 
 One Day targets **WCAG 2.2 AA**: everything works with a keyboard (including a keyboard alternative to dragging), controls have accessible names, focus is visible and returns where it came from, text meets 4.5:1 contrast, and all motion is turned off when _Reduce motion_ is on.
 
-The test suite runs [axe-core](https://github.com/dequelabs/axe-core) on the main view, an open card, search, the timer, the day picker and incoming tasks, in light and dark. Automated checks cover a subset of WCAG, so testing with VoiceOver or NVDA is still worthwhile.
+The test suite runs [axe-core](https://github.com/dequelabs/axe-core) on the main view, an open card, search, the timer, the day picker, incoming tasks and the import dialog, in light and dark. Automated checks cover a subset of WCAG, so testing with VoiceOver or NVDA is still worthwhile.
 
 ## Install it as an app
 
@@ -134,6 +160,7 @@ mcp/                    the local MCP server for Claude (one tool, no dependenci
 docs/links.md           the link format that carries tasks into One Day
 skills/one-day/         the same, as a skill for ChatGPT or Claude
 tests/                  Playwright tests
+  fixtures/imports/     made-up exports from Todoist, TickTick, Google Tasks and todo.txt
 ```
 
 After changing any file the service worker caches, bump `CACHE` in `public/sw.js` so installed copies update.

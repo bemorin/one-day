@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, utimesSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { deflateRawSync, crc32 } from 'node:zlib';
 import AxeBuilder from '@axe-core/playwright';
 
@@ -9,6 +11,13 @@ const NOW = new Date('2026-11-24T12:00:00Z');
 test.use({ timezoneId: 'Europe/Paris' });
 const fixture = name => readFileSync(new URL(`./fixtures/imports/${name}`, import.meta.url));
 const file = (name, body, mimeType = 'text/plain') => ({ name, mimeType, buffer: Buffer.isBuffer(body) ? body : Buffer.from(body) });
+// A file on disk saved at a given moment: Todoist counts its dates from the day of the export.
+function saved(name, body, when = NOW) {
+  const p = join(mkdtempSync(join(tmpdir(), 'one-day-')), name);
+  writeFileSync(p, body);
+  utimesSync(p, when, when);
+  return p;
+}
 
 // A .zip as Todoist's backups and Google Takeout write one: deflated entries, then the central directory.
 function zip(entries) {
@@ -131,20 +140,27 @@ test.describe('importing from other apps', () => {
     expect(back.rules).toEqual({});
   });
 
-  test('Google Takeout, as its .zip: lists as tags, done tasks on the day they were done, sub-tasks under their task', async ({ page }) => {
-    await page.emulateMedia({ colorScheme: 'light' });
+  test('Google Takeout, as its .zip: days from scheduled_time, the history, sub-tasks, and the repeats each list keeps', async ({ page }) => {
     await open(page);
     const json = fixture('Tasks.json');
     await pick(page, file('takeout-20261124T090000Z-001.zip', zip([['Takeout/archive_browser.html', '<html></html>'], ['Takeout/Tasks/Tasks.json', json]]), 'application/zip'));
-    await expect(page.locator('#impT')).toHaveText('6 tasks from Google Tasks');
+    await expect(page.locator('#impT')).toHaveText('9 tasks from Google Tasks');
     const rows = page.locator('#impList li');
-    await expect(rows.filter({ hasText: 'Tomorrow' })).toContainText('Renew the passport');
-    await expect(rows.filter({ hasText: 'Fri 20 Nov' })).toContainText('Call the bank');
-    await expect(rows.filter({ hasText: 'Fri 2 Oct' })).toContainText('Sort the old photos');
-    await expect(page.locator('#impList')).not.toContainText('deleted');
+    await expect(rows.filter({ hasText: /^Today/ })).toContainText('2 tasks');
+    await expect(rows.filter({ hasText: /^Tomorrow/ })).toContainText('Renew the passport');
+    await expect(rows.filter({ hasText: /^Thu 26 Nov/ })).toContainText('Dentist, Take out the recycling');
+    await expect(rows.filter({ hasText: /^Tue 8 Dec/ })).toContainText('Book club');
+    await expect(rows.filter({ hasText: /^Take out the recycling/ })).toContainText('Every Monday and Thursday');
+    await expect(rows.filter({ hasText: /^Book club/ })).toContainText('Every month on the second Tuesday');
+    await expect(rows.filter({ hasText: /^Yesterday/ })).toContainText('1 done');
+    await expect(rows.filter({ hasText: /^Fri 20 Nov/ })).toContainText('Call the bank');
+    await expect(rows.filter({ hasText: /^Fri 2 Oct/ })).toContainText('Sort the old photos');
+    await expect(page.locator('#impNote')).toContainText('come in as tags: #home.');
+    await expect(page.locator('#impNote')).toContainText('1 repeat One Day can’t follow is written in its note.');
     await page.locator('#impGo').click();
-    await expect(page.locator('#toast')).toContainText('Imported 6 tasks from Google Tasks');
+    await expect(page.locator('#toast')).toContainText('Imported 9 tasks from Google Tasks');
     const s = await stored(page),
+      texts = k => s.days[k].tasks.map(t => t.text),
       passport = s.days['2026-11-25'].tasks[0];
     expect(passport.text).toBe('Renew the passport');
     expect(passport.subs.map(x => [x.text, x.done])).toEqual([
@@ -153,23 +169,172 @@ test.describe('importing from other apps', () => {
     ]);
     expect(passport.note).toContain('<a href="https://example.org/passport-form"');
     expect(passport.note).toContain('Use black ink.');
-    expect(s.days['2026-11-24'].tasks.map(t => t.text)).toEqual(['Reply to the landlord', 'Oat milk #groceries']);
-    expect(s.days['2026-11-24'].tasks[0].note).toContain('About the heating');
-    expect(s.days['2026-11-22'].tasks.map(t => [t.text, t.done])).toEqual([['Coffee beans #groceries', true]]);
-    expect(s.days['2026-10-02'].tasks.map(t => t.text)).toEqual(['Sort the old photos']);
+    expect(texts('2026-11-24')).toEqual(['Reply to the landlord', 'Stretch #home']);
+    expect(s.days['2026-11-24'].tasks[0].note).toContain('<a href="https://keep.google.com/#NOTE/1a2b3c4d5e6f"');
+    expect(s.days['2026-11-24'].tasks[1].note).toContain('Repeats in Google Tasks: every day, 10 times');
+    expect(texts('2026-11-26')).toEqual(['Dentist', 'Take out the recycling #home']);
+    expect(texts('2026-12-08')).toEqual(['Book club #home']);
+    expect(Object.values(s.rules).map(r => [r.text, r.freq, r.start, r.days || r.nth])).toEqual([
+      ['Take out the recycling #home', 'week', '2026-11-26', [0, 3]],
+      ['Book club #home', 'month', '2026-12-08', 2],
+    ]);
+    expect(s.days['2026-11-23'].tasks.map(t => [t.text, t.done])).toEqual([['Take out the recycling #home', true]]);
+    expect(texts('2026-11-20')).toEqual(['Call the bank']);
+    expect(texts('2026-10-02')).toEqual(['Sort the old photos']);
   });
 
-  test('a due date written as midnight UTC stays on its day west of Greenwich', async ({ browser }) => {
+  test('older Takeout files: a due date alone stays on its day, a maker’s midnight lands on that day west of Greenwich', async ({ browser }) => {
     const ctx = await browser.newContext({ timezoneId: 'America/Los_Angeles', viewport: { width: 1280, height: 860 } }),
       page = await ctx.newPage();
     await open(page);
-    await pick(page, file('Tasks.json', fixture('Tasks.json'), 'application/json'));
+    const json = JSON.stringify({
+      kind: 'tasks#taskLists',
+      items: [
+        {
+          kind: 'tasks#taskList',
+          id: 'l1',
+          title: 'Errands',
+          items: [
+            { kind: 'tasks#task', id: 'a', title: 'Post the parcel', status: 'needsAction', due: '2026-11-25T00:00:00.000Z', position: '00000000000000000001' },
+            { kind: 'tasks#task', id: 'b', title: 'Return the keys', status: 'needsAction', due: '2026-11-26T08:00:00.000Z', position: '00000000000000000000' },
+            { kind: 'tasks#task', id: 'c', title: 'Call the bank', status: 'completed', completed: '2026-11-20T16:45:00.000Z', position: '00000000000000000002' },
+          ],
+        },
+      ],
+    });
+    await pick(page, file('Tasks.json', json, 'application/json'));
     await page.locator('#impGo').click();
     const s = await stored(page);
-    expect(s.days['2026-11-25'].tasks[0].text).toBe('Renew the passport');
+    expect(s.days['2026-11-25'].tasks.map(t => t.text)).toEqual(['Post the parcel #errands']);
+    // 08:00 UTC is midnight in Los Angeles
+    expect(s.days['2026-11-26'].tasks.map(t => t.text)).toEqual(['Return the keys #errands']);
     // done at 16:45 UTC on the 20th: 08:45 that morning in Los Angeles
-    expect(s.days['2026-11-20'].tasks[0].text).toBe('Call the bank');
+    expect(s.days['2026-11-20'].tasks.map(t => t.text)).toEqual(['Call the bank #errands']);
     await ctx.close();
+  });
+
+  test('TickTick: the history, checklists and sub-tasks, RRULE repeats; Won’t do and notes stay behind', async ({ page }) => {
+    await open(page);
+    await pick(page, file('TickTick-backup-2026-11-24.csv', fixture('TickTick-backup-2026-11-24.csv'), 'text/csv'));
+    await expect(page.locator('#impT')).toHaveText('7 tasks from TickTick');
+    const rows = page.locator('#impList li');
+    await expect(rows.filter({ hasText: /^Today/ })).toContainText('Weekend groceries');
+    await expect(rows.filter({ hasText: /^Tomorrow/ })).toContainText('Take the bins out');
+    await expect(rows.filter({ hasText: /^Thu 26 Nov/ })).toContainText('Send the quarterly report, Water the plants');
+    await expect(rows.filter({ hasText: /^Mon 30 Nov/ })).toContainText('Pay the rent');
+    await expect(rows.filter({ hasText: /^Water the plants/ })).toContainText('Every Monday and Thursday');
+    await expect(rows.filter({ hasText: /^Yesterday/ })).toContainText('Book the meeting room');
+    await expect(rows.filter({ hasText: /^Tue 3 Nov/ })).toContainText('Renew the insurance');
+    const note = page.locator('#impNote');
+    await expect(note).toContainText('come in as tags: #projects, #work, #finance, #shopping, #home.');
+    await expect(note).toContainText('1 repeat One Day can’t follow is written in its note.');
+    await expect(note).toContainText('1 task marked Won’t do and 1 note are left out.');
+    await page.locator('#impGo').click();
+    const s = await stored(page),
+      texts = k => s.days[k].tasks.map(t => t.text);
+    const groceries = s.days['2026-11-24'].tasks[0];
+    expect(groceries.text).toBe('Weekend groceries #shopping');
+    expect(groceries.subs.map(x => [x.text, x.done])).toEqual([
+      ['Milk', true],
+      ['Eggs', false],
+      ['Coffee beans', false],
+    ]);
+    const report = s.days['2026-11-26'].tasks[0];
+    expect(report.text).toBe('Send the quarterly report #projects #work #finance');
+    expect(report.note).toBe('<div>Attach the <b>summary</b> sheet.</div><div>The numbers: <a href="https://example.com/q4" target="_blank" rel="noopener noreferrer">https://example.com/q4</a></div>');
+    expect(report.subs.map(x => [x.text, x.done])).toEqual([
+      ['Check the totals', true],
+      ['Collect the figures', false],
+    ]);
+    expect(texts('2026-11-25')).toEqual(['Take the bins out #home']);
+    expect(s.days['2026-11-25'].tasks[0].note).toContain('Repeats in TickTick: ERULE:NAME=CUSTOM;BYDATE=20261125,20261209');
+    expect(texts('2026-11-30')).toEqual(['Pay the rent #home']);
+    expect(Object.values(s.rules).map(r => [r.text, r.freq, r.start, r.days || null, r.skip || null])).toEqual([
+      ['Water the plants', 'week', '2026-11-26', [0, 3], null],
+      ['Pay the rent #home', 'month', '2026-10-31', null, ['2026-10-31']],
+    ]);
+    expect(s.days['2026-11-23'].tasks.map(t => [t.text, t.done])).toEqual([['Book the meeting room #projects', true]]);
+    expect(texts('2026-11-03')).toEqual(['Renew the insurance']);
+    const all = Object.values(s.days).flatMap(d => d.tasks.map(t => t.text));
+    expect(all.some(t => /vendor|Book ideas/.test(t))).toBe(false);
+  });
+
+  test('Todoist, a project exported as CSV: dates from the day of the export, sub-tasks by INDENT, labels, comments', async ({ page }) => {
+    await open(page);
+    await pick(page, saved('Home.csv', fixture('Home.csv')));
+    await expect(page.locator('#impT')).toHaveText('7 tasks from Todoist');
+    const rows = page.locator('#impList li');
+    await expect(rows.filter({ hasText: /^Today/ })).toContainText('Clean the gutters, Pantry staples');
+    await expect(rows.filter({ hasText: /^Tomorrow/ })).toContainText('Call the plumber');
+    await expect(rows.filter({ hasText: /^Sat 28 Nov/ })).toContainText('Weekly shop');
+    await expect(rows.filter({ hasText: /^Mon 30 Nov/ })).toContainText('Water the plants, Pay the rent');
+    await expect(rows.filter({ hasText: /^Water the plants/ })).toContainText('Every Monday');
+    await expect(rows.filter({ hasText: /^Sat 21 Nov/ })).toContainText('Renew the passport, finally');
+    await expect(page.locator('#impNote')).toContainText('come in as tags: #home, #phone, #green-thumb, #errands.');
+    await expect(page.locator('#impNote')).toContainText('1 repeat One Day can’t follow is written in its note.');
+    await expect(page.locator('#impNote')).not.toContainText('when the file was saved');
+    await page.locator('#impGo').click();
+    const s = await stored(page),
+      texts = k => s.days[k].tasks.map(t => t.text);
+    expect(texts('2026-11-24')).toEqual(['Clean the gutters #home', 'Pantry staples #home']);
+    expect(s.days['2026-11-24'].tasks[0].note).toContain('Repeats in Todoist: every 2nd and 4th sat');
+    const plumber = s.days['2026-11-25'].tasks[0];
+    expect(plumber.text).toBe('Call the plumber #home #phone');
+    expect(plumber.note).toContain('Ask about the kitchen tap too');
+    expect(plumber.note).toContain('Deadline: Saturday 28 November');
+    const passport = s.days['2026-11-21'].tasks[0];
+    expect(passport.text).toBe('Renew the passport, finally #home');
+    expect(passport.note).toBe('<div>Bring two photos.</div><div>The old passport is in the &quot;misc&quot; drawer.</div>');
+    expect(passport.subs.map(x => x.text)).toEqual(['Book the photo booth']);
+    const shop = s.days['2026-11-28'].tasks[0];
+    expect(shop.text).toBe('Weekly shop #home #errands');
+    expect(shop.subs.map(x => x.text)).toEqual(['Oat milk']);
+    expect(shop.note).toContain('<a href="https://example.com/list" target="_blank" rel="noopener noreferrer">shared note</a>');
+    expect(shop.note).toContain('<b>Oat milk:</b> Barista edition if they have it');
+    expect(texts('2026-11-30')).toEqual(['Water the plants #home #green-thumb', 'Pay the rent #home']);
+    expect(Object.values(s.rules).map(r => [r.text, r.freq, r.start, r.days || null])).toEqual([
+      ['Water the plants #home #green-thumb', 'week', '2026-11-24', [0]],
+      ['Pay the rent #home', 'month', '2026-10-31', null],
+    ]);
+    // a section is no task
+    expect(Object.values(s.days).flatMap(d => d.tasks.map(t => t.text)).some(t => /^Groceries/.test(t))).toBe(false);
+  });
+
+  test('Todoist, a file saved days ago: its dates count from that day, and the dialog says so', async ({ page }) => {
+    await open(page);
+    await pick(page, saved('Home.csv', fixture('Home.csv'), new Date('2026-11-22T18:00:00Z')));
+    await expect(page.locator('#impNote')).toContainText('they count from Sunday 22 November, when the file was saved.');
+    await expect(page.locator('#impList li').filter({ hasText: /^Yesterday/ })).toContainText('Call the plumber');
+    await expect(page.locator('#impList li').filter({ hasText: /^Thu 26 Nov/ })).toContainText('Weekly shop');
+  });
+
+  test('Todoist backups, as their .zip: one project a file, short dates in the account’s language', async ({ page }) => {
+    await open(page);
+    await pick(
+      page,
+      file(
+        'backup.zip',
+        zip([
+          ['Work [6X7rM8jvh9QPh2vw].csv', fixture('Work [6X7rM8jvh9QPh2vw].csv')],
+          ['Zuhause [6X7rM8jvh9QPh2vx].csv', fixture('Zuhause [6X7rM8jvh9QPh2vx].csv')],
+        ]),
+        'application/zip',
+      ),
+    );
+    await expect(page.locator('#impT')).toHaveText('6 tasks from Todoist');
+    await expect(page.locator('#impNote')).toContainText('1 date One Day couldn’t read is written in its note.');
+    await page.locator('#impGo').click();
+    const s = await stored(page),
+      texts = k => s.days[k].tasks.map(t => t.text);
+    expect(texts('2026-11-26')).toEqual(['Send the invoice #work']);
+    expect(texts('2026-12-03')).toEqual(['Prepare the slides #work']);
+    // the weekly review's next Friday, then the German account's 27 Nov
+    expect(texts('2026-11-27')).toEqual(['Weekly review #work', 'Fenster putzen #zuhause']);
+    // a title keeps the words of its link, the link goes to the note
+    expect(texts('2026-11-24')).toEqual(['Read the guide before Monday #work', 'Müll rausbringen #zuhause']);
+    expect(s.days['2026-11-24'].tasks[0].note).toContain('<a href="https://example.com/guide" target="_blank" rel="noopener noreferrer">the guide</a>');
+    expect(s.days['2026-11-24'].tasks[1].note).toContain('Date in Todoist: jeden Dienstag');
+    expect(Object.values(s.rules).map(r => [r.text, r.days])).toEqual([['Weekly review #work', [4]]]);
   });
 
   test('Cancel and Escape add nothing; focus goes back to Import', async ({ page }) => {
