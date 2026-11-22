@@ -3959,19 +3959,39 @@ try {
     MNAMES.set(key, out);
     return out;
   }
+  // the weekdays' names in a language (a date may begin with one: "Wednesday, November 25, 2026")
+  const DNAMES = new Map();
+  function daysOf(lang) {
+    const key = String(lang).replace('_', '-');
+    if (!DNAMES.has(key)) {
+      const out = [];
+      for (const style of ['long', 'short'])
+        try {
+          const f = new Intl.DateTimeFormat(key, { weekday: style, timeZone: 'UTC' });
+          for (let i = 0; i < 7; i++) out.push(norm(f.format(new Date(Date.UTC(2026, 10, 23 + i)))).replace(/\./g, ''));
+        } catch (e) {}
+      DNAMES.set(key, out);
+    }
+    return DNAMES.get(key);
+  }
   function shortDay(s, lang, year) {
     const parts = s.split(/[\s,./-]+/).filter(Boolean),
-      names = monthsOf(lang).length ? monthsOf(lang) : monthsOf('en');
+      names = monthsOf(lang).length ? monthsOf(lang) : monthsOf('en'),
+      days = daysOf(lang),
+      near = (a, b) => a === b || (a.length >= 3 && b.startsWith(a)) || (b.length >= 3 && a.startsWith(b));
     let mo = 0,
       d = 0,
       y = 0;
     for (const p of parts) {
+      let m;
       if (/^\d{4}$/.test(p)) y = +p;
-      else if (/^\d{1,2}$/.test(p) && !d) d = +p;
-      else if (!mo && /^\p{L}{3,}$/u.test(p)) {
-        const hit = names.find(([nm]) => nm === p || (nm.startsWith(p) && p.length >= 3) || (p.startsWith(nm) && nm.length >= 3));
+      // 26, 26th, 1er, 3e
+      else if ((m = /^(\d{1,2})(?:st|nd|rd|th|er|re|e|eme|º|°)?$/.exec(p)) && !d) d = +m[1];
+      else if (/^\p{L}{2,}$/u.test(p)) {
+        // a month's name first (Spanish "mar" is March as well as Tuesday), then a weekday's or a little word to pass
+        const hit = !mo && p.length >= 3 && names.find(([nm]) => near(p, nm));
         if (hit) mo = hit[1];
-        else return null;
+        else if (!days.some(n => near(p, n)) && !['of', 'the', 'de', 'del', 'le', 'el', 'der', 'den', 'am', 'du'].includes(p)) return null;
       } else return null;
     }
     if (!mo || !d) return null;
@@ -4043,15 +4063,33 @@ try {
     }
     // A sub-task joins the task at the top of its line (a child's row may come before its parent's). One whose parent
     // isn't in the file, or whose line turns in a circle, is a task of its own, and so are the tasks under it.
-    const rootOf = e => {
-      const path = new Set([e]);
-      while (e.parent && byId.has(e.parent)) {
-        e = byId.get(e.parent);
-        if (path.has(e)) return null;
-        path.add(e);
-      }
-      return e;
-    };
+    // each line is walked once: what is found for a task holds for every task on the way up (null for a circle)
+    const roots = new Map(),
+      rootOf = e => {
+        const path = [],
+          on = new Set();
+        let x = e,
+          r;
+        for (;;) {
+          if (roots.has(x)) {
+            r = roots.get(x);
+            break;
+          }
+          if (on.has(x)) {
+            r = null;
+            break;
+          }
+          on.add(x);
+          path.push(x);
+          if (!(x.parent && byId.has(x.parent))) {
+            r = x;
+            break;
+          }
+          x = byId.get(x.parent);
+        }
+        for (const p of path) roots.set(p, r);
+        return r;
+      };
     const own = new Set(items);
     for (const e of kids) {
       const r = rootOf(e);
@@ -4095,8 +4133,10 @@ try {
     return etpl.content.textContent.trim();
   }
   function enText(block, tag) {
-    const m = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`).exec(block);
-    return m ? enDecode(m[1]) : '';
+    const a = `<${tag}>`,
+      i = block.indexOf(a),
+      j = i > -1 ? block.indexOf(`</${tag}>`, i + a.length) : -1;
+    return j > -1 ? enDecode(block.slice(i + a.length, Math.min(j, i + a.length + 30000))) : '';
   }
   // the inside of each <tag>…</tag> of a text, found in one pass
   function blocks(s, tag, max) {
@@ -4127,7 +4167,7 @@ try {
         nb = ti > -1 ? b.slice(0, ti) : b,
         title = enText(nb, 'title').slice(0, 2000).replace(/\s+/g, ' ').trim() || 'Untitled note',
         tags = blocks(nb, 'tag', 50).map(t => enDecode(t.slice(0, 200))),
-        body = enBody(content ? enDecode(content) : ''),
+        body = enBody(content ? enDecode(content).slice(0, 200000) : ''),
         rem = imAt(enText(nb, 'reminder-time')),
         remDone = imAt(enText(nb, 'reminder-done-time'));
       let made = false;
@@ -4141,9 +4181,8 @@ try {
         made = true;
       }
       // its tasks, in their order (sortWeight compares as written)
-      const weight = x => enText(x, 'sortWeight');
-      tasks.sort((x, y) => (weight(x) < weight(y) ? -1 : weight(x) > weight(y) ? 1 : 0));
-      for (const x of tasks) {
+      const order = tasks.map(x => [enText(x, 'sortWeight'), x]).sort((a, z) => (a[0] < z[0] ? -1 : a[0] > z[0] ? 1 : 0));
+      for (const [, x] of order) {
         const tz = enText(x, 'timeZone') || undefined,
           done = enText(x, 'taskStatus').toLowerCase() === 'completed',
           due = imAt(enText(x, 'dueDate')),
@@ -4179,8 +4218,8 @@ try {
     const items = [],
       style = a => ((/style\s*=\s*"([^"]*)"/i.exec(a) || /style\s*=\s*'([^']*)'/i.exec(a) || [])[1] || '');
     etpl.innerHTML = String(enml)
-      .replace(/<en-todo\b([^>]*)>(?:\s*<\/en-todo>)?/gi, (m, a) => `<input data-c="${/checked\s*=\s*["']?true/i.test(a) ? 1 : 0}">`)
-      .replace(/<(ul|li|div)\b([^>]*)>/gi, (m, tag, a) => {
+      .replace(/<en-todo\b([^>]{0,300})>(?:\s{0,20}<\/en-todo>)?/gi, (m, a) => `<input data-c="${/checked\s*=\s*["']?true/i.test(a) ? 1 : 0}">`)
+      .replace(/<(ul|li|div)\b([^>]{0,300})>/gi, (m, tag, a) => {
         const st = style(a),
           chk = /--en-checked\s*:\s*(true|false)/i.exec(st);
         return `<${tag}${/--en-todo\s*:\s*true/i.test(st) ? ' data-todo=""' : ''}${chk ? ` data-c="${chk[1].toLowerCase() === 'true' ? 1 : 0}"` : ''}${/--en-task-group\s*:\s*true/i.test(st) ? ' data-group=""' : ''}>`;
@@ -4230,20 +4269,24 @@ try {
   // with a time or not; a range (Notion's "… → …") gives its start.
   function tableDay(v, order) {
     v = String(v).slice(0, 200).trim();
+    // midnight UTC alone is a date, as Google and spreadsheets write one
+    if (/^\d{4}-\d\d-\d\dT00:00(?::00(?:\.0+)?)?Z$/i.test(v)) return imDay(v.slice(0, 10));
     const iso = imDay(v);
     if (iso) return iso;
-    const s = norm(v)
-      .trim()
-      .replace(/\s*(?:→|->|–|—)\s.*$/, '')
-      .replace(/,? *(?:at|a|um|om)? *\d{1,2}[:.h]\d\d(?::\d\d)? *(?:am|pm|a\.?m\.?|p\.?m\.?)?(?: *\(?[a-z]{2,5}\)?)?$/, '')
-      .trim();
-    let m = /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/.exec(s);
+    let s = norm(v)
+        .trim()
+        .replace(/\s*(?:→|->|–|—)\s.*$/, ''),
+      m = /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})(?![\d./-])/.exec(s);
+    // numbers first, whatever follows them (24.11.26 is a date; only then is 11:26 a time)
     if (m) return imDay(`${m[1]}-${p2(m[2])}-${p2(m[3])}`);
-    if ((m = /^(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})$/.exec(s))) {
+    if ((m = /^(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})(?![\d./-])/.exec(s))) {
       const [d, mo] = order === 'mdy' ? [m[2], m[1]] : [m[1], m[2]],
-        y = m[3].length === 2 ? '20' + m[3] : m[3];
+        // a year in two figures: this century, unless that is more than twenty years ahead
+        yy = +m[3],
+        y = m[3].length === 2 ? (yy > (new Date().getFullYear() % 100) + 20 ? 1900 : 2000) + yy : yy;
       return imDay(`${y}-${p2(mo)}-${p2(d)}`);
     }
+    s = s.replace(/(?:^|[\s,]) *(?:at|a|um|om)? *\d{1,2}[:.h]\d\d(?::\d\d)? *(?:am|pm|a\.?m\.?|p\.?m\.?)?(?: *\(?[a-z]{2,5}\)?)?$/, '').trim();
     for (const lang of [navigator.language || 'en', 'en', 'fr', 'de', 'es']) {
       const k = shortDay(s, lang, todayKey().slice(0, 4));
       if (k) return k;
@@ -4415,16 +4458,33 @@ try {
         return { title: title || notes.trim().split('\n')[0].trim(), notes: [title ? notes : notes.trim().split('\n').slice(1).join('\n'), ...links].filter(Boolean).join('\n') };
       };
       // the task at the top of a sub-task's line; one whose line turns in a circle is a task of its own
-      const top = t => {
-        const path = new Set([t]);
-        let x = t;
-        while (x.parent && byId.has(x.parent)) {
-          x = byId.get(x.parent);
-          if (path.has(x)) return t;
-          path.add(x);
-        }
-        return x;
-      };
+      // each line is walked once: what is found for a task holds for every task on the way up
+      const tops = new Map(),
+        top = t => {
+          const path = [],
+            on = new Set();
+          let x = t,
+            r;
+          for (;;) {
+            if (tops.has(x)) {
+              r = tops.get(x);
+              break;
+            }
+            if (on.has(x)) {
+              r = null;
+              break;
+            }
+            on.add(x);
+            path.push(x);
+            if (!(x.parent && byId.has(x.parent))) {
+              r = x;
+              break;
+            }
+            x = byId.get(x.parent);
+          }
+          for (const p of path) tops.set(p, r || p);
+          return tops.get(t);
+        };
       for (const t of all) {
         if (out.length >= 20000) break;
         if (top(t) !== t) continue;
@@ -4483,7 +4543,7 @@ try {
       if (st || TDW.test(s)) sig++;
       if (MDL.test(s)) list++;
     }
-    return n > 0 && list * 3 < n && (strong >= 2 || (strong === 1 && n <= 3)) && sig * 10 >= n * 3;
+    return n > 0 && list * 3 < n && (strong >= 2 || (n <= 3 && strong === n)) && sig * 10 >= n * 3;
   }
   function fromTodoTxt(text) {
     const out = [],
@@ -4762,17 +4822,23 @@ try {
     }
     const keys = Object.keys(P.days);
     record(Object.keys(P.rules).length ? [...keys, cur] : keys);
-    const undoAt = UN.length;
+    const rec = UN[UN.length - 1];
     Object.assign(S.rules, P.rules);
     for (const k of keys) day(k).tasks.push(...P.days[k]);
     let ok = commitMany(keys);
+    // with the lock, the write is sealed a moment later: nothing else is done meanwhile, so it can still be taken back
     if (ok && vault) {
-      await flush();
+      home.inert = true;
+      try {
+        await flush();
+      } finally {
+        if (!locked) home.inert = false;
+      }
       ok = sealOk;
     }
     if (locked) return;
     if (!ok) {
-      if (UN.length === undoAt) applySnap(UN.pop(), []);
+      if (UN[UN.length - 1] === rec) applySnap(UN.pop(), []);
       toast(TOOBIG);
       return;
     }

@@ -740,7 +740,8 @@ test('no scrollbar can flash while a day slides in', async ({ page }) => {
   await page.keyboard.press('ArrowRight');
   expect(await page.evaluate(() => getComputedStyle(document.querySelector('.sc')).overflowY)).toBe('hidden');
   await expect(page.locator('#app')).not.toHaveClass(/\bcalm\b/, { timeout: 3000 });
-  expect(await page.evaluate(() => getComputedStyle(document.querySelector('.sc')).overflowY)).toBe('auto');
+  // (polled: on a busy machine the style can land a frame after the class goes)
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector('.sc')).overflowY), { timeout: 2000 }).toBe('auto');
 });
 
 test('one click switches light and dark, kept across visits, and back to the system', async ({ page }) => {
@@ -2017,6 +2018,11 @@ test.describe('the lock', () => {
       },
     });
     await openLock(page);
+    // the app asks at start whether the device can unlock with a passkey: on a busy machine, let that answer land first
+    await page.evaluate(() =>
+      Promise.all([PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable(), PublicKeyCredential.getClientCapabilities ? PublicKeyCredential.getClientCapabilities() : null]),
+    );
+    await page.waitForTimeout(50);
     await page.keyboard.press('/');
     await page.locator('#slist [data-act="lock"]').click();
     await fillOn(page);

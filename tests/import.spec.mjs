@@ -621,7 +621,70 @@ test.describe('importing from other apps, at the edges', () => {
     await pick(page, file('TickTick-backup.csv', csv, 'text/csv'));
     await page.locator('#impGo').click();
     const t = (await stored(page)).days['2026-11-24'].tasks;
-    expect(t.map(x => [x.text, (x.subs || []).map(y => y.text)])).toEqual([['First', ['Second']]]);
+    expect(t.map(x => [x.text, (x.subs || []).map(y => y.text)])).toEqual([
+      ['First', []],
+      ['Second', []],
+    ]);
+  });
+
+  test('a line of sub-tasks thousands long is read in one go', async ({ page }) => {
+    await open(page);
+    const head = '"Folder Name","List Name","Title","Kind","Tags","Content","Is Check list","Start Date","Due Date","Reminder","Repeat","Priority","Status","Created Time","Completed Time","Order","Timezone","Is All Day","Is Floating","Column Name","Column Order","View Mode","taskId","parentId"';
+    const rows = Array.from({ length: 10000 }, (_, i) => `"","Inbox","Step ${i}","TEXT","","","N","","","","","0","0","","","0","Europe/Paris","false","false",,,"list","${i + 1}","${i || ''}"`);
+    const chain = Array.from({ length: 20000 }, (_, i) => ({ kind: 'tasks#task', id: 'g' + i, title: 'Part ' + i, status: 'needsAction', ...(i ? { parent: 'g' + (i - 1) } : {}) }));
+    const t = Date.now();
+    await pick(
+      page,
+      file('TickTick-backup.csv', `"Date: 2026-11-24+0000"\n"Version: 7.1"\n${head}\n${rows.join('\n')}\n`, 'text/csv'),
+      file('Tasks.json', JSON.stringify({ kind: 'tasks#taskLists', items: [{ kind: 'tasks#tasks', title: 'Chain', items: chain }] }), 'application/json'),
+    );
+    expect(Date.now() - t).toBeLessThan(5000);
+    await expect(page.locator('#impT')).toHaveText('2 tasks from TickTick and Google Tasks');
+    await expect(page.locator('#impNote')).toContainText('29798 sub-tasks over 100 in a task are left out.');
+  });
+
+  test('a crafted Evernote export can’t freeze the page', async ({ page }) => {
+    await open(page);
+    const enex =
+      '<?xml version="1.0" encoding="UTF-8"?><en-export><note>' +
+      '<title>'.repeat(100000) +
+      `<content><![CDATA[<en-note><div><en-todo checked="true"/>Kept</div>${'<div'.repeat(60000)}${'<en-todo'.repeat(30000)}]]></content>` +
+      `<task>${'<title>'.repeat(50000)}</task>${'<reminder-time>'.repeat(40000)}</note></en-export>`;
+    const t = Date.now();
+    await pick(page, file('Crafted.enex', enex, 'application/xml'));
+    expect(Date.now() - t).toBeLessThan(5000);
+    // its checklist comes in; a task with no title, or titles never closed, doesn't
+    await expect(page.locator('#impT')).toHaveText('A task from Evernote');
+  });
+
+  test('a table’s dates in any usual shape: 24.11.26, a weekday first, 26th, 12/31/99, midnight UTC', async ({ browser }) => {
+    const ctx = await browser.newContext({ timezoneId: 'America/New_York', viewport: { width: 1280, height: 860 } }),
+      page = await ctx.newPage();
+    await open(page);
+    await pick(
+      page,
+      file('Aufgaben.csv', 'Aufgabe;Erledigt;Fällig\nReifen wechseln;nein;24.11.26\nSteuer;nein;01.12.26\nArzt;ja;20.11.26\n', 'text/csv'),
+      file('Dates.csv', 'Task,Due\nA,"Wednesday, November 25, 2026"\nB,"Nov 26th, 2026"\nC,12/31/99\nD,2026-11-27T00:00:00.000Z\n', 'text/csv'),
+    );
+    await expect(page.locator('#impNote')).not.toContainText('couldn’t read');
+    await page.locator('#impGo').click();
+    const s = await stored(page),
+      texts = k => s.days[k].tasks.map(t => [t.text, t.done]);
+    expect(texts('2026-11-24')).toEqual([['Reifen wechseln', false]]);
+    expect(texts('2026-12-01')).toEqual([['Steuer', false]]);
+    expect(texts('2026-11-20')).toEqual([['Arzt', true]]);
+    expect(texts('2026-11-25')).toEqual([['A', false]]);
+    expect(texts('2026-11-26')).toEqual([['B', false]]);
+    expect(texts('1999-12-31')).toEqual([['C', false]]);
+    expect(texts('2026-11-27')).toEqual([['D', false]]);
+    await ctx.close();
+  });
+
+  test('a short plain list with one line that begins with a date stays a plain list', async ({ page }) => {
+    await open(page);
+    await pick(page, file('errands.txt', '2026-12-01 Dentist\nBuy milk\nCall Sam\n'));
+    await page.locator('#impGo').click();
+    expect((await stored(page)).days['2026-11-24'].tasks.map(t => t.text)).toEqual(['2026-12-01 Dentist', 'Buy milk', 'Call Sam']);
   });
 
   test('Google: a midnight made two hours east still lands on its day', async ({ browser }) => {
