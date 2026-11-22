@@ -664,7 +664,7 @@ test.describe('importing from other apps, at the edges', () => {
     await pick(
       page,
       file('Aufgaben.csv', 'Aufgabe;Erledigt;Fällig\nReifen wechseln;nein;24.11.26\nSteuer;nein;01.12.26\nArzt;ja;20.11.26\n', 'text/csv'),
-      file('Dates.csv', 'Task,Due\nA,"Wednesday, November 25, 2026"\nB,"Nov 26th, 2026"\nC,12/31/99\nD,2026-11-27T00:00:00.000Z\n', 'text/csv'),
+      file('Dates.csv', 'Task,Due\nA,"Wednesday, November 25, 2026"\nB,"Nov 26th, 2026"\nC,12/31/99\nD,2026-11-27T00:00:00.000Z\nE,2026-11-28T00:00:00+00:00\n', 'text/csv'),
     );
     await expect(page.locator('#impNote')).not.toContainText('couldn’t read');
     await page.locator('#impGo').click();
@@ -677,6 +677,7 @@ test.describe('importing from other apps, at the edges', () => {
     expect(texts('2026-11-26')).toEqual([['B', false]]);
     expect(texts('1999-12-31')).toEqual([['C', false]]);
     expect(texts('2026-11-27')).toEqual([['D', false]]);
+    expect(texts('2026-11-28')).toEqual([['E', false]]);
     await ctx.close();
   });
 

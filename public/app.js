@@ -4270,7 +4270,7 @@ try {
   function tableDay(v, order) {
     v = String(v).slice(0, 200).trim();
     // midnight UTC alone is a date, as Google and spreadsheets write one
-    if (/^\d{4}-\d\d-\d\dT00:00(?::00(?:\.0+)?)?Z$/i.test(v)) return imDay(v.slice(0, 10));
+    if (/^\d{4}-\d\d-\d\dT00:00(?::00(?:\.0+)?)?(?:Z|[+-]00:?00)$/i.test(v)) return imDay(v.slice(0, 10));
     const iso = imDay(v);
     if (iso) return iso;
     let s = norm(v)
@@ -4376,7 +4376,7 @@ try {
     const s = String(v || '')
       .slice(0, 60)
       .trim();
-    if (/^\d{4}-\d\d-\d\d(?:T00:00:00(?:\.0+)?Z)?$/i.test(s)) return imDay(s.slice(0, 10));
+    if (/^\d{4}-\d\d-\d\d(?:T00:00:00(?:\.0+)?(?:Z|[+-]00:?00))?$/i.test(s)) return imDay(s.slice(0, 10));
     const t = imAt(s);
     if (t == null) return null;
     // a time with a fraction of a second is a task set for that moment, never a midnight
@@ -4704,7 +4704,8 @@ try {
   /* the import dialog: how many tasks, on which days, before they are added */
   const IM = {};
   'imp impCard impT impSub impList impNote impNo impGo'.split(' ').forEach(id => (IM[id] = document.getElementById(id)));
-  let IMP = null;
+  let IMP = null,
+    IMSEAL = false; // an import being sealed with the lock: no shortcut runs meanwhile, not even an undo
   const plainTitle = t => t.replace(TAGRE, '$1').replace(/\s+/g, ' ').trim() || t;
   function showImport(found) {
     const P = imPlan(found.items),
@@ -4829,9 +4830,11 @@ try {
     // with the lock, the write is sealed a moment later: nothing else is done meanwhile, so it can still be taken back
     if (ok && vault) {
       home.inert = true;
+      IMSEAL = true;
       try {
         await flush();
       } finally {
+        IMSEAL = false;
         if (!locked) home.inert = false;
       }
       ok = sealOk;
@@ -6657,7 +6660,7 @@ try {
 
   /* keys */
   function onKey(e) {
-    if (locked || LSM || IMP) return;
+    if (locked || LSM || IMP || IMSEAL) return;
     const t = e.target,
       typing = t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName),
       k = e.key,
