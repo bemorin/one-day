@@ -403,23 +403,37 @@ try {
   const hasOpen = k =>
     tasks(k).some(t => !t.done) ||
     (k >= todayKey() && Object.values(S.rules).some(r => occurs(r, k) && !tasks(k).some(t => t.rule === r.id)));
+  // false when the browser refused to keep the tasks in clear (its storage is full); with the lock on, sealSoon says
   function persist() {
     IDX = null;
-    if (locked) return;
+    if (locked) return false;
     if (vault) {
       sealSoon();
-      return;
+      return true;
     }
     // another tab may have just turned the lock on: the tasks are never written in clear next to it
-    if (lockReady && localStorage.getItem(VK) && adoptVault()) return;
+    if (lockReady && localStorage.getItem(VK) && adoptVault()) return true;
     try {
       localStorage.setItem(LS, JSON.stringify(S));
-    } catch (e) {}
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
   function commit(k) {
     day(k).u = Date.now();
     persist();
     cloud.push(k);
+  }
+  // Many days changed at once (an import, or its undo): written once, however many days there are.
+  function commitMany(keys) {
+    const now = Date.now();
+    for (const k of keys)
+      if (S.days[k]) {
+        S.days[k].u = now;
+        cloud.push(k);
+      }
+    return persist();
   }
 
   /* undo history */
@@ -437,14 +451,15 @@ try {
   }
   const record = keys => pushUndo(snap(keys));
   function applySnap(e, into) {
-    into.push({ ...snap(Object.keys(e.days)), cur: e.cur });
+    const keys = Object.keys(e.days);
+    into.push({ ...snap(keys), cur: e.cur });
     const was = S.rules,
       tk = todayKey();
     if (e.rules) S.rules = e.rules;
-    for (const k in e.days) {
-      S.days[k] = { u: 0, tasks: e.days[k].tasks };
-      commit(k);
-    }
+    for (const k of keys) S.days[k] = { u: 0, tasks: e.days[k].tasks };
+    // a day left empty (one an import made, undone) is not kept, unless sync has to carry the change
+    if (!cloud.col) for (const k of keys) if (!S.days[k].tasks.length) delete S.days[k];
+    commitMany(keys);
     // a repeat this takes away takes with it the occurrences it had made on days still to come
     const gone = Object.keys(was).filter(id => !S.rules[id]);
     if (gone.length)
@@ -3207,9 +3222,10 @@ try {
   }
   // A One Day backup is merged at once; another app's export is shown first (see "importing from other apps").
   $.impf.addEventListener('change', async () => {
-    const files = [...($.impf.files || [])].slice(0, 20);
+    const all = [...($.impf.files || [])],
+      files = all.slice(0, 20);
     $.impf.value = '';
-    if (!files.length) return;
+    if (!files.length || locked) return;
     // an Evernote export carries its pictures and files: it may be large, and is read as it streams (see readEnex)
     if (files.some(f => f.size > (/\.enex$/i.test(f.name) ? 4e9 : 20e6))) {
       toast('That file is too large to import');
@@ -3229,6 +3245,8 @@ try {
       );
       return;
     }
+    // the app may have locked meanwhile (five minutes away while the file was being picked)
+    if (locked) return;
     if (got.length > 1 && got.some(f => /^\s*\{\s*"app"\s*:\s*"one-day"/.test(f.text.slice(0, 200)))) {
       toast('A One Day backup imports on its own: pick it alone');
       return;
@@ -3240,14 +3258,21 @@ try {
       } catch (e) {}
       if (j && j.app === 'one-day') return importBackup(j);
     }
-    const found = readExports(got);
-    if (found) showImport(found);
-    else toast('That file isn’t a backup or an export One Day can read');
+    let found = null;
+    try {
+      found = readExports(got);
+      if (found && all.length > files.length) found.said.push(`${all.length - files.length} files past the first 20 are left out.`);
+      if (found) showImport(found);
+    } catch (e) {
+      toast('That file could not be read');
+      return;
+    }
+    if (!found) toast('That file isn’t a backup or an export One Day can read');
   });
   async function importBackup(j) {
     if (!j.days && j.vault) {
       const inner = await openBackup(j.vault);
-      if (!inner) return;
+      if (!inner || locked) return;
       j = { app: 'one-day', days: inner.days, rules: inner.rules, tags: inner.tags };
     }
     if (!j.days || typeof j.days !== 'object') {
@@ -3309,18 +3334,35 @@ try {
   // Each file as text, with the moment it was saved (Todoist counts its dates from the day of the export).
   async function readFiles(files) {
     const out = [];
+    let total = 0;
+    const add = (name, text, at) => {
+      total += text.length;
+      if (total > 60e6) throw new Error('too large');
+      out.push({ name, text, at });
+    };
     for (const f of files) {
       const at = f.lastModified || Date.now();
       if (/\.enex$/i.test(f.name)) {
-        out.push({ name: f.name, text: await readEnex(f), at });
+        add(f.name, await readEnex(f), at);
         continue;
       }
       const u8 = new Uint8Array(await f.arrayBuffer());
-      if (u8[0] === 0x50 && u8[1] === 0x4b && u8[2] === 3 && u8[3] === 4)
-        for (const e of await unzip(u8)) out.push({ name: e.name, text: utf8(e.bytes), at });
-      else out.push({ name: f.name, text: utf8(u8), at });
+      if (u8[0] === 0x50 && u8[1] === 0x4b && u8[2] === 3 && u8[3] === 4) for (const e of await unzip(u8)) add(e.name, utf8(e.bytes), at);
+      else add(f.name, utf8(u8), at);
     }
     return out;
+  }
+  // A text's lines one at a time (a file may hold millions), up to `max` of those with something on them.
+  function* linesOf(text, max) {
+    let n = 0;
+    for (let i = 0; i < text.length && n < max; ) {
+      let j = text.indexOf('\n', i);
+      if (j < 0) j = text.length;
+      const l = text.slice(i, j);
+      i = j + 1;
+      for (const part of l.includes('\r') ? l.split('\r') : [l])
+        if (part.trim() && n++ < max) yield part;
+    }
   }
   // An Evernote export writes each note's pictures and files into it, in base64: it is read as it streams, and what
   // lies between <resource> and </resource> is dropped on the way, so only the notes are kept (40 MB of them at most).
@@ -3376,9 +3418,11 @@ try {
         break;
       }
     if (e < 0 || typeof DecompressionStream !== 'function') throw new Error('zip');
+    // 40 MB of text at most in all, each entry read once (two entries naming the same data count once)
     let p = v.getUint32(e + 16, true),
       left = 40e6;
-    for (let n = Math.min(v.getUint16(e + 10, true), 4000); n > 0 && out.length < 60; n--) {
+    const seen = new Set();
+    for (let n = Math.min(v.getUint16(e + 10, true), 4000); n > 0 && out.length < 500; n--) {
       if (p + 46 > u8.length || v.getUint32(p, true) !== 0x02014b50) break;
       const flags = v.getUint16(p + 8, true),
         how = v.getUint16(p + 10, true),
@@ -3388,12 +3432,15 @@ try {
         name = new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nl));
       p += 46 + nl + v.getUint16(p + 30, true) + v.getUint16(p + 32, true);
       if (flags & 1 || !/\.(csv|json|txt)$/i.test(name) || /(^|\/)(__MACOSX\/|\.)/.test(name)) continue;
-      if (at + 30 > u8.length || v.getUint32(at, true) !== 0x04034b50) continue;
+      if (at + 30 > u8.length || v.getUint32(at, true) !== 0x04034b50 || seen.has(at)) continue;
+      seen.add(at);
       const from = at + 30 + v.getUint16(at + 26, true) + v.getUint16(at + 28, true),
         data = u8.subarray(from, from + size);
       let bytes = null;
-      if (how === 0) bytes = data;
-      else if (how === 8) {
+      if (how === 0) {
+        if (data.length > left) throw new Error('too large');
+        bytes = data;
+      } else if (how === 8) {
         let ds;
         try {
           ds = new DecompressionStream('deflate-raw');
@@ -3495,11 +3542,14 @@ try {
     }
     return h + (list ? `</${list}>` : '');
   }
+  // a note grows a paragraph at a time, and stops growing past what a note keeps
+  const more = (a, b) => (!b ? a : !a ? b : a.length > 30000 ? a : a + '\n\n' + b);
   // A list, project or label as a #tag: lower case, spaces as hyphens, only what a tag can hold. The lists every
   // account starts with (an inbox, "My Tasks") say nothing, so they bring no tag.
   const IMDEF = new Set(['inbox', 'my-tasks', 'boîte-de-réception', 'mes-tâches', 'eingang', 'meine-aufgaben', 'bandeja-de-entrada', 'mis-tareas']);
   function imTag(s) {
     const g = String(s || '')
+      .slice(0, 200)
       .normalize('NFC')
       .toLowerCase()
       .trim()
@@ -3615,8 +3665,12 @@ try {
      day, 100 sub-tasks a task, 300 repeats, and what this browser can keep (the oldest done tasks go first). */
   function imPlan(items) {
     const tk = todayKey(),
-      P = { days: {}, rules: {}, reps: [], n: 0, noted: 0, whens: 0, cut: 0, full: new Set(), undated: 0, subcut: 0, old: 0, tags: new Map(), big: false },
+      P = { days: {}, rules: {}, reps: [], n: 0, noted: 0, over: 0, whens: 0, cut: 0, full: new Set(), undated: 0, subcut: 0, old: 0, dupes: 0, tags: new Map(), big: false },
       left = {},
+      had = {},
+      ruleTexts = new Set(Object.values(S.rules).map(r => r.text)),
+      // a task already on its day, word for word, was most likely imported before
+      seen = (k, text) => (had[k] || (had[k] = new Set(tasks(k).map(t => t.text)))).has(text),
       put = (k, t) => {
         if (!(k in left)) left[k] = 300 - tasks(k).length;
         if (left[k] <= 0) {
@@ -3626,13 +3680,15 @@ try {
         left[k]--;
         (P.days[k] || (P.days[k] = [])).push(t);
         return true;
-      };
+      },
+      line = s => `<div>${esc(s)}</div>`;
     let rules = Object.keys(S.rules).length;
     for (const it of items) {
       // a title holds words only: a Markdown link keeps its words there and goes to the note, **bold** loses its stars
       const links = [],
         words = String(it.text || '')
-          .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, (m, t, u) => {
+          .slice(0, 2000)
+          .replace(/\[([^[\]\n]{1,300})\]\((https?:\/\/[^\s()]{1,2000})\)/g, (m, t, u) => {
             links.push(`- [${t}](${u})`);
             return t;
           })
@@ -3641,37 +3697,34 @@ try {
           .trim();
       if (!words) continue;
       const own = tagsOf(words),
-        tags = [...new Set((it.tags || []).map(imTag))].filter(g => g && !own.includes(g)),
+        tags = [...new Set((it.tags || []).slice(0, 50).map(imTag))].filter(g => g && !own.includes(g)),
         tail = tags.map(g => ' #' + g).join(''),
         text = (words.slice(0, Math.max(40, 500 - tail.length)) + tail).slice(0, 500);
       const subs0 = (it.subs || []).filter(x => x && String(x.text || '').trim()),
-        subs = subs0.slice(0, 100).map(x => ({ id: uid(), text: String(x.text).replace(/\s+/g, ' ').trim().slice(0, 300), done: !!x.done }));
-      // (the items are planned twice, for the dialog and again for Add all: nothing here changes them)
-      // (an Evernote note comes as HTML already; clean() sanitises every note below)
-      let note = (it.noteHtml || '') + imNote([it.note, links.join('\n')].filter(x => x && String(x).trim()).join('\n\n'));
-      // a date One Day couldn't read is kept in the note, in the words it was written in
-      if (it.when) {
-        note += `<div>${esc(`Date in ${it.app}: ${it.when}`)}</div>`;
-        P.whens++;
-      }
+        subs = subs0.slice(0, 100).map(x => ({ id: uid(), text: String(x.text).slice(0, 2000).replace(/\s+/g, ' ').trim().slice(0, 300), done: !!x.done }));
+      // (the items are planned twice, for the dialog and again for Add all: nothing here changes them. An Evernote note
+      // comes as HTML already; clean() sanitises every note below.) What One Day couldn't read goes first in the note,
+      // so that a long note's end, which clean() cuts, never takes it away.
+      const body = (it.noteHtml || '') + imNote([it.note, links.join('\n')].filter(x => x && String(x).trim()).join('\n\n')),
+        when = it.when ? line(`Date in ${it.app}: ${String(it.when).slice(0, 200)}`) : '';
+      if (it.when) P.whens++;
       if (it.done) {
         if (!it.doneDay) {
           P.undated++;
           continue;
         }
-        const [t] = clean([{ id: uid(), text, done: true, at: it.at || fromKey(it.doneDay).getTime() + 432e5, note, subs }]);
+        const [t] = clean([{ id: uid(), text, done: true, at: it.at || fromKey(it.doneDay).getTime() + 432e5, note: when + body, subs }]);
         if (!t) continue;
+        if (seen(it.doneDay, t.text)) P.dupes++;
         if (put(it.doneDay, t)) P.n++;
         else P.cut++;
       } else {
-        const base = it.due || tk;
-        let r = null;
-        if (it.rep && rules < 300) {
-          const f = imRule(it.rep, base);
-          r = f && cleanRule({ ...f, text, note, subs: subs.map(x => ({ text: x.text })) }, 'r' + uid());
-        }
+        const base = it.due || tk,
+          f = it.rep && rules < 300 ? imRule(it.rep, base) : null,
+          r = f && cleanRule({ ...f, text, note: when + body, subs: subs.map(x => ({ text: x.text })) }, 'r' + uid());
         if (r) {
           rules++;
+          if (ruleTexts.has(r.text)) P.dupes++;
           P.rules[r.id] = r;
           P.reps.push(r);
           P.n++;
@@ -3679,12 +3732,16 @@ try {
           const k = nextOcc(r, base > tk ? base : tk);
           if (k) put(k, fromRule(r, k));
         } else {
-          if (it.repText) {
-            note += `<div>${esc(`Repeats in ${it.app}: ${it.repText}`)}</div>`;
-            P.noted++;
+          // a repeat One Day can't follow (or one past the 300 it keeps) is written in the note, as the app wrote it
+          let rep = '';
+          if (it.rep || it.repWords) {
+            rep = line(`Repeats in ${it.app}: ${String(it.repWords || '').slice(0, 300)}`);
+            if (it.rep && rules >= 300) P.over++;
+            else P.noted++;
           }
-          const [t] = clean([{ id: uid(), text, done: false, note, subs }]);
+          const [t] = clean([{ id: uid(), text, done: false, note: when + rep + body, subs }]);
           if (!t) continue;
+          if (seen(base, t.text)) P.dupes++;
           if (put(base, t)) P.n++;
           else P.cut++;
         }
@@ -3692,9 +3749,17 @@ try {
       if (subs0.length > 100) P.subcut += subs0.length - 100;
       for (const g of tags) P.tags.set(g, (P.tags.get(g) || 0) + 1);
     }
-    // what this browser can keep: about 5 MB in all, less once encrypted; the oldest done tasks are left out first
-    const size = o => JSON.stringify(o).length,
-      cap = vault ? 3.3e6 : 4.5e6;
+    /* What this browser can keep: about 5 MB. In clear, the tasks are counted in characters (twice in Safari once a
+       single one is beyond Latin-1, since it then keeps the whole text in two bytes a character); with the lock, they
+       are kept as base64, a third more than their UTF-8 bytes. Past that, the oldest done tasks are left out first. */
+    const enc = new TextEncoder(),
+      webkit = /AppleWebKit/.test(navigator.userAgent) && !/Chrome|Chromium|Edg|Firefox/.test(navigator.userAgent),
+      wide = !vault && webkit && [S, P.days, P.rules].some(o => /[^\u0000-\u00ff]/.test(JSON.stringify(o))),
+      size = o => {
+        const j = JSON.stringify(o);
+        return vault ? Math.ceil((enc.encode(j).length * 4) / 3) : j.length * (wide ? 2 : 1);
+      },
+      cap = 4.5e6;
     let total = size(S) + size(P.days) + size(P.rules);
     for (const k of Object.keys(P.days).sort()) {
       if (total <= cap || k >= tk) break;
@@ -3712,7 +3777,7 @@ try {
 
   /* Each app's export is known by what it holds, whatever the file is called. readExports() gives the apps found and
      their items: { text, note (plain text or Markdown), subs: [{ text, done }], tags, done, doneDay, at, due, rep,
-     repText (the repeat as the app wrote it, for the note when One Day can't follow it) }. */
+     repWords (the repeat as the app wrote it, for the note when One Day doesn't follow it) }. */
   function readExports(got) {
     const apps = [],
       items = [],
@@ -3737,12 +3802,13 @@ try {
   function readExport(name, text, ctx) {
     const { left } = ctx;
     const head = text.slice(0, 3000);
+    // JSON, or a list that only starts like it ("[ ] milk")
     if (/^\s*[[{]/.test(head)) {
       let j = null;
       try {
         j = JSON.parse(text);
       } catch (e) {}
-      return j && j.kind === 'tasks#taskLists' && Array.isArray(j.items) ? { app: 'Google Tasks', items: fromGoogle(j) } : null;
+      if (j) return j.kind === 'tasks#taskLists' && Array.isArray(j.items) ? { app: 'Google Tasks', items: fromGoogle(j) } : null;
     }
     if (ENX.test(head)) return { app: 'Evernote', items: fromEvernote(text, name, ctx) };
     if (TDH.test(head)) return { app: 'Todoist', items: fromTodoist(text, name, ctx) };
@@ -3752,7 +3818,7 @@ try {
       return items ? { app: name.replace(/\.(csv|tsv)$/i, ''), items } : null;
     }
     if (/\.(json|enex)$/i.test(name)) return null;
-    if (/^(todo|done)\.txt$/i.test(name) || (!/\.(md|markdown)$/i.test(name) && TXT.test(text.slice(0, 20000))))
+    if (/^(todo|done)\.txt$/i.test(name) || (!/\.(md|markdown)$/i.test(name) && looksTodo(text)))
       return { app: 'todo.txt', items: fromTodoTxt(text) };
     // any other list, one item a line, is read as a pasted one: bullets and boxes left out, what is set in nested
     if (/\.(txt|md|markdown)$/i.test(name))
@@ -3787,7 +3853,8 @@ try {
       if (type === 'note' && top) {
         // a comment, with its files as links
         const words = get(r, 'CONTENT')
-          .replace(/\s*\[\[file (\{.*?\})\]\]/g, (m, j) => {
+          .slice(0, 10000)
+          .replace(/\s*\[\[file (\{[^\n]{0,2000}?\})\]\]/g, (m, j) => {
             try {
               const f = JSON.parse(j);
               return /^https?:\/\//i.test(f.file_url) ? ` [${String(f.file_name || 'File').replace(/[[\]\n]/g, ' ')}](${f.file_url})` : '';
@@ -3796,45 +3863,51 @@ try {
             }
           })
           .trim();
-        if (words) top.note = `${top.note.trim() ? top.note + '\n\n' : ''}${last !== top ? `**${last.replace(/\*/g, '')}:** ` : ''}${words}`;
+        if (words) top.note = more(top.note, `${last !== top ? `**${last.replace(/\*/g, '')}:** ` : ''}${words}`);
       }
       if (type !== 'task') continue;
-      let words = get(r, 'CONTENT').trim(),
-        m;
+      // its labels end it: read once, word by word from the end (a space in a label is written "\ ")
+      let words = get(r, 'CONTENT').slice(0, 5000).trim();
       const labels = [];
-      while ((m = /(?:^|\s)@((?:\\ |[^\s\\@])+)$/.exec(words))) {
-        labels.unshift(m[1].replace(/\\ /g, ' '));
-        words = words.slice(0, m.index).trimEnd();
+      while (labels.length < 50) {
+        let i = words.length - 1;
+        while (i >= 0 && !(/\s/.test(words[i]) && words[i - 1] !== '\\')) i--;
+        const w = words.slice(i + 1);
+        if (!/^@[^\s@]/.test(w)) break;
+        labels.unshift(w.slice(1).replace(/\\ /g, ' '));
+        words = words.slice(0, Math.max(0, i)).trimEnd();
       }
       // "* " makes a task that can't be ticked: a heading, in fact
       words = words.replace(/^\*\s+/, '');
       if (!words) continue;
-      const desc = get(r, 'DESCRIPTION');
+      const desc = get(r, 'DESCRIPTION').slice(0, 30000).trim();
       if ((parseInt(get(r, 'INDENT'), 10) || 1) > 1 && top) {
         const sub = [words, ...labels.map(imTag).filter(Boolean).map(g => '#' + g)].join(' ');
         top.subs.push({ text: sub, done: false });
-        if (desc.trim()) top.note = `${top.note.trim() ? top.note + '\n\n' : ''}**${words.replace(/\*/g, '')}**\n${desc}`;
+        if (desc) top.note = more(top.note, `**${words.replace(/\*/g, '')}**\n${desc}`);
         last = words;
         continue;
       }
       const it = { text: words, note: desc, subs: [], tags: [project, ...labels], done: false },
-        date = get(r, 'DATE').trim(),
+        date = get(r, 'DATE').slice(0, 200).replace(/\s+/g, ' ').trim(),
         lang = get(r, 'DATE_LANG').trim() || 'en',
         dl = imDay(get(r, 'DEADLINE').trim());
       if (/^(?:every|ev)!?\s|^(?:daily|weekly|monthly|yearly|annually)\b/i.test(date)) {
         // a repeat; its next date isn't exported, so it counts from today
-        const [, head, end] = /^(.*?)(?:\s+(?:until|ending|ends)\s+(.+))?$/i.exec(date),
+        const u = / (?:until|ending|ends) /i.exec(date),
+          head = u ? date.slice(0, u.index) : date,
+          end = u ? date.slice(u.index + u[0].length) : '',
           until = end ? tdDay(end, lang, from) : null;
         it.rep = end && !until ? null : wordsRep(head, until && until.k);
-        if (!it.rep) it.repText = date;
-        if (dl) it.note = `${it.note.trim() ? it.note + '\n\n' : ''}Deadline: ${LONG.format(fromKey(dl))}`;
+        it.repWords = date;
+        if (dl) it.note = more(it.note, `Deadline: ${LONG.format(fromKey(dl))}`);
       } else if (date) {
         const d = tdDay(date, lang, from);
         if (d) {
           it.due = d.k;
           relative = relative || d.rel;
         } else it.when = date;
-        if (dl) it.note = `${it.note.trim() ? it.note + '\n\n' : ''}Deadline: ${LONG.format(fromKey(dl))}`;
+        if (dl) it.note = more(it.note, `Deadline: ${LONG.format(fromKey(dl))}`);
       } else if (dl) it.due = dl;
       out.push(it);
       top = it;
@@ -3847,7 +3920,7 @@ try {
   // A Todoist date as a day, and whether it was written from the day of the export: "today", "tomorrow", "in 4
   // days", "3 days ago", or a short date in the account's language, with a time or not. An ISO date is read too.
   function tdDay(v, lang, from) {
-    const s = norm(v)
+    const s = norm(String(v).slice(0, 200))
         .replace(/\s+/g, ' ')
         .replace(/,? *(?:at|@|a|a las|as|alle|um|om|kl\.?|в)? *\d{1,2}(?:[:.h]\d\d *(?:am|pm|a\.?m\.?|p\.?m\.?)?|(?:am|pm))$/, '')
         .trim(),
@@ -3857,7 +3930,8 @@ try {
         else if (u === 'week') d.setDate(d.getDate() + 7 * x);
         else if (u === 'month') d.setMonth(d.getMonth() + x);
         else d.setFullYear(d.getFullYear() + x);
-        return { k: keyOf(d), rel: true };
+        // a day past the year 9999 is no day
+        return d.getFullYear() >= 1000 && d.getFullYear() <= 9999 ? { k: keyOf(d), rel: true } : null;
       };
     let m;
     if (s === 'today') return n(0, 'day');
@@ -3916,7 +3990,8 @@ try {
     if (h < 0) return [];
     const col = {};
     rows[h].forEach((n, i) => (col[n.trim()] = i));
-    const get = (r, n) => (n in col ? String(r[col[n]] || '').trim() : ''),
+    // every cell is cut to what One Day can keep of it before anything reads it
+    const get = (r, n) => (n in col ? String(r[col[n]] || '').slice(0, 2000).trim() : ''),
       items = [],
       byId = new Map(),
       kids = [];
@@ -3924,6 +3999,7 @@ try {
       notes = 0;
     for (const r of rows.slice(h + 1)) {
       if (r.length < 3) continue;
+      if (items.length + kids.length >= 20000) break;
       const kind = get(r, 'Kind').toUpperCase(),
         status = get(r, 'Status');
       if (kind === 'NOTE' || get(r, 'projectKind').toUpperCase() === 'NOTE') {
@@ -3936,7 +4012,7 @@ try {
       }
       const tz = get(r, 'Timezone') || undefined,
         subs = [];
-      let content = 'Content' in col ? String(r[col.Content] || '') : '';
+      let content = 'Content' in col ? String(r[col.Content] || '').slice(0, 30000) : '';
       if (kind === 'CHECKLIST' || /^y/i.test(get(r, 'Is Check list'))) {
         const desc = [];
         for (const ln of content.split(/\r\n|\r|\n/)) {
@@ -3956,28 +4032,40 @@ try {
         it.doneDay = at != null ? wall(at, tz).k : imDay(v.slice(0, 10)) || day;
       } else if (get(r, 'Repeat')) {
         it.rep = rruleRep(get(r, 'Repeat'));
-        if (!it.rep) it.repText = get(r, 'Repeat');
+        it.repWords = get(r, 'Repeat');
       }
       const id = get(r, 'taskId'),
-        parent = get(r, 'parentId');
-      if (id) byId.set(id, { it, parent });
-      if (parent) kids.push([parent, it]);
+        parent = get(r, 'parentId'),
+        e = { it, parent };
+      if (id) byId.set(id, e);
+      if (parent) kids.push(e);
       else items.push(it);
     }
-    // A sub-task joins the task at the top of its line (a child's row may come before its parent's); one whose parent
-    // isn't in the file is a task of its own.
+    // A sub-task joins the task at the top of its line (a child's row may come before its parent's). One whose parent
+    // isn't in the file, or whose line turns in a circle, is a task of its own, and so are the tasks under it.
     const rootOf = e => {
-      for (let i = 0; i < 20 && e.parent && byId.has(e.parent); i++) e = byId.get(e.parent);
+      const path = new Set([e]);
+      while (e.parent && byId.has(e.parent)) {
+        e = byId.get(e.parent);
+        if (path.has(e)) return null;
+        path.add(e);
+      }
       return e;
     };
-    for (const [p, it] of kids) {
-      const root = byId.has(p) ? rootOf(byId.get(p)).it : null;
-      if (!root || root === it) {
-        items.push(it);
-        continue;
+    const own = new Set(items);
+    for (const e of kids) {
+      const r = rootOf(e);
+      if (!r || r === e) {
+        e.parent = '';
+        own.add(e.it);
+        items.push(e.it);
       }
-      root.subs.push({ text: it.text, done: it.done }, ...it.subs);
-      if (it.note.trim()) root.note = `${root.note.trim() ? root.note + '\n\n' : ''}**${it.text.replace(/\*/g, '')}**\n${it.note}`;
+    }
+    for (const e of kids) {
+      if (own.has(e.it)) continue;
+      const root = rootOf(e).it;
+      root.subs.push({ text: e.it.text, done: e.it.done }, ...e.it.subs);
+      if (e.it.note.trim()) root.note = more(root.note, `**${e.it.text.replace(/\*/g, '')}**\n${e.it.note.trim()}`);
     }
     if (wont) left.push([wont, 'task marked Won’t do', 'tasks marked Won’t do']);
     if (notes) left.push([notes, 'note', 'notes']);
@@ -4010,18 +4098,36 @@ try {
     const m = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`).exec(block);
     return m ? enDecode(m[1]) : '';
   }
+  // the inside of each <tag>…</tag> of a text, found in one pass
+  function blocks(s, tag, max) {
+    const a = `<${tag}>`,
+      b = `</${tag}>`,
+      out = [];
+    for (let i = s.indexOf(a); i > -1 && out.length < max; ) {
+      const j = s.indexOf(b, i + a.length);
+      if (j < 0) break;
+      out.push(s.slice(i + a.length, j));
+      i = s.indexOf(a, j + b.length);
+    }
+    return out;
+  }
   function fromEvernote(text, name, ctx) {
     const out = [],
       book = name.replace(/\.enex$/i, '');
     let plain = 0;
-    for (const m of text.matchAll(/<note>([\s\S]*?)<\/note>/g)) {
-      const c = /<content>([\s\S]*?)<\/content>/.exec(m[1]),
-        b = m[1].replace(/<content>[\s\S]*?<\/content>/, ''),
-        tasks = [...b.matchAll(/<task>([\s\S]*?)<\/task>/g)].map(t => t[1]),
-        nb = b.replace(/<task>[\s\S]*?<\/task>/g, ''),
-        title = enText(nb, 'title').replace(/\s+/g, ' ').trim() || 'Untitled note',
-        tags = [...nb.matchAll(/<tag>([\s\S]*?)<\/tag>/g)].map(t => enDecode(t[1])),
-        body = enBody(c ? enDecode(c[1]) : ''),
+    for (const m of blocks(text, 'note', 20000)) {
+      if (out.length >= 20000) break;
+      // a note's own parts come before its body and its tasks
+      const ci = m.indexOf('<content>'),
+        cj = ci > -1 ? m.indexOf('</content>', ci) : -1,
+        content = cj > -1 ? m.slice(ci + 9, cj) : '',
+        b = cj > -1 ? m.slice(0, ci) + m.slice(cj + 10) : m,
+        tasks = blocks(b, 'task', 500),
+        ti = b.indexOf('<task>'),
+        nb = ti > -1 ? b.slice(0, ti) : b,
+        title = enText(nb, 'title').slice(0, 2000).replace(/\s+/g, ' ').trim() || 'Untitled note',
+        tags = blocks(nb, 'tag', 50).map(t => enDecode(t.slice(0, 200))),
+        body = enBody(content ? enDecode(content) : ''),
         rem = imAt(enText(nb, 'reminder-time')),
         remDone = imAt(enText(nb, 'reminder-done-time'));
       let made = false;
@@ -4042,7 +4148,7 @@ try {
           done = enText(x, 'taskStatus').toLowerCase() === 'completed',
           due = imAt(enText(x, 'dueDate')),
           day = due != null ? wall(due, tz).k : null,
-          it = { text: enText(x, 'title'), tags: [book, title, ...tags], done, due: done ? null : day };
+          it = { text: enText(x, 'title').slice(0, 2000), tags: [book, title, ...tags], done, due: done ? null : day };
         if (done) {
           const at = imAt(enText(x, 'statusUpdated'));
           it.at = at;
@@ -4056,7 +4162,7 @@ try {
               .map(l => l.trim())
               .find(l => /^RRULE:/i.test(l));
             it.rep = rr ? rruleRep(rr) : null;
-            if (!it.rep) it.repText = rr || rec;
+            it.repWords = rr || rec;
           }
         }
         out.push(it);
@@ -4123,7 +4229,8 @@ try {
   // A date as tables write them: 2026-11-24, 24/11/2026 or 11/24/2026 (by `order`), Nov 24, 2026, 24 novembre 2026,
   // with a time or not; a range (Notion's "… → …") gives its start.
   function tableDay(v, order) {
-    const iso = imDay(String(v).trim());
+    v = String(v).slice(0, 200).trim();
+    const iso = imDay(v);
     if (iso) return iso;
     const s = norm(v)
       .trim()
@@ -4148,7 +4255,7 @@ try {
     const first = text.slice(0, 2000).split(/\r\n|\r|\n/, 1)[0] || '',
       sep = [',', ';', '\t'].map(s => [s, first.split(s).length]).sort((a, b) => b[1] - a[1])[0][0],
       rows = csvRows(text, sep).filter(r => r.some(c => c.trim())),
-      head = (rows[0] || []).map(h => norm(h).replace(/^[\s"'#*]+|[\s"'*:]+$/g, '').replace(/\s+/g, ' ')),
+      head = (rows[0] || []).map(h => norm(String(h).slice(0, 100)).replace(/^[\s"'#*]+|[\s"'*:]+$/g, '').replace(/\s+/g, ' ')),
       used = new Set(),
       col = role => {
         for (const syn of COLS[role]) {
@@ -4162,8 +4269,9 @@ try {
       },
       c = { text: col('text'), doneAt: col('doneAt'), done: col('done'), due: col('due'), note: col('note'), tags: col('tags'), rep: col('rep') };
     if (c.text < 0 || rows.length < 2) return null;
-    const cell = (r, i) => (i < 0 ? '' : String(r[i] || '').trim()),
-      body = rows.slice(1);
+    // every cell is cut to what One Day can keep of it before anything reads it
+    const cell = (r, i, max = 2000) => (i < 0 ? '' : String(r[i] || '').slice(0, max).trim()),
+      body = rows.slice(1, 20001);
     // day first or month first: what the dates of the file tell, else this browser's way
     let order = null;
     for (const r of body)
@@ -4177,7 +4285,7 @@ try {
     if (guess) ctx.said.add(`Dates such as 4/6/2026 are read as ${order === 'mdy' ? 'month/day' : 'day/month'}, as this browser writes them.`);
     const out = [];
     for (const r of body) {
-      const it = { text: cell(r, c.text), note: cell(r, c.note), tags: cell(r, c.tags).split(/[,;]/), done: false },
+      const it = { text: cell(r, c.text), note: cell(r, c.note, 30000), tags: cell(r, c.tags).split(/[,;]/), done: false },
         d = cell(r, c.done),
         dd = tableDay(d, order),
         at = cell(r, c.doneAt),
@@ -4193,7 +4301,7 @@ try {
       } else if (cell(r, c.rep)) {
         const rp = cell(r, c.rep);
         it.rep = rruleRep(rp) || wordsRep(rp);
-        if (!it.rep) it.repText = rp;
+        it.repWords = rp;
       }
       out.push(it);
     }
@@ -4222,12 +4330,16 @@ try {
   // A date alone (midnight UTC, as the Tasks API writes it) is that day. Midnight on its maker's clock is that day here,
   // an hour or two either side included (another zone, a change of time); any other time, the day it shows here.
   function gDay(v, tz) {
-    const s = String(v || '').trim();
+    const s = String(v || '')
+      .slice(0, 60)
+      .trim();
     if (/^\d{4}-\d\d-\d\d(?:T00:00:00(?:\.0+)?Z)?$/i.test(s)) return imDay(s.slice(0, 10));
     const t = imAt(s);
     if (t == null) return null;
-    const w = wall(t, tz);
-    return w.m === 0 && w.s === 0 && w.h === 23 ? addDays(w.k, 1) : w.k;
+    // a time with a fraction of a second is a task set for that moment, never a midnight
+    const w = wall(t, tz),
+      timed = /\.\d*[1-9]/.test(s);
+    return !timed && w.m === 0 && w.s === 0 && w.h >= 22 ? addDays(w.k, 1) : w.k;
   }
   // a list's repeat as One Day's, or null; one that has stopped is no repeat at all
   function gRep(r) {
@@ -4293,20 +4405,29 @@ try {
         tag = typeof list.title === 'string' ? list.title : '';
       // older files keep the list's order in position; newer ones in the order of the file
       all.sort((a, b) => (pos(a) < pos(b) ? -1 : pos(a) > pos(b) ? 1 : 0));
+      // its words, cut to what One Day keeps before anything reads them
       const words = t => {
-        const title = typeof t.title === 'string' ? t.title.trim() : '',
-          notes = typeof t.notes === 'string' ? t.notes : '',
-          links = (Array.isArray(t.links) ? t.links : [])
-            .filter(l => l && typeof l.link === 'string' && /^https?:\/\//i.test(l.link))
-            .map(l => `- [${String(l.description || l.link).replace(/[[\]\n]/g, ' ')}](${l.link})`);
+        const title = typeof t.title === 'string' ? t.title.slice(0, 2000).trim() : '',
+          notes = typeof t.notes === 'string' ? t.notes.slice(0, 30000) : '',
+          links = (Array.isArray(t.links) ? t.links.slice(0, 20) : [])
+            .filter(l => l && typeof l.link === 'string' && l.link.length < 2000 && /^https?:\/\//i.test(l.link))
+            .map(l => `- [${String(l.description || l.link).slice(0, 300).replace(/[[\]\n]/g, ' ')}](${l.link})`);
         return { title: title || notes.trim().split('\n')[0].trim(), notes: [title ? notes : notes.trim().split('\n').slice(1).join('\n'), ...links].filter(Boolean).join('\n') };
       };
+      // the task at the top of a sub-task's line; one whose line turns in a circle is a task of its own
       const top = t => {
-        for (let i = 0; i < 20 && t.parent && byId.has(t.parent); i++) t = byId.get(t.parent);
-        return t;
+        const path = new Set([t]);
+        let x = t;
+        while (x.parent && byId.has(x.parent)) {
+          x = byId.get(x.parent);
+          if (path.has(x)) return t;
+          path.add(x);
+        }
+        return x;
       };
       for (const t of all) {
-        if (t.parent && byId.has(t.parent)) continue;
+        if (out.length >= 20000) break;
+        if (top(t) !== t) continue;
         const w = words(t),
           done = t.status === 'completed',
           rec = typeof t.task_recurrence_id === 'string' ? reps.get(t.task_recurrence_id) : null,
@@ -4320,20 +4441,21 @@ try {
           // the occurrence still open carries the repeat; the done ones are its history
           ruled.add(rec.id);
           it.rep = gRep(rec);
-          if (!it.rep && !(rec.stopped === true || /^true$/i.test(rec.stopped))) it.repText = gWords(rec);
+          if (!(rec.stopped === true || /^true$/i.test(rec.stopped))) it.repWords = gWords(rec);
         }
         made.set(t.id, it);
         out.push(it);
       }
       // a sub-task joins the task at the top of its line; its own notes go into that task's note
       for (const t of all) {
-        if (!t.parent || !byId.has(t.parent)) continue;
-        const it = made.get(top(t).id);
+        const r = top(t);
+        if (r === t) continue;
+        const it = made.get(r.id);
         if (!it) continue;
         const w = words(t);
         if (!w.title) continue;
         it.subs.push({ text: w.title, done: t.status === 'completed' });
-        if (w.notes.trim()) it.note = `${it.note ? it.note + '\n\n' : ''}**${w.title.replace(/\*/g, '')}**\n${w.notes}`;
+        if (w.notes.trim()) it.note = more(it.note, `**${w.title.replace(/\*/g, '')}**\n${w.notes.trim()}`);
       }
     }
     return out;
@@ -4342,13 +4464,32 @@ try {
   // todo.txt: a task a line. "x 2026-11-20 2026-11-02 Call Sam +work @phone due:2026-11-25" was done on the 20th;
   // +projects and @contexts become tags, due: is its day (else t:, the day it may start), rec: how it repeats; a priority
   // and pri: are left out. done.txt, the archive, is written the same way.
-  const TXT =
-    /^(?:x \d{4}-\d\d-\d\d |\([A-Z]\) |\d{4}-\d\d-\d\d \S)|(?:^|\s)(?:(?:due|t):\d{4}-\d\d-\d\d|rec:\+?\d{0,2}[dbwmy]|\+[\p{L}\p{N}])/mu;
+  // A file is todo.txt (whatever its name) when its lines say so: several with a mark only the format makes (a done "x"
+  // and its date, a priority, a creation date, due:, t:, rec:), a fair share with one at least (+project or @context
+  // too), and few that look like a Markdown or plain list.
+  const TDS = /^(?:x \d{4}-\d\d-\d\d |\([A-Z]\) |\d{4}-\d\d-\d\d \S)|(?:^|\s)(?:(?:due|t):\d{4}-\d\d-\d\d|rec:\+?\d{0,3}[dbwmy])(?:\s|$)/,
+    TDW = /(?:^|\s)[+@][\p{L}\p{N}]/u,
+    MDL = /^(?:[-*+•]\s|\d{1,3}[.)]\s|\[[ xX]?\])/;
+  function looksTodo(text) {
+    let n = 0,
+      strong = 0,
+      sig = 0,
+      list = 0;
+    for (const l of linesOf(text.slice(0, 20000), 200)) {
+      const s = l.trim().slice(0, 1000),
+        st = TDS.test(s);
+      n++;
+      if (st) strong++;
+      if (st || TDW.test(s)) sig++;
+      if (MDL.test(s)) list++;
+    }
+    return n > 0 && list * 3 < n && (strong >= 2 || (strong === 1 && n <= 3)) && sig * 10 >= n * 3;
+  }
   function fromTodoTxt(text) {
     const out = [],
       tk = todayKey();
-    for (const raw of text.split(/\r\n|\r|\n/)) {
-      let l = raw.trim(),
+    for (const raw of linesOf(text, 20000)) {
+      let l = raw.trim().slice(0, 5000),
         m;
       if (!l) continue;
       const it = { text: '', tags: [], done: false };
@@ -4373,7 +4514,7 @@ try {
           else if (k === 't') start = imDay(kv[2]);
           else if (k === 'rec') {
             it.rep = recRep(kv[2]);
-            it.repText = w;
+            it.repWords = w;
           } else if (k === 'h' || k === 'hide') hidden = kv[2] !== '' && kv[2] !== '0';
         } else words.push(w);
       }
@@ -4390,7 +4531,7 @@ try {
   // A Todoist repeat, in the English words its dates are written in: "every day", "every 3 weeks", "every mon, fri",
   // "every weekday", "every other month", "every 15th", "every last day", "every 2nd tue", "every jan 15", "every!
   // 3 days" (from the day it is done), with a time or an end ("until dec 31") or not. Anything else is null.
-  const MON = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'],
+  const MON3 = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'],
     ORD = { first: 1, second: 2, third: 3, fourth: 4, last: -1 };
   const wdIn = w =>
     w.length >= 2
@@ -4401,6 +4542,7 @@ try {
       : -1;
   function wordsRep(s, until) {
     let v = String(s || '')
+      .slice(0, 200)
       .toLowerCase()
       .replace(/[.,]+$/, '')
       .replace(/\s+/g, ' ')
@@ -4431,7 +4573,7 @@ try {
         w = wdIn(rest);
       if (w > -1) rep = { freq: 'month', every: 1, nth: m[1] ? +m[1] : ORD[m[2]], wd: w };
     } else if ((m = /^([a-z]{3,9}) (\d{1,2})(?:st|nd|rd|th)?$|^(\d{1,2})(?:st|nd|rd|th)? ([a-z]{3,9})$/.exec(v))) {
-      const mo = MON.indexOf((m[1] || m[4]).slice(0, 3)) + 1,
+      const mo = MON3.indexOf((m[1] || m[4]).slice(0, 3)) + 1,
         d = +(m[2] || m[3]);
       if (mo && d <= MAXD[mo - 1]) rep = { freq: 'year', every: 1, mo, md: d };
     }
@@ -4444,7 +4586,10 @@ try {
     MAXD = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
   function rruleRep(v) {
     const o = {};
-    for (const part of String(v || '').replace(/^\s*RRULE:/i, '').split(';')) {
+    for (const part of String(v || '')
+      .slice(0, 500)
+      .replace(/^\s*RRULE:/i, '')
+      .split(';')) {
       const i = part.indexOf('=');
       if (i > 0) o[part.slice(0, i).trim().toUpperCase()] = part.slice(i + 1).trim().toUpperCase();
       else if (part.trim()) return null;
@@ -4546,7 +4691,11 @@ try {
       s = (n, one, many) => `${n} ${n > 1 ? many : one}`;
     if (tags.length)
       notes.push(`Lists, projects and labels come in as tags: ${tags.slice(0, 5).map(g => '#' + g).join(', ')}${tags.length > 5 ? ` and ${tags.length - 5} more` : ''}.`);
+    // already here, word for word, on the same days: most likely imported before
+    if (P.dupes && P.dupes * 2 >= P.n)
+      notes.unshift(`${P.dupes === P.n ? (P.n > 1 ? 'All of these are' : 'This one is') : `${P.dupes} of these are`} already in One Day, on the same ${P.dupes > 1 ? 'days' : 'day'}: adding them again would make doubles.`);
     if (P.noted) notes.push(`${s(P.noted, 'repeat', 'repeats')} One Day can’t follow ${P.noted > 1 ? 'are written in their notes' : 'is written in its note'}.`);
+    if (P.over) notes.push(`${s(P.over, 'task repeats', 'tasks repeat')} past the 300 repeats One Day keeps: ${P.over > 1 ? 'they come' : 'it comes'} in once, ${P.over > 1 ? 'their repeat in their notes' : 'its repeat in its note'}.`);
     if (P.full.size)
       notes.push(`${P.cut ? s(P.cut, 'task', 'tasks') + ' left out: ' : ''}${P.full.size > 1 ? `${P.full.size} days are` : dayLabel([...P.full][0]) + ' is'} full (300 tasks a day).`);
     if (P.undated) notes.push(`${s(P.undated, 'done task', 'done tasks')} without a date ${P.undated > 1 ? 'are' : 'is'} left out.`);
@@ -4562,6 +4711,10 @@ try {
     IM.impGo.textContent = P.n > 1 ? 'Add all' : 'Add';
     const ae = D().activeElement;
     IMP = { items: found.items, from, back: ae && ae !== D().body ? ae : null };
+    // the file is read here; on the hosted page with sync, the tasks it adds are saved like any other
+    IM.impSub.textContent = cloud.col
+      ? 'Read here, in this browser. Like your other tasks, these are also saved in your private space on Claude.'
+      : 'Read here, in this browser. Nothing is sent anywhere.';
     IM.impList.scrollTop = 0;
     home.inert = true;
     modalIn(TAP && TAP.el.isConnected && Date.now() - TAP.t < 1500 ? TAP.el : IMP.back, IM.imp, IM.impCard);
@@ -4597,22 +4750,32 @@ try {
     if (e.target === IM.imp) closeImport();
   });
   // Add all: planned again against the days as they are now, then added in one step that one undo takes back.
-  IM.impGo.onclick = () => {
+  // It is written once, and checked: if the browser can't keep it all, nothing is added.
+  const TOOBIG = 'That is more than this browser can keep: nothing was added';
+  IM.impGo.onclick = async () => {
     const m = closeImport();
     if (!m || locked) return;
     const P = imPlan(m.items);
     if (P.big || !P.n) {
-      toast(P.big ? 'That is more than this browser can keep: nothing was added' : 'Those days are full: nothing was added');
+      toast(P.big ? TOOBIG : 'Those days are full: nothing was added');
       return;
     }
     const keys = Object.keys(P.days);
     record(Object.keys(P.rules).length ? [...keys, cur] : keys);
+    const undoAt = UN.length;
     Object.assign(S.rules, P.rules);
-    for (const k of keys) {
-      day(k).tasks.push(...P.days[k]);
-      commit(k);
+    for (const k of keys) day(k).tasks.push(...P.days[k]);
+    let ok = commitMany(keys);
+    if (ok && vault) {
+      await flush();
+      ok = sealOk;
     }
-    if (!keys.length) persist();
+    if (locked) return;
+    if (!ok) {
+      if (UN.length === undoAt) applySnap(UN.pop(), []);
+      toast(TOOBIG);
+      return;
+    }
     closeSearch();
     ensure(cur);
     flip(() => {
@@ -5028,7 +5191,8 @@ try {
     OPEN = '☐□▢◻⬜';
   function listItems(txt, max = 100) {
     const out = [];
-    for (const raw of String(txt).split(/\r\n|\r|\n/)) {
+    for (const line of linesOf(String(txt), max * 2)) {
+      const raw = line.slice(0, 5000);
       let l = raw.replace(/\s+/g, ' ').trim(),
         done = false;
       l = l.replace(BUL, '');
@@ -5565,9 +5729,8 @@ try {
       yearly: 'FREQ=YEARLY',
       annually: 'FREQ=YEARLY',
     },
-    RRK = ['FREQ', 'INTERVAL', 'BYDAY', 'BYMONTHDAY', 'BYMONTH', 'BYSETPOS', 'UNTIL', 'COUNT', 'WKST', 'BYHOUR', 'BYMINUTE', 'BYSECOND'],
-    RRD = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'],
-    MAXD = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    RRK = ['FREQ', 'INTERVAL', 'BYDAY', 'BYMONTHDAY', 'BYMONTH', 'BYSETPOS', 'UNTIL', 'COUNT', 'WKST', 'BYHOUR', 'BYMINUTE', 'BYSECOND'];
+  // RRD and MAXD (the weekdays as iCalendar writes them, each month's longest length) are the import's, above
   function linkRepeat(v) {
     v = String(v).trim();
     if (!v || v.length > 200) return null;
@@ -7212,6 +7375,8 @@ try {
     closeLockset(null);
     closeImport();
     IM.impList.textContent = '';
+    IM.impNote.textContent = '';
+    IM.impT.textContent = '';
     closePops();
     closeSearch(false);
     closeInbox();

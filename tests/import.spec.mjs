@@ -136,7 +136,8 @@ test.describe('importing from other apps', () => {
     await expect(row(page, 'Call the plumber about the leak')).toHaveCount(0);
     const back = await stored(page);
     expect(back.days['2026-11-24'].tasks.map(t => t.text)).toEqual(['Already here']);
-    expect(back.days['2026-11-23'].tasks).toEqual([]);
+    // the days the import made are not left behind, empty
+    expect(back.days['2026-11-23']).toBeUndefined();
     expect(back.rules).toEqual({});
   });
 
@@ -498,6 +499,155 @@ test.describe('importing from other apps', () => {
     await expect(page.locator('#impNote')).toContainText('Dates such as 4/6/2026 are read as month/day, as this browser writes them.');
     await page.locator('#impGo').click();
     expect((await stored(page)).days['2027-04-06'].tasks.map(t => t.text)).toEqual(['Call Sam']);
+  });
+});
+
+test.describe('importing from other apps, at the edges', () => {
+  // Five years of history in one export: one write to add it all, one to take it back.
+  test('a long history is added and taken back at once, and leaves no empty days behind', async ({ page }) => {
+    await open(page);
+    const items = Array.from({ length: 9000 }, (_, i) => {
+      const d = new Date(Date.UTC(2021, 11, 1) + Math.floor(i / 5) * 864e5);
+      return { kind: 'tasks#task', id: 't' + i, title: 'Done thing ' + i, status: 'completed', completed: d.toISOString() };
+    });
+    await pick(page, file('Tasks.json', JSON.stringify({ kind: 'tasks#taskLists', items: [{ kind: 'tasks#tasks', title: 'Archive', items }] }), 'application/json'));
+    await expect(page.locator('#impT')).toHaveText('9000 tasks from Google Tasks');
+    await page.evaluate(() => {
+      window.__writes = 0;
+      const set = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (...a) {
+        window.__writes++;
+        return set.apply(this, a);
+      };
+    });
+    let t = Date.now();
+    await page.locator('#impGo').click();
+    await expect(page.locator('#toast')).toContainText('Imported 9000 tasks from Google Tasks');
+    expect(Date.now() - t).toBeLessThan(6000);
+    expect(await page.evaluate(() => window.__writes)).toBeLessThan(5);
+    expect(Object.keys((await stored(page)).days).length).toBe(1800);
+    t = Date.now();
+    await page.locator('#undo').click();
+    await expect(page.locator('#toast')).toContainText('Undone');
+    expect(Date.now() - t).toBeLessThan(6000);
+    expect((await stored(page)).days).toEqual({});
+  });
+
+  test('if the browser can’t keep it all, nothing is added', async ({ page }) => {
+    await open(page, { days: { '2026-11-24': { u: 1, tasks: [{ id: 'k1', text: 'Already here', done: false }] } } });
+    await pick(page, file('todo.txt', fixture('todo.txt')));
+    // the storage refuses anything as large as the import
+    await page.evaluate(() => {
+      const set = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k, v) {
+        if (k === 'oneday.v1' && String(v).includes('Call the plumber')) throw new DOMException('full', 'QuotaExceededError');
+        return set.call(this, k, v);
+      };
+    });
+    await page.locator('#impGo').click();
+    await expect(page.locator('#toast')).toContainText('That is more than this browser can keep: nothing was added');
+    await expect(row(page, 'Call the plumber')).toHaveCount(0);
+    await expect(row(page, 'Already here')).toBeVisible();
+    const s = await stored(page);
+    expect(s.days['2026-11-24'].tasks.map(t => t.text)).toEqual(['Already here']);
+    expect(s.rules).toEqual({});
+  });
+
+  test('the same export twice: the dialog says they are already here', async ({ page }) => {
+    await open(page);
+    await pick(page, file('todo.txt', fixture('todo.txt')));
+    await expect(page.locator('#impNote')).not.toContainText('already in One Day');
+    await page.locator('#impGo').click();
+    await expect(page.locator('#toast')).toContainText('Imported 8 tasks');
+    await pick(page, file('todo.txt', fixture('todo.txt')));
+    await expect(page.locator('#impNote p').first()).toHaveText('All of these are already in One Day, on the same days: adding them again would make doubles.');
+  });
+
+  test('past the 300 repeats One Day keeps, a repeat comes in once, its repeat in its note', async ({ page }) => {
+    const rules = {};
+    for (let i = 0; i < 299; i++) rules['r' + i] = { id: 'r' + i, text: 'Old ' + i, start: '2026-01-01', freq: 'month', every: 1 };
+    await open(page, { rules });
+    await pick(page, file('todo.txt', 'Water the plants rec:+1w due:2026-11-24\nPay the gym rec:1m due:2026-12-01\n'));
+    await expect(page.locator('#impNote')).toContainText('1 task repeats past the 300 repeats One Day keeps: it comes in once, its repeat in its note.');
+    await page.locator('#impGo').click();
+    const s = await stored(page);
+    expect(Object.keys(s.rules)).toHaveLength(300);
+    expect(s.days['2026-12-01'].tasks[0].note).toContain('Repeats in todo.txt: rec:1m');
+    expect(s.days['2026-12-01'].tasks[0].rule).toBeUndefined();
+  });
+
+  test('crafted cells and archives can’t freeze the page', async ({ page }) => {
+    await open(page);
+    const tt = fixture('TickTick-backup-2026-11-24.csv').toString().replace('"Projects"', `"a${'/'.repeat(30000)}b"`),
+      td = 'TYPE,CONTENT,DESCRIPTION,PRIORITY,INDENT,AUTHOR,RESPONSIBLE,DATE,DATE_LANG,TIMEZONE\n' + `task,Water @${'x@'.repeat(20000)},,4,1,,,every${' '.repeat(100000)}x,en,Europe/Paris\n`;
+    let t = Date.now();
+    await pick(page, file('TickTick-backup.csv', tt, 'text/csv'), file('Home.csv', td, 'text/csv'));
+    expect(Date.now() - t).toBeLessThan(5000);
+    await page.locator('#impNo').click();
+    // a .zip whose 60 entries all point at the same stored file: read once
+    const big = Buffer.from('Buy milk\n'.repeat(200000)),
+      one = zip([['todo.txt', big]]),
+      at = one.readUInt32LE(one.length - 6),
+      entry = one.subarray(at, one.length - 22),
+      dir = Buffer.concat(Array.from({ length: 60 }, () => entry)),
+      end = Buffer.from(one.subarray(one.length - 22));
+    end.writeUInt16LE(60, 8);
+    end.writeUInt16LE(60, 10);
+    end.writeUInt32LE(dir.length, 12);
+    t = Date.now();
+    await pick(page, file('many.zip', Buffer.concat([one.subarray(0, at), dir, end]), 'application/zip'));
+    expect(Date.now() - t).toBeLessThan(5000);
+    await expect(page.locator('#impT')).toHaveText('300 tasks from todo.txt');
+  });
+
+  test('plain lists stay plain lists: a "+44" or a box at the start doesn’t make them todo.txt or JSON', async ({ page }) => {
+    await open(page);
+    await pick(page, file('groceries.txt', '[ ] milk\n[x] eggs\n'), file('calls.txt', '- Call the plumber +44 7700 900123\n- [ ] Book the dentist\n  - ask about Friday\n'));
+    await page.locator('#impGo').click();
+    const s = await stored(page);
+    expect(s.days['2026-11-24'].tasks.map(t => [t.text, t.done])).toEqual([
+      ['milk', false],
+      ['eggs', true],
+      ['Call the plumber +44 7700 900123', false],
+      ['Book the dentist', false],
+    ]);
+    expect(s.days['2026-11-24'].tasks[3].subs.map(x => x.text)).toEqual(['ask about Friday']);
+  });
+
+  test('TickTick rows that name each other as parent both come in', async ({ page }) => {
+    await open(page);
+    const head = '"Folder Name","List Name","Title","Kind","Tags","Content","Is Check list","Start Date","Due Date","Reminder","Repeat","Priority","Status","Created Time","Completed Time","Order","Timezone","Is All Day","Is Floating","Column Name","Column Order","View Mode","taskId","parentId"';
+    const csv = `"Date: 2026-11-24+0000"\n"Version: 7.1"\n${head}\n"","Inbox","First","TEXT","","","N","","","","","0","0","","","0","Europe/Paris","false","false",,,"list","1","2"\n"","Inbox","Second","TEXT","","","N","","","","","0","0","","","0","Europe/Paris","false","false",,,"list","2","1"\n`;
+    await pick(page, file('TickTick-backup.csv', csv, 'text/csv'));
+    await page.locator('#impGo').click();
+    const t = (await stored(page)).days['2026-11-24'].tasks;
+    expect(t.map(x => [x.text, (x.subs || []).map(y => y.text)])).toEqual([['First', ['Second']]]);
+  });
+
+  test('Google: a midnight made two hours east still lands on its day', async ({ browser }) => {
+    const ctx = await browser.newContext({ timezoneId: 'Europe/London', viewport: { width: 1280, height: 860 } }),
+      page = await ctx.newPage();
+    await open(page);
+    const json = JSON.stringify({
+      kind: 'tasks#taskLists',
+      items: [
+        {
+          kind: 'tasks#tasks',
+          title: 'Trips',
+          items: [
+            { kind: 'tasks#task', id: 'a', title: 'Pack', status: 'needsAction', scheduled_time: [{ current: true, start: '2026-11-24T22:00:00Z' }] },
+            { kind: 'tasks#task', id: 'b', title: 'Taxi at 22:30', status: 'needsAction', scheduled_time: [{ current: true, start: '2026-11-24T22:00:00.000431Z' }] },
+          ],
+        },
+      ],
+    });
+    await pick(page, file('Tasks.json', json, 'application/json'));
+    await page.locator('#impGo').click();
+    const s = await stored(page);
+    // midnight in Athens is 22:00 in London, the day before; a timed task keeps its own day
+    expect(s.days['2026-11-25'].tasks.map(t => t.text)).toEqual(['Pack #trips']);
+    expect(s.days['2026-11-24'].tasks.map(t => t.text)).toEqual(['Taxi at 22:30 #trips']);
+    await ctx.close();
   });
 });
 
