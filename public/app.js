@@ -437,12 +437,24 @@ try {
   const record = keys => pushUndo(snap(keys));
   function applySnap(e, into) {
     into.push({ ...snap(Object.keys(e.days)), cur: e.cur });
+    const was = S.rules,
+      tk = todayKey();
     if (e.rules) S.rules = e.rules;
     for (const k in e.days) {
       S.days[k] = { u: 0, tasks: e.days[k].tasks };
       commit(k);
     }
-    if (!(cur in e.days)) go(e.cur);
+    // a repeat this takes away takes with it the occurrences it had made on days still to come
+    const gone = Object.keys(was).filter(id => !S.rules[id]);
+    if (gone.length)
+      for (const k in S.days) {
+        if (k < tk || k in e.days) continue;
+        const t = S.days[k].tasks.filter(x => !(x.rule && !x.done && gone.includes(x.rule)));
+        if (t.length === S.days[k].tasks.length) continue;
+        S.days[k].tasks = t;
+        commit(k);
+      }
+    if (!(cur in e.days) && e.cur !== cur) go(e.cur);
     else
       flip(() => {
         renderList();
@@ -1066,9 +1078,12 @@ try {
     NTHS = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th', '-1': 'Last' },
     AND = new Intl.ListFormat('en-GB', { type: 'conjunction' }),
     ord = n => n + (n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th');
-  // "Every Monday and Thursday", "Every 2 weeks on weekdays", "Every month on the third Saturday".
-  // Short: "Mon, Thu", "Every 2 weeks", "3rd Sat".
+  // "Every Monday and Thursday", "Every 2 weeks on weekdays", "Every month on the third Saturday", and, for a rule that
+  // ends (one from a link), ", until Friday 4 December". Short: "Mon, Thu", "Every 2 weeks", "3rd Sat".
   function ruleText(r, short) {
+    return ruleWords(r, short) + (!short && r.until ? `, until ${dayName(r.until)}` : '');
+  }
+  function ruleWords(r, short) {
     const e = r.every;
     if (r.freq === 'day') return e === 1 ? (short ? 'Daily' : 'Every day') : `Every ${e} days`;
     if (r.freq === 'week') {
@@ -1085,8 +1100,13 @@ try {
     const s = fromKey(r.start),
       wd = wdOf(r.start);
     if (short)
-      return e > 1 ? `Every ${e} months` : r.nth != null ? `${NTHS[r.nth]} ${WDS[wd]}` : `Monthly, ${ord(s.getDate())}`;
-    const on = r.nth != null ? `the ${NTH[r.nth]} ${WDL[wd]}` : `the ${ord(s.getDate())}`;
+      return e > 1
+        ? `Every ${e} months`
+        : r.nth != null
+          ? `${NTHS[r.nth]} ${WDS[wd]}`
+          : `Monthly, ${s.getDate() === 31 ? 'last day' : ord(s.getDate())}`;
+    // from the 31st, every month has it on its last day
+    const on = r.nth != null ? `the ${NTH[r.nth]} ${WDL[wd]}` : s.getDate() === 31 ? 'the last day' : `the ${ord(s.getDate())}`;
     return e === 1 ? `Every month on ${on}` : `Every ${e} months on ${on}`;
   }
   function addRepeating(text, k) {
@@ -4173,7 +4193,7 @@ try {
     return DAYRE.test(v) && keyOf(fromKey(v)) === v ? v : null;
   }
   // How a task repeats: a word below, or an iCalendar RRULE made of the parts One Day can follow. Anything else is
-  // no rule at all, rather than a different one.
+  // no rule at all, rather than a different one. (parseRepeat in mcp/link.mjs follows the same rules.)
   const REPW = {
       daily: 'FREQ=DAILY',
       weekdays: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR',
@@ -4184,11 +4204,13 @@ try {
       annually: 'FREQ=YEARLY',
     },
     RRK = ['FREQ', 'INTERVAL', 'BYDAY', 'BYMONTHDAY', 'BYMONTH', 'BYSETPOS', 'UNTIL', 'COUNT', 'WKST', 'BYHOUR', 'BYMINUTE', 'BYSECOND'],
-    RRD = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
+    RRD = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'],
+    MAXD = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
   function linkRepeat(v) {
     v = String(v).trim();
     if (!v || v.length > 200) return null;
-    v = (REPW[v.toLowerCase()] || v.replace(/^RRULE:/i, '')).toUpperCase();
+    const w = v.toLowerCase();
+    v = (Object.hasOwn(REPW, w) ? REPW[w] : v.replace(/^RRULE:/i, '')).toUpperCase();
     const o = {};
     for (const part of v.split(';')) {
       if (!part.trim()) continue;
@@ -4218,13 +4240,14 @@ try {
         sp.wd = RRD.indexOf(ds[0][2]);
       }
     } else if (o.BYSETPOS) return null;
-    if (o.BYMONTHDAY) {
-      sp.md = num(o.BYMONTHDAY, 1, 31);
-      if (!sp.md || sp.nth || (freq !== 'month' && freq !== 'year')) return null;
-    }
     if (o.BYMONTH) {
       sp.mo = num(o.BYMONTH, 1, 12);
       if (!sp.mo || freq !== 'year') return null;
+    }
+    if (o.BYMONTHDAY) {
+      // a date of the month (-1, the last day, in a monthly repeat); in a year, only with a month that has it
+      sp.md = freq === 'month' && o.BYMONTHDAY === '-1' ? 31 : num(o.BYMONTHDAY, 1, 31);
+      if (!sp.md || sp.nth || (freq !== 'month' && !sp.mo) || (sp.mo && sp.md > MAXD[sp.mo - 1])) return null;
     }
     if (o.UNTIL) {
       const m = /^(\d{4})-?(\d\d)-?(\d\d)(T[\dZ]*)?$/.exec(o.UNTIL),
@@ -4238,54 +4261,112 @@ try {
     }
     return sp;
   }
-  // The rule a link's repeat makes from a day: it starts on the first day from there that it fits (the 15th, the second
-  // Tuesday…). With the first occurrence still to come, or none (it has ended).
+  // The day a link's repeat starts on, from day k: the first day from there that it fits (the 15th, the second Tuesday,
+  // 14 March…), found month by month. A date that month lacks (the 31st in November) falls on its last day, as it will
+  // in such months afterwards: the rule then starts from that date in an earlier month, and skips that start.
+  function startOf(sp, k) {
+    if (!sp.md && !sp.nth && !sp.mo) return { start: k };
+    const d0 = fromKey(k),
+      y = d0.getFullYear();
+    for (let i = 0; i < 120; i++) {
+      const m = d0.getMonth() + i,
+        dim = new Date(y, m + 1, 0).getDate();
+      if (sp.mo && new Date(y, m, 1).getMonth() + 1 !== sp.mo) continue;
+      let date = Math.min(sp.md || d0.getDate(), dim);
+      if (sp.nth) {
+        const fw = (new Date(y, m, 1).getDay() + 6) % 7,
+          lw = (new Date(y, m, dim).getDay() + 6) % 7;
+        date = sp.nth === -1 ? dim - ((lw - sp.wd + 7) % 7) : 1 + ((sp.wd - fw + 7) % 7) + (sp.nth - 1) * 7;
+      }
+      const s = keyOf(new Date(y, m, date));
+      if (s < k) continue;
+      if (!sp.md || sp.md <= dim) return { start: s };
+      if (sp.every > 1) continue;
+      for (let j = 1; j <= 8; j++) {
+        const pm = m - j * (sp.mo ? 12 : 1);
+        if (new Date(y, pm + 1, 0).getDate() < sp.md) continue;
+        const a = keyOf(new Date(y, pm, sp.md));
+        return { start: a, skip: a };
+      }
+    }
+    return null;
+  }
+  // A rule's occurrences from a day on, in order, found without walking the calendar day by day (a repeat can come
+  // every 99 months). Each one is checked with occurs(), which decides where the task appears.
+  function* occFrom(r, from) {
+    if (from < r.start) from = r.start;
+    const s = fromKey(r.start),
+      f = fromKey(from);
+    for (let i = 0; i < 5000; i++) {
+      let ks;
+      if (r.freq === 'day') ks = [addDays(r.start, (Math.ceil(diff(r.start, from) / r.every) + i) * r.every)];
+      else if (r.freq === 'week') {
+        const mon = addDays(r.start, -wdOf(r.start)),
+          w = (Math.ceil(Math.floor(diff(mon, from) / 7) / r.every) + i) * r.every;
+        ks = r.days.map(d => addDays(mon, w * 7 + d));
+      } else {
+        const mm = s.getMonth() + (Math.ceil(((f.getFullYear() - s.getFullYear()) * 12 + f.getMonth() - s.getMonth()) / r.every) + i) * r.every,
+          y = s.getFullYear(),
+          dim = new Date(y, mm + 1, 0).getDate();
+        let date = Math.min(s.getDate(), dim);
+        if (r.nth != null) {
+          const wd = wdOf(r.start),
+            fw = (new Date(y, mm, 1).getDay() + 6) % 7,
+            lw = (new Date(y, mm, dim).getDay() + 6) % 7;
+          date = r.nth === -1 ? dim - ((lw - wd + 7) % 7) : 1 + ((wd - fw + 7) % 7) + (r.nth - 1) * 7;
+        }
+        ks = [keyOf(new Date(y, mm, date))];
+      }
+      for (const k of ks) {
+        if (r.until && k > r.until) return;
+        if (k >= from && occurs(r, k)) yield k;
+      }
+    }
+  }
+  // The rule a link's repeat makes from a day, with its first occurrence still to come, or none (it has ended).
   function ruleAt(sp, k, t) {
-    const k0 = fromKey(k).getDate(),
-      fits = d => {
-        const x = fromKey(d),
-          n = x.getDate();
-        if (sp.mo && x.getMonth() + 1 !== sp.mo) return false;
-        if (sp.nth) return wdOf(d) === sp.wd && (sp.nth === -1 ? n + 7 > dimOf(x) : Math.ceil(n / 7) === sp.nth);
-        if (sp.md) return n === sp.md;
-        return !sp.mo || n === Math.min(k0, dimOf(x));
-      };
-    let s = k;
-    for (let i = 0; i < 800 && !fits(s); i++) s = addDays(s, 1);
-    if (!fits(s)) return null;
+    const st = startOf(sp, k);
+    if (!st) return null;
     const year = sp.freq === 'year',
       f = { freq: year ? 'month' : sp.freq, every: year ? sp.every * 12 : sp.every };
-    if (f.freq === 'week') f.days = sp.days || [wdOf(s)];
+    if (f.freq === 'week') f.days = sp.days || [wdOf(st.start)];
     if (sp.nth) f.nth = sp.nth;
     if (sp.until) f.until = sp.until;
-    const r = cleanRule({ ...f, text: t.text, note: t.note, subs: t.subs, start: s }, 'r' + uid());
+    if (st.skip) f.skip = [st.skip];
+    const r = cleanRule({ ...f, text: t.text, note: t.note, subs: t.subs, start: st.start }, 'r' + uid());
     if (!r) return null;
-    // COUNT ends it on its last occurrence, when that falls within about four years (a longer count runs on)
+    // COUNT ends it on its last occurrence
     if (sp.count) {
       let c = 0,
         last = null;
-      for (let i = 0, d = r.start; i < 1500 && c < sp.count; i++, d = addDays(d, 1))
-        if (occurs(r, d)) {
-          c++;
-          last = d;
-        }
-      if (c === sp.count && !(r.until && r.until < last)) r.until = last;
+      for (const d of occFrom(r, r.start)) {
+        last = d;
+        if (++c === sp.count) break;
+      }
+      if (c === sp.count) r.until = last;
     }
     const tk = todayKey(),
-      first = nextOcc(r, r.start > tk ? r.start : tk);
+      first = occFrom(r, r.start > tk ? r.start : tk).next().value;
     return first ? { rule: r, first } : null;
   }
   // A note in a link is plain text, with the Markdown the note editor understands: **bold**, *italic*, `code`,
   // ~~strike~~, lists, and links. It is then cleaned like any other note.
   const MDI =
-    /(`[^`\n]+`)|\*\*([^*\n]+)\*\*|~~([^~\n]+)~~|(?<![*\w])\*([^*\s](?:[^*\n]*[^*\s])?)\*(?![*\w])|(?<![_\w])_([^_\s](?:[^_\n]*[^_\s])?)_(?![_\w])|\[([^[\]\n]+)\]\(([^()\s]+)\)|((?:https?:\/\/|www\.)[^\s<]*[^\s<.,;:!?)\]'"»])/gi;
+    /(`[^`\n]+`)|\*\*([^*\n]+)\*\*|~~([^~\n]+)~~|(?<![*\w])\*([^*\s](?:[^*\n]*[^*\s])?)\*(?![*\w])|(?<![_\w])_([^_\s](?:[^_\n]*[^_\s])?)_(?![_\w])|\[([^[\]\n]+)\]\(((?:[^()\s]|\([^()\s]*\))+)\)|((?:https?:\/\/|www\.)[^\s<]*[^\s<.,;:!?)\]'"»])/gi;
   function mdLine(s) {
     let h = '',
       last = 0;
     for (const m of s.matchAll(MDI)) {
-      const u = m[7] || m[8] ? safeUrl(m[7] || m[8]) : null;
+      if (m.index < last) continue;
+      let url = m[8];
       h += esc(s.slice(last, m.index));
       last = m.index + m[0].length;
+      // a bare address keeps the bracket that closes one of its own: …/wiki/Mercury_(planet)
+      if (url && s[last] === ')' && url.split('(').length > url.split(')').length) {
+        url += ')';
+        last++;
+      }
+      const u = m[7] || url ? safeUrl(m[7] || url) : null;
       h += m[1]
         ? `<code>${esc(m[1].slice(1, -1))}</code>`
         : m[2]
@@ -4295,8 +4376,8 @@ try {
             : m[4] || m[5]
               ? `<i>${mdLine(m[4] || m[5])}</i>`
               : u
-                ? `<a href="${esc(u)}">${esc(m[6] || m[8])}</a>`
-                : esc(m[0]);
+                ? `<a href="${esc(u)}">${esc(m[6] || url)}</a>`
+                : esc(url || m[0]);
     }
     return h + esc(s.slice(last));
   }
@@ -4313,7 +4394,7 @@ try {
     return h + (list ? `</${list}>` : '');
   }
   // The link an assistant can write by hand: #add?task=…&note=…&sub=…&day=…&repeat=…, each task=… starting a task and
-  // the words after it describing that task. A day before the first task is the day for the tasks that name none.
+  // the words after it describing that task. A day before the first task is the day of every task that names none.
   function readQuery(qs) {
     const raw = [];
     let def = null,
@@ -4335,16 +4416,17 @@ try {
       const m = /^\s*(?:[-*•]\s+)?(?:\[([ xX])\]\s*)?([\s\S]*)$/.exec(s);
       return [m[2], m[1] && m[1] !== ' ' ? 1 : 0];
     };
-    let d = def != null ? linkDay(def) : null;
-    if (d && d < todayKey()) d = todayKey();
-    return {
-      list: raw
-        .map(x =>
-          incoming(x.t, x.n.length ? mdNote(x.n.join('\n').slice(0, 10000)) : undefined, x.s.slice(0, 100).map(sub), x.day, x.rep),
-        )
-        .filter(Boolean),
-      def: d,
-    };
+    return raw
+      .map(x =>
+        incoming(
+          x.t,
+          x.n.length ? mdNote(x.n.join('\n').slice(0, 10000)) : undefined,
+          x.s.slice(0, 100).map(sub),
+          x.day != null ? x.day : def,
+          x.rep,
+        ),
+      )
+      .filter(Boolean);
   }
   async function linkFor(list) {
     const pl = list.length === 1 ? { v: 1, ...packTask(list[0]) } : { v: 1, d: list.map(packTask) };
@@ -4405,19 +4487,20 @@ try {
     try {
       history.replaceState(null, '', location.href.split('#')[0]);
     } catch (e) {}
-    let got = { list: [], def: null };
-    if (h.length <= 32000) {
-      if (h[4] === '?') got = readQuery(h.slice(5));
+    try {
+      let list = [];
+      if (h.length > 32000) list = [];
+      else if (h[4] === '?') list = readQuery(h.slice(5));
       else {
         const m = /^#add=([jz])([\w-]{4,24000})$/.exec(h);
-        if (m) got.list = await readPacked(m[1], m[2]);
+        if (m) list = await readPacked(m[1], m[2]);
       }
+      if (list.length) return showInbox(list);
+    } catch (e) {
+      IN = null;
+      $.inbox.hidden = true;
     }
-    if (!got.list.length) {
-      toast('That link doesn’t hold a task');
-      return;
-    }
-    showInbox(got.list, got.def);
+    toast('That link doesn’t hold a task');
   }
   async function readPacked(kind, data) {
     let pl = null;
@@ -4430,11 +4513,11 @@ try {
   }
   // The tasks go to one day, shown on the chip, unless the link puts them on different days: then each keeps its own,
   // and the chip, if any, holds the day for those that name none.
-  function showInbox(list, def) {
+  function showInbox(list) {
     const own = new Set(list.map(it => it.own).filter(Boolean)),
       one = !own.size || (own.size === 1 && list.every(it => it.own));
     for (const it of list) it.fix = one ? null : it.own;
-    IN = { list, to: (one && [...own][0]) || def || todayKey() };
+    IN = { list, to: (one && [...own][0]) || todayKey() };
     const many = list.length > 1;
     $.inbox.classList.toggle('multi', many);
     $.inT.textContent = many ? `${list.length} tasks for you` : 'A task for you';
@@ -4454,15 +4537,25 @@ try {
     $.inbox.getAnimations().forEach(x => x.cancel());
     $.inbox.hidden = false;
     guard('inbox', () => closeInbox());
-    // a list too long for the dialog scrolls, and the keyboard can reach it
-    if (many && $.inList.scrollHeight > $.inList.clientHeight + 1) $.inList.tabIndex = 0;
-    else $.inList.removeAttribute('tabindex');
+    $.inList.scrollTop = 0;
+    fitList();
     an($.inbox, [{ opacity: 0, transform: 'translateY(-14px) scale(.97)' }, { opacity: 1, transform: 'none' }], {
       easing: POP.ease,
       duration: POP.dur,
     });
     $.inYes.focus({ preventScroll: true });
   }
+  // A list too long for the dialog scrolls, the keyboard can reach it, and a faint lower edge says there is more below
+  // until its end is in view.
+  const fadeList = () =>
+    $.inList.classList.toggle('fade', $.inList.scrollTop + $.inList.clientHeight < $.inList.scrollHeight - 2);
+  function fitList() {
+    if (!$.inList.hidden && $.inList.scrollHeight > $.inList.clientHeight + 1) $.inList.tabIndex = 0;
+    else $.inList.removeAttribute('tabindex');
+    fadeList();
+  }
+  $.inList.addEventListener('scroll', fadeList, { passive: true });
+  window.addEventListener('resize', () => IN && fitList());
   // Where an incoming task lands from a day: there, or, if it repeats, on its first occurrence still to come.
   function planOf(it, k) {
     if (it.memo && it.memo.k === k) return it.memo.p;
@@ -4478,7 +4571,7 @@ try {
       n = (t.subs || []).length,
       p = planOf(it, k),
       bits = [t.note ? 'Note' : '', n ? `${n} ${n > 1 ? 'sub-tasks' : 'sub-task'}` : ''];
-    if (p.r) bits.push(`${ruleText(p.r)}, from ${dayShort(p.k)}`);
+    if (p.r) bits.push(`${ruleWords(p.r)}, from ${dayShort(p.k)}${p.r.until ? `, until ${dayShort(p.r.until)}` : ''}`);
     else {
       if (it.fix) bits.push(dayLabel(p.k));
       if (it.rep) bits.push('Its repeat is over');
@@ -4521,8 +4614,16 @@ try {
   $.inYes.onclick = () => {
     if (!IN) return;
     const { list, to } = IN,
-      tk = todayKey(),
-      plans = list.map(it => planOf(it, it.fix || to)),
+      tk = todayKey();
+    // One Day keeps up to 300 repeats: past that, a task comes without its own
+    let roomR = 300 - Object.keys(S.rules).length,
+      bare = 0;
+    const plans = list.map(it => {
+        const p = planOf(it, it.fix || to);
+        if (!p.r || roomR-- > 0) return p;
+        bare++;
+        return { k: p.k, t: it.task };
+      }),
       rules = plans.some(p => p.r) && cur >= tk,
       keys = [...new Set([...plans.map(p => p.k), ...(rules ? [cur] : [])])];
     closeInbox();
@@ -4547,7 +4648,9 @@ try {
     keys.forEach(commit);
     const n = made.length,
       days = [...new Set(made.map(p => p.k))],
-      cut = n < plans.length ? ` (a day is full: ${plans.length - n} left out)` : '',
+      cut =
+        (n < plans.length ? ` (a day is full: ${plans.length - n} left out)` : '') +
+        (bare ? ` (${bare} without ${bare > 1 ? 'their repeats' : 'its repeat'}: One Day keeps 300 at most)` : ''),
       here = made.map(p => (p.k === cur ? p.t.id : p.r && occurs(p.r, cur) && cur >= tk ? occId(p.r, cur) : null)).filter(Boolean);
     if (here.length) {
       flip(() => {
@@ -4563,7 +4666,7 @@ try {
     }
     toast(
       (n === 1 && made[0].r
-        ? `${ruleText(made[0].r)}, from ${dayName(made[0].k)}`
+        ? `${ruleWords(made[0].r)}, from ${dayName(made[0].k)}${made[0].r.until ? `, until ${dayName(made[0].r.until)}` : ''}`
         : days.length > 1
           ? `Added ${n} tasks to ${days.length} days`
           : days[0] === cur

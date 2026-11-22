@@ -1221,6 +1221,7 @@ test.describe('links from assistants', () => {
 
   test('repeats: words and iCalendar rules, counted from the task’s day, and what One Day cannot follow is said', async ({ page }) => {
     await openOn(page);
+    // [repeat, what the dialog says, the task's own day]
     const reps = [
       ['daily', 'Every day, from today'],
       ['weekdays', 'Every weekday, from today'],
@@ -1231,24 +1232,77 @@ test.describe('links from assistants', () => {
       ['FREQ=MONTHLY;BYDAY=WE;BYSETPOS=2', 'Every month on the second Wednesday, from Wed 9 Dec'],
       ['FREQ=MONTHLY;BYMONTHDAY=1', 'Every month on the 1st, from Tue 1 Dec'],
       ['RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=4TH', 'Every 12 months on the fourth Thursday, from Thu 26 Nov'],
-      ['freq=daily;count=3', 'Every day, from today'],
+      ['freq=daily;count=3', 'Every day, from today, until Wed 25 Nov'],
+      ['FREQ=YEARLY;COUNT=10', 'Every 12 months on the 23rd, from today, until Fri 23 Nov 2035'],
+      // a date November lacks falls on its last day, from the start
+      ['FREQ=MONTHLY;BYMONTHDAY=31', 'Every month on the last day, from Mon 30 Nov'],
+      ['FREQ=MONTHLY;BYMONTHDAY=-1', 'Every month on the last day, from Mon 30 Nov'],
+      // far apart, and from a day already gone: still followed
+      ['FREQ=YEARLY;INTERVAL=3', 'Every 36 months on the 21st, from Wed 21 Nov 2029', '2026-11-21'],
+      ['FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=29', 'Every 12 months on the 29th, from Sun 28 Feb 2027'],
       ['FREQ=HOURLY', 'Repeat not understood'],
       ['FREQ=MONTHLY;BYDAY=5MO', 'Repeat not understood'],
+      ['FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=30', 'Repeat not understood'],
+      ['FREQ=YEARLY;BYMONTHDAY=14', 'Repeat not understood'],
+      ['constructor', 'Repeat not understood'],
       ['FREQ=WEEKLY;UNTIL=20261101', 'Its repeat is over'],
     ];
-    await page.goto('/#add?' + reps.map(([r], i) => `task=R${i}&repeat=${encodeURIComponent(r)}`).join('&'));
+    const kept = reps.filter(r => !/not understood|is over/.test(r[1])).length;
+    await page.goto(
+      '/#add?' + reps.map(([r, , d], i) => `task=R${i}&repeat=${encodeURIComponent(r)}${d ? '&day=' + d : ''}`).join('&'),
+    );
     await expect(page.locator('#inList .inlm')).toHaveText(reps.map(r => r[1]));
     await page.locator('#inYes').click();
-    await expect(page.locator('#toast')).toContainText('Added 13 tasks');
+    await expect(page.locator('#toast')).toContainText(`Added ${reps.length} tasks`);
     const st = await stored(page),
-      rules = Object.values(st.rules);
-    expect(rules.map(r => r.text)).toEqual(reps.slice(0, 10).map((_, i) => 'R' + i));
-    expect(rules.find(r => r.text === 'R9').until).toBe('2026-11-25');
-    expect(rules.find(r => r.text === 'R8')).toMatchObject({ freq: 'month', every: 12, nth: 4, start: '2026-11-26' });
+      rules = Object.values(st.rules),
+      rule = i => rules.find(r => r.text === 'R' + i);
+    expect(rules.map(r => r.text)).toEqual(reps.slice(0, kept).map((_, i) => 'R' + i));
+    expect(rule(9).until).toBe('2026-11-25');
+    expect(rule(10).until).toBe('2035-11-23');
+    expect(rule(8)).toMatchObject({ freq: 'month', every: 12, nth: 4, start: '2026-11-26' });
+    expect(rule(11)).toMatchObject({ start: '2026-10-31', skip: ['2026-10-31'] });
+    expect(st.days['2026-11-30'].tasks.map(t => t.text)).toEqual(['R11', 'R12']);
     // the rest came as plain tasks, today
-    expect(st.days[MON].tasks.filter(t => /^R1[0-2]$/.test(t.text)).map(t => t.rule || null)).toEqual([null, null, null]);
+    expect(st.days[MON].tasks.filter(t => reps[+t.text.slice(1)] && +t.text.slice(1) >= kept).map(t => t.rule || null)).toEqual(
+      Array(reps.length - kept).fill(null),
+    );
     await expect(row(page, 'R0')).toBeVisible();
     await expect(row(page, 'R5')).toHaveCount(0);
+  });
+
+  test('a day before the first task counts for a repeat too; undoing a repeat takes its later occurrences with it', async ({ page }) => {
+    await openOn(page);
+    await page.goto('/#add?day=2026-11-04&task=Sync&repeat=weekly');
+    await expect(page.locator('#inMeta')).toHaveText('Every Wednesday, from Wed 25 Nov');
+    await page.locator('#inNo').click();
+    await page.goto('/#add?task=Water+the+plants&repeat=FREQ=WEEKLY;BYDAY=TU');
+    await page.locator('#inYes').click();
+    await expect(page.locator('#toast')).toContainText('Every Tuesday, from tomorrow');
+    // a week later, the repeat has made another one
+    for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight');
+    await expect(row(page, 'Water the plants')).toBeVisible();
+    expect(Object.keys((await stored(page)).days)).toContain('2026-12-01');
+    await page.keyboard.press('d');
+    await page.keyboard.press('Control+z');
+    expect((await stored(page)).rules).toEqual({});
+    for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight');
+    await expect(row(page, 'Water the plants')).toHaveCount(0);
+    const days = (await stored(page)).days;
+    expect(Object.values(days).flatMap(d => d.tasks.map(t => t.text))).not.toContain('Water the plants');
+  });
+
+  test('One Day keeps up to 300 repeats: past that, a task comes without its own', async ({ page }) => {
+    await page.addInitScript(() => {
+      const rules = {};
+      for (let i = 0; i < 299; i++) rules['q' + i] = { text: 'Later ' + i, start: '2031-01-01', freq: 'day', every: 1 };
+      localStorage.setItem('oneday.v1', JSON.stringify({ days: {}, rules }));
+    });
+    await openOn(page);
+    await page.goto('/#add?task=A&repeat=daily&task=B&repeat=daily&task=C&repeat=daily');
+    await page.locator('#inYes').click();
+    await expect(page.locator('#toast')).toContainText('3 tasks added (2 without their repeats: One Day keeps 300 at most)');
+    expect(Object.keys((await stored(page)).rules)).toHaveLength(300);
   });
 
   test('the compact form carries a day and a repeat too; accents, emoji and encoded signs come through as written', async ({ page }) => {
@@ -1265,6 +1319,19 @@ test.describe('links from assistants', () => {
     const r = row(page, 'C++ & Rust');
     await r.locator('.mt').click();
     await expect(r.locator('.sub')).toHaveText('a=b % c');
+    // links in a note keep the brackets of their own address
+    await page.goto(
+      '/#add?task=Read+up&note=' +
+        encodeURIComponent('[Mercury](https://en.wikipedia.org/wiki/Mercury_(planet)) and https://en.wikipedia.org/wiki/Venus_(planet).'),
+    );
+    await page.locator('#inYes').click();
+    const n = row(page, 'Read up');
+    await n.locator('.mt').click();
+    await expect(n.locator('.note')).toHaveText('Mercury and https://en.wikipedia.org/wiki/Venus_(planet).');
+    expect(await n.locator('.note a').evaluateAll(a => a.map(x => x.getAttribute('href')))).toEqual([
+      'https://en.wikipedia.org/wiki/Mercury_(planet)',
+      'https://en.wikipedia.org/wiki/Venus_(planet)',
+    ]);
   });
 
   test('a hostile readable link cannot run code or break the page', async ({ page }) => {
@@ -1311,6 +1378,10 @@ test.describe('links from assistants', () => {
     await expect(list).toHaveAttribute('tabindex', '0');
     const box = await list.boundingBox();
     expect(box.height).toBeLessThan(400);
+    // a faint edge says there is more, until the end is in view
+    await expect(list).toHaveClass(/\bfade\b/);
+    await list.evaluate(el => el.scrollTo(0, el.scrollHeight));
+    await expect(list).not.toHaveClass(/\bfade\b/);
     await page.locator('#inYes').click();
     await expect(page.locator('#toast')).toContainText('Added 100 tasks to 2 days');
   });

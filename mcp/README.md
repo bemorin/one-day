@@ -73,7 +73,7 @@ In `claude_desktop_config.json`, add `"env": { "ONE_DAY_URL": "https://day.examp
 }
 ```
 
-`title` is required; the rest is optional. `day` is `today`, `tomorrow`, a weekday or `YYYY-MM-DD`; `repeat` is `daily`, `weekdays`, `weekends`, `weekly`, `monthly`, `yearly` or an iCalendar `RRULE` (see [Repeats](../docs/links.md#repeats)). Anything One Day could not read comes back as an error that says what to change, so Claude can fix it and try again.
+`title` is required; the rest is optional. `day` is `today`, `tomorrow`, a weekday or `YYYY-MM-DD`; `repeat` is `daily`, `weekdays`, `weekends`, `weekly`, `monthly`, `yearly` or an iCalendar `RRULE` (see [Repeats](../docs/links.md#repeats)). A day or a repeat One Day could not follow, or text too long for it, comes back as an error that says what to change, so Claude can fix it and try again.
 
 ## License
 

@@ -32,10 +32,12 @@ const WORDS = {
 };
 const PARTS = ['FREQ', 'INTERVAL', 'BYDAY', 'BYMONTHDAY', 'BYMONTH', 'BYSETPOS', 'UNTIL', 'COUNT', 'WKST', 'BYHOUR', 'BYMINUTE', 'BYSECOND'];
 const DAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
+const MAXD = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 export function parseRepeat(v) {
   v = String(v).trim();
   if (!v || v.length > 200) return null;
-  v = (WORDS[v.toLowerCase()] || v.replace(/^RRULE:/i, '')).toUpperCase();
+  const w = v.toLowerCase();
+  v = (Object.hasOwn(WORDS, w) ? WORDS[w] : v.replace(/^RRULE:/i, '')).toUpperCase();
   const o = {};
   for (const part of v.split(';')) {
     if (!part.trim()) continue;
@@ -63,13 +65,14 @@ export function parseRepeat(v) {
       sp.wd = DAYS.indexOf(ds[0][2]);
     }
   } else if (o.BYSETPOS) return null;
-  if (o.BYMONTHDAY) {
-    sp.md = num(o.BYMONTHDAY, 1, 31);
-    if (!sp.md || sp.nth || (freq !== 'month' && freq !== 'year')) return null;
-  }
   if (o.BYMONTH) {
     sp.mo = num(o.BYMONTH, 1, 12);
     if (!sp.mo || freq !== 'year') return null;
+  }
+  if (o.BYMONTHDAY) {
+    // a date of the month (-1, the last day, in a monthly repeat); in a year, only with a month that has it
+    sp.md = freq === 'month' && o.BYMONTHDAY === '-1' ? 31 : num(o.BYMONTHDAY, 1, 31);
+    if (!sp.md || sp.nth || (freq !== 'month' && !sp.mo) || (sp.mo && sp.md > MAXD[sp.mo - 1])) return null;
   }
   if (o.UNTIL) {
     const m = /^(\d{4})-?(\d\d)-?(\d\d)(T[\dZ]*)?$/.exec(o.UNTIL);
@@ -138,7 +141,8 @@ export function oneDayLink(tasks, base = DEFAULT_URL) {
           const w = typeof s === 'string' ? words(s) : '';
           if (!w) bad.push(`${at}.subtasks[${j}] is empty.`);
           else if (w.length > L.subtask) bad.push(`${at}.subtasks[${j}] is longer than ${L.subtask} characters.`);
-          else p.append('sub', w);
+          // One Day reads a leading "- ", "* " or "[x] " as list marks: such a sub-task goes behind an empty box
+          else p.append('sub', /^(?:[-*•]\s|\[[ xX]\])/.test(w) ? '[ ] ' + w : w);
         });
     }
   });

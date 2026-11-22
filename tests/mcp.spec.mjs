@@ -31,6 +31,7 @@ const meta = (v = '2026-07-28') => ({ _meta: { 'io.modelcontextprotocol/protocol
 const tasks = [
   { title: 'Plan the week #work', note: '**Monday** first\n- email\n- calls', subtasks: ['Check the calendar', 'Book a room'], day: 'tomorrow' },
   { title: 'Stretch', repeat: 'weekdays' },
+  { title: 'Shop', subtasks: ['- 2 eggs', '[x] Pay', '[x]', 'Bread'] },
 ];
 
 test.describe('MCP server', () => {
@@ -59,7 +60,11 @@ test.describe('MCP server', () => {
     expect(d.result.supportedVersions).toContain('2026-07-28');
     expect(d.result._meta['io.modelcontextprotocol/serverInfo'].name).toBe('one-day');
     const list = await s.ask({ id: 2, method: 'tools/list', params: meta() });
-    expect(list.result).toMatchObject({ resultType: 'complete', cacheScope: 'public' });
+    expect(list.result).toMatchObject({
+      resultType: 'complete',
+      cacheScope: 'public',
+      _meta: { 'io.modelcontextprotocol/serverInfo': { name: 'one-day' } },
+    });
     expect(list.result.ttlMs).toBeGreaterThan(0);
     const call = await s.ask({ id: 3, method: 'tools/call', params: { name: 'make_one_day_link', arguments: { tasks }, ...meta() } });
     expect(call.result).toMatchObject({ resultType: 'complete', isError: false });
@@ -85,6 +90,18 @@ test.describe('MCP server', () => {
     // a notification gets no answer: the next message is the ping's
     s.send({ jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: 9 } });
     expect(await s.ask({ id: 4, method: 'ping' })).toEqual({ jsonrpc: '2.0', id: 4, result: {} });
+    // ids are strings or numbers, and a batch holds something
+    expect((await s.ask({ id: null, method: 'ping' })).error.code).toBe(-32600);
+    s.send('[]');
+    expect((await s.next()).error.code).toBe(-32600);
+    // a repeat named like a JavaScript property is just not a repeat
+    const odd = await s.ask({
+      id: 5,
+      method: 'tools/call',
+      params: { name: 'make_one_day_link', arguments: { tasks: [{ title: 'x', repeat: 'constructor' }] } },
+    });
+    expect(odd.result.isError).toBe(true);
+    expect(odd.result.content[0].text).toContain('tasks[0].repeat');
     await s.close();
   });
 
@@ -99,10 +116,16 @@ test.describe('MCP server', () => {
     await page.goto('/');
     await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
     await page.goto(url);
-    await expect(page.locator('#inT')).toHaveText('2 tasks for you');
-    await expect(page.locator('#inList .inlm')).toHaveText(['Note · 2 sub-tasks · Tomorrow', 'Every weekday, from today']);
+    await expect(page.locator('#inT')).toHaveText('3 tasks for you');
+    await expect(page.locator('#inList .inlm')).toHaveText(['Note · 2 sub-tasks · Tomorrow', 'Every weekday, from today', '4 sub-tasks']);
     await page.locator('#inYes').click();
     await expect(page.locator('#list .row', { hasText: 'Stretch' })).toBeVisible();
+    // sub-tasks that look like list marks arrive as written, none of them done
+    const shop = page.locator('#list .row', { hasText: 'Shop' });
+    await shop.locator('.mt').click();
+    await expect(shop.locator('.sub')).toHaveText(['- 2 eggs', '[x] Pay', '[x]', 'Bread']);
+    await expect(shop.locator('.sub.done')).toHaveCount(0);
+    await page.mouse.click(40, 600);
     await page.keyboard.press('ArrowRight');
     const r = page.locator('#list .row', { hasText: 'Plan the week' });
     await r.locator('.mt').click();
@@ -118,7 +141,9 @@ test.describe('MCP server', () => {
       'FREQ=DAILY;UNTIL=20271231T000000Z', 'FREQ=WEEKLY;BYHOUR=9', 'FREQ=MONTHLY;INTERVAL=99', 'FREQ=YEARLY;INTERVAL=9',
       'FREQ=MONTHLY;BYDAY=MO,TU', 'FREQ=MONTHLY;BYDAY=5MO', 'FREQ=MONTHLY;BYMONTHDAY=-1', 'FREQ=MONTHLY;BYMONTHDAY=1,15',
       'FREQ=WEEKLY;BYMONTH=3', 'FREQ=YEARLY;BYDAY=1MO', 'FREQ=YEARLY;BYWEEKNO=20', 'FREQ=HOURLY', 'FREQ=DAILY;INTERVAL=2;BYDAY=MO',
-      'FREQ=DAILY;UNTIL=20260230', 'FREQ=DAILY;COUNT=0', 'every monday', '',
+      'FREQ=DAILY;UNTIL=20260230', 'FREQ=DAILY;COUNT=0', 'every monday', '', 'constructor', '__proto__', 'toString',
+      'FREQ=YEARLY;BYMONTHDAY=14', 'FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=30', 'FREQ=YEARLY;BYMONTH=4;BYMONTHDAY=30',
+      'FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1', 'FREQ=YEARLY;COUNT=10', 'FREQ=MONTHLY;INTERVAL=99;COUNT=1000',
     ];
     const days = ['today', 'Tomorrow', 'fri', 'thurs', 'sunday', '2026-12-31', '2028-02-29', 'mo', '2026-02-30', '26-12-01', 'next week', 'sunny'];
     await page.clock.setFixedTime(new Date('2026-11-23T10:00:00'));
@@ -143,5 +168,8 @@ test.describe('MCP server', () => {
     expect(oneDayLink([{ title: 'Hi' }], 'https://example.com/day/#old').url).toBe('https://example.com/day/#add?task=Hi');
     expect(oneDayLink([{ title: 'Hi' }], 'javascript:alert(1)').url).toBe(DEFAULT_URL + '#add?task=Hi');
     expect(oneDayLink([{ title: '(a) & b + c = d #e' }]).url).toBe(DEFAULT_URL + '#add?task=%28a%29+%26+b+%2B+c+%3D+d+%23e');
+    expect(oneDayLink([{ title: 'x', subtasks: ['- a', '[x] b', 'c'] }]).url).toBe(
+      DEFAULT_URL + '#add?task=x&sub=%5B+%5D+-+a&sub=%5B+%5D+%5Bx%5D+b&sub=c',
+    );
   });
 });

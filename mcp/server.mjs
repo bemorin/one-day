@@ -85,7 +85,7 @@ const DAY_MS = 864e5;
 const ok = (id, result) => ({ jsonrpc: '2.0', id, result });
 const fail = (id, code, message, data) => ({ jsonrpc: '2.0', id, error: data ? { code, message, data } : { code, message } });
 
-function call(id, params) {
+function call(id, params, more) {
   if (params.name !== TOOL.name) return fail(id, -32602, `Unknown tool: ${params.name}`);
   const args = params.arguments && typeof params.arguments === 'object' ? params.arguments : {};
   let text, isError;
@@ -101,14 +101,15 @@ function call(id, params) {
     text = e.message;
     isError = true;
   }
-  return ok(id, { resultType: 'complete', content: [{ type: 'text', text }], isError });
+  return ok(id, { resultType: 'complete', content: [{ type: 'text', text }], isError, ...more });
 }
 
 function handle(m) {
   if (!m || typeof m !== 'object' || Array.isArray(m)) return fail(null, -32600, 'Invalid request');
   // This server sends no requests, so a response coming in has nothing to answer.
   if ('result' in m || 'error' in m) return null;
-  const isRequest = m.id !== undefined && m.id !== null;
+  if (m.id === null) return fail(null, -32600, 'Invalid request: an id is a string or a number');
+  const isRequest = m.id !== undefined;
   if (m.jsonrpc !== '2.0' || typeof m.method !== 'string') return isRequest ? fail(m.id, -32600, 'Invalid request') : null;
   // Notifications (initialized, cancelled…) need no answer.
   if (!isRequest) return null;
@@ -117,6 +118,8 @@ function handle(m) {
     asked = params._meta && params._meta['io.modelcontextprotocol/protocolVersion'];
   if (asked !== undefined && method !== 'initialize' && !VERSIONS.includes(asked))
     return fail(id, -32022, 'Unsupported protocol version', { supported: VERSIONS, requested: asked });
+  // stateless requests (2026-07-28) get the server's name in every result
+  const more = asked !== undefined ? { _meta: { 'io.modelcontextprotocol/serverInfo': INFO } } : {};
   switch (method) {
     case 'initialize':
       return ok(id, {
@@ -136,11 +139,11 @@ function handle(m) {
         cacheScope: 'public',
       });
     case 'ping':
-      return ok(id, {});
+      return ok(id, asked !== undefined ? { resultType: 'complete', ...more } : {});
     case 'tools/list':
-      return ok(id, { resultType: 'complete', tools: [TOOL], ttlMs: DAY_MS, cacheScope: 'public' });
+      return ok(id, { resultType: 'complete', tools: [TOOL], ttlMs: DAY_MS, cacheScope: 'public', ...more });
     case 'tools/call':
-      return call(id, params);
+      return call(id, params, more);
     default:
       return fail(id, -32601, `Method not found: ${method}`);
   }
@@ -157,6 +160,7 @@ lines.on('line', line => {
     return send(fail(null, -32700, 'Parse error'));
   }
   if (Array.isArray(msg)) {
+    if (!msg.length) return send(fail(null, -32600, 'Invalid request: an empty batch'));
     const out = msg.map(handle).filter(Boolean);
     if (out.length) send(out);
   } else {

@@ -16,7 +16,7 @@ After `#add?` come `name=value` pairs joined by `&`, as in a query string. Each 
 | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `task`   | The task, as it should read in the list, up to 500 characters. Words starting with `#` become tags (`#work`). Required: it starts a task.                                                                                         |
 | `note`   | A note: plain text, with the Markdown the note editor understands: `**bold**`, `*italic*`, `` `code` ``, `~~strike~~`, lines starting with `- ` or `1. ` for lists, and links (`[text](https://…)` or a bare address). Up to 10,000 characters. Several `note=` are joined by line breaks. |
-| `sub`    | A sub-task, up to 300 characters. Repeat it for more (up to 100). One that starts with `[x] ` comes in done.                                                                                                                       |
+| `sub`    | A sub-task, up to 300 characters. Repeat it for more (up to 100). One that starts with `[x] ` comes in done; a leading `- `, `* ` or `[ ] ` is left out, so a sub-task that should start with one of these goes behind `[ ] `. |
 | `day`    | `today`, `tomorrow`, a weekday (`monday` to `sunday`, or their first letters, at least three: the next one, today included), or a date as `YYYY-MM-DD`. A date already gone becomes today, unless the task repeats.            |
 | `repeat` | How the task repeats: see [Repeats](#repeats).                                                                                                                                                                                     |
 
@@ -53,7 +53,7 @@ Or an iCalendar rule ([RFC 5545](https://www.rfc-editor.org/rfc/rfc5545#section-
 - `FREQ=DAILY`, `WEEKLY`, `MONTHLY` or `YEARLY`, required;
 - `INTERVAL=n`, up to 99 (8 for `YEARLY`);
 - `BYDAY`: weekdays for `DAILY` or `WEEKLY` (`MO,TU,WE,TH,FR,SA,SU`); for `MONTHLY`, one weekday with its rank, `1MO` to `4MO` or `-1MO` for the last (`BYSETPOS=n` can give the rank instead); for `YEARLY`, the same with `BYMONTH`;
-- `BYMONTHDAY=n`, 1 to 31, for `MONTHLY` or `YEARLY`. In a month too short for it, the task comes on the month's last day;
+- `BYMONTHDAY=n`, 1 to 31, for `MONTHLY` (or `-1`, the last day of the month), or for `YEARLY` with `BYMONTH`. In a month too short for the date, the task comes on the month's last day;
 - `BYMONTH=n`, 1 to 12, for `YEARLY`;
 - `UNTIL=YYYYMMDD` (the last day) or `COUNT=n` (how many times).
 
@@ -68,6 +68,7 @@ A repeat counts from the task's day, its `day=` or the day picked in the dialog:
 | On the last Friday of a month | `FREQ=MONTHLY;BYDAY=-1FR`          |
 | On the 15th of each month     | `FREQ=MONTHLY;BYMONTHDAY=15`       |
 | Every 14 March                | `FREQ=YEARLY;BYMONTH=3;BYMONTHDAY=14` |
+| On the last day of each month | `FREQ=MONTHLY;BYMONTHDAY=-1`       |
 | Every day for a week          | `FREQ=DAILY;COUNT=7`               |
 
 ### An example
@@ -80,8 +81,8 @@ Three tasks: a talk to prepare on Friday, with a note and two sub-tasks; plants 
 
 ### When the link opens
 
-- One Day takes the tasks out of the address at once, so a reload or the browser's history does not offer them again.
-- A dialog lists the tasks, each with its note, sub-tasks, day and repeat. When they all go to the same day, the day chip shows it and can change it for all of them. When the link spreads them over several days, each keeps its own, and the chip holds the day for those that name none.
+- One Day takes the tasks out of the address at once, so a reload or the Back button does not offer them again. Your browser's history may still list the link, as it lists any address you open.
+- A dialog lists the tasks, each with its note, sub-tasks, day and repeat, and the last day of a repeat that ends. When they all go to the same day, the day chip shows it and can change it for all of them. When the link spreads them over several days, each keeps its own, and the chip holds the day for those that name none.
 - **Add** (or **Add all**) puts them in, with one undo. **Ignore** drops them. Nothing is stored before that.
 
 ### The compact form
@@ -115,7 +116,7 @@ If the assistant shows the link as plain text, copy it into the address bar. For
 ## Privacy, plainly
 
 - **One Day sees nothing.** The part after `#` is never sent to day.bemorin.com, nor to Cloudflare, which hosts it. The host only sees that the page was opened, as for any visit.
-- **The link holds the tasks in plain text.** Anyone who has it can read them, as with any message.
+- **The link holds the tasks in plain text.** Anyone who has it can read them, as with any message, and your browser's history can keep it, as it keeps any address you open.
 - **Your assistant's provider** (Anthropic, OpenAI…) sees what you ask it and the link it writes, as with anything you tell it, and keeps them in your chat history as it keeps the rest of the conversation.
 - **The MCP server** runs on your computer, opens no network connection, writes no file and keeps nothing between calls.
 - **There is no remote MCP server, on purpose.** ChatGPT and claude.ai connectors can only reach servers on the internet. One would receive every task in clear on its way: the words, notes, days and repeats, and the address of the assistant's servers calling it, even if it stored and logged nothing. The instructions above do the same job without it.
