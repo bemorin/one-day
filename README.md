@@ -56,6 +56,7 @@ On a phone: tap a task to open it, hold then drag to reorder, swipe sideways to 
 ## Privacy
 
 - **Your tasks never leave your device.** They are stored in your browser's `localStorage` for this site. There is no server, database or account behind the app, so whoever hosts it cannot see them.
+- **What the browser keeps for One Day**, all in its `localStorage`: your tasks (`oneday.v1`, or `oneday.vault` when the lock is on), the timer's settings (`oneday.timer`), your light or dark choice (`oneday.theme`) and, if you put off the offer to install it, that you did (`oneday.install`). The service worker's cache (`one-day-v…`) holds the app's own files only.
 - **No cookies, no analytics, no third-party requests.** The font is bundled with the app, and the Content Security Policy only lets the app's own files load. The footer links are plain links: nothing is contacted until you click one. The dogood.day link tells that site you came from One Day, in its address (`utm_source=day.bemorin.com`) and as the referrer (the site's address only, no page and no identifier); the others send nothing.
 - **The service worker caches the app's files only**, so it opens instantly and works offline. It never reads your tasks.
 - **Sent tasks travel in the link itself**, after the `#`, never through a server. Anyone who has the link can read the task, as with any message.
@@ -83,6 +84,8 @@ One Day targets **WCAG 2.2 AA**: everything works with a keyboard (including a k
 The test suite runs [axe-core](https://github.com/dequelabs/axe-core) on the main view, an open card, search, the timer and the day picker, in light and dark. Automated checks cover a subset of WCAG, so testing with VoiceOver or NVDA is still worthwhile.
 
 ## Install it as an app
+
+Until it is installed, One Day offers it: in the middle of the time's line on a large screen (its cross puts the offer off for good, into a small button beside the sun), behind the ⋮ button in a narrower window, and first in More on a phone. In Chrome and Edge it opens the browser's own install prompt; in Safari it says where to look. You can also:
 
 - **Chrome or Edge:** click the install icon in the address bar.
 - **Safari on macOS:** _File → Add to Dock_.
