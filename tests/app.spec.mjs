@@ -1408,6 +1408,16 @@ test.describe('links from assistants', () => {
     await expect(page.locator('#inbox')).toBeHidden();
   });
 
+  test('the skill for ChatGPT and Claude says who it is, and its example link holds what it says', async ({ page, baseURL }) => {
+    const skill = readFileSync(new URL('../skills/one-day/SKILL.md', import.meta.url), 'utf8');
+    expect(skill).toMatch(/^---\nname: one-day\ndescription: [^\n]{40,1024}\n---\n/);
+    const link = skill.split('\n').find(l => l.startsWith('https://day.bemorin.com/#add?'));
+    await openOn(page);
+    await page.goto(link.replace('https://day.bemorin.com', baseURL));
+    await expect(page.locator('#inList .inlt')).toHaveText(['Buy bread', 'Call the bank', 'Water the plants']);
+    await expect(page.locator('#inList .inlm')).toHaveText(['Tomorrow', 'Note · 1 sub-task', 'Every Tuesday and Friday, from tomorrow']);
+  });
+
   test('a link of a hundred tasks scrolls inside the dialog and the keyboard can reach it', async ({ page }) => {
     await openOn(page);
     await page.goto('/#add?' + Array.from({ length: 120 }, (_, i) => `task=Task+${i + 1}&day=${i % 2 ? 'tomorrow' : 'friday'}`).join('&'));

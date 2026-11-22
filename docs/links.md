@@ -97,7 +97,7 @@ Three tasks: a talk to prepare on Friday, with a note and two sub-tasks; plants 
 
 ### ChatGPT, claude.ai and other assistants
 
-They need no server: paste these instructions where the assistant keeps them (in ChatGPT, the custom instructions in Settings → Personalization, a project's instructions or a custom GPT's; in claude.ai, a project's instructions or your profile preferences). Then ask, in any language: “Add to One Day: buy bread tomorrow, and water the plants every Tuesday and Friday.”
+They need no server. Where the assistant takes skills, add [`skills/one-day`](../skills/one-day/SKILL.md): the same instructions as a skill, with no length limit, that the assistant uses when you mention One Day (in ChatGPT, Plugins → Skills → Create, then paste it in the editor or upload the folder; type `@` to pick it by name; in claude.ai, upload the folder as a zip under Settings → Capabilities). Otherwise, paste these instructions where the assistant keeps them (in ChatGPT, the custom instructions in Settings → Personalization, a project's instructions or a custom GPT's; in claude.ai, a project's instructions or your profile preferences). Then ask, in any language: “Add to One Day: buy bread tomorrow, and water the plants every Tuesday and Friday.”
 
 ```text
 When I ask to add tasks to One Day, answer with one link holding them all, shown as a Markdown link "Add to One Day". Build it as https://day.bemorin.com/#add? followed by name=value pairs joined by &:

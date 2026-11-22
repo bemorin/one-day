@@ -132,6 +132,7 @@ scripts/
   demo-video.mjs        the demo video, 1080p60 and 720p (npm run video, needs ffmpeg)
 mcp/                    the local MCP server for Claude (one tool, no dependencies)
 docs/links.md           the link format that carries tasks into One Day
+skills/one-day/         the same, as a skill for ChatGPT or Claude
 tests/                  Playwright tests
 ```
 
