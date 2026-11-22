@@ -16,7 +16,8 @@ const MODERN = ['2026-07-28'],
 const BASE = appUrl(process.env.ONE_DAY_URL) || DEFAULT_URL;
 const INSTRUCTIONS =
   'make_one_day_link puts tasks in a link that adds them to One Day, a private to-do list that keeps tasks in the ' +
-  "user's browser. Nothing is sent anywhere: give the link to the user, who opens it and confirms.";
+  "user's browser. Nothing is sent anywhere: give the link to the user, who opens it and confirms. When the user " +
+  "wants tasks in One Day, this link is the whole job: don't open One Day, don't click in it, and don't change its code.";
 
 const TOOL = {
   name: 'make_one_day_link',
@@ -26,7 +27,7 @@ const TOOL = {
     "user's browser. Use it when the user wants tasks, to-dos or a plan in One Day. Several tasks, each with an " +
     'optional note, sub-tasks, day and repeat, go in one link. Nothing is sent anywhere: the tasks travel inside the ' +
     "link, after the #. Give the link to the user; opening it shows the tasks in One Day, which adds them once the user " +
-    'confirms.',
+    "confirms. Call this rather than opening One Day, using the computer or editing One Day's code: the link is the whole job.",
   inputSchema: {
     type: 'object',
     properties: {

@@ -5,7 +5,7 @@ description: Puts tasks into One Day (day.bemorin.com), a private to-do list tha
 
 # One Day links
 
-One Day has no server and no account: tasks reach it in a link, after the `#`, which the browser never sends anywhere. Opening the link shows the tasks in One Day, and the user adds them in one click.
+One Day has no server and no account: tasks reach it in a link, after the `#`, which the browser never sends anywhere. Opening the link shows the tasks in One Day, and the user adds them in one click. The link is the whole job: don't open One Day or click in it to add the tasks.
 
 ## Build the link
 
