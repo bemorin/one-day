@@ -15,7 +15,7 @@ try {
     home = document.getElementById('home'),
     q = s => app.querySelector(s),
     $ = {};
-  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inT inTitle inMeta inDay inDayL inNo inYes mbar mbSearch mbTimer mbTimerL mbAdd mbSend mbMore scrim more moreList theme sendd fx fbtn fname fclr fpop ftags fnone fqL fq spicks lockb kb kpop addGo'
+  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inT inTitle inMeta inList inDay inDayL inNo inYes mbar mbSearch mbTimer mbTimerL mbAdd mbSend mbMore scrim more moreList theme sendd fx fbtn fname fclr fpop ftags fnone fqL fq spicks lockb kb kpop addGo'
     .split(' ')
     .forEach(id => ($[id] = q('#' + id)));
   const fill = q('.rule i'),
@@ -4137,24 +4137,214 @@ try {
     if (t.subs) o.s = t.subs.map(x => (x.done ? [x.text, 1] : [x.text]));
     return o;
   };
-  function unpackTask(o) {
-    if (!o || typeof o.t !== 'string' || !o.t.trim()) return null;
-    const subs = Array.isArray(o.s)
-      ? o.s
-          .filter(x => Array.isArray(x) && typeof x[0] === 'string')
-          .map(x => ({ id: uid(), text: x[0].replace(/\s+/g, ' ').trim(), done: !!x[1] }))
-          .filter(x => x.text)
-      : [];
+  // A task that comes in: its words, note (clean HTML) and sub-tasks, and, when the link says so, its own day and how it
+  // repeats. A day already gone becomes today, unless the task repeats: then it is the day the repeat counts from.
+  function incoming(text, note, subs, dayV, repV) {
+    if (typeof text !== 'string' || !text.trim()) return null;
+    const ss = (Array.isArray(subs) ? subs : [])
+      .filter(x => Array.isArray(x) && typeof x[0] === 'string')
+      .map(x => ({ id: uid(), text: x[0].replace(/\s+/g, ' ').trim(), done: !!x[1] }))
+      .filter(x => x.text);
     const [t] = clean([
       {
         id: uid(),
-        text: o.t.replace(/\s+/g, ' ').trim(),
+        text: text.replace(/\s+/g, ' ').trim(),
         done: false,
-        note: typeof o.n === 'string' ? o.n : undefined,
-        subs: subs.length ? subs : undefined,
+        note: typeof note === 'string' ? note : undefined,
+        subs: ss.length ? ss : undefined,
       },
     ]);
-    return t || null;
+    if (!t) return null;
+    const asked = typeof repV === 'string' && !!repV.trim(),
+      rep = asked ? linkRepeat(repV) : null;
+    let own = typeof dayV === 'string' ? linkDay(dayV) : null;
+    if (own && !rep && own < todayKey()) own = todayKey();
+    return { task: t, own, rep, repBad: asked && !rep, fix: null };
+  }
+  const unpackTask = o => (o && typeof o === 'object' ? incoming(o.t, o.n, o.s, o.day, o.repeat) : null);
+  // A day in a link: today, tomorrow, a weekday (the next one, today included) or YYYY-MM-DD.
+  function linkDay(v) {
+    v = String(v).trim().toLowerCase();
+    const tk = todayKey(),
+      w = v.length >= 3 ? WDL.findIndex(n => n.toLowerCase().startsWith(v)) : -1;
+    if (v === 'today') return tk;
+    if (v === 'tomorrow') return addDays(tk, 1);
+    if (w > -1) return addDays(tk, (w - wdOf(tk) + 7) % 7);
+    return DAYRE.test(v) && keyOf(fromKey(v)) === v ? v : null;
+  }
+  // How a task repeats: a word below, or an iCalendar RRULE made of the parts One Day can follow. Anything else is
+  // no rule at all, rather than a different one.
+  const REPW = {
+      daily: 'FREQ=DAILY',
+      weekdays: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR',
+      weekends: 'FREQ=WEEKLY;BYDAY=SA,SU',
+      weekly: 'FREQ=WEEKLY',
+      monthly: 'FREQ=MONTHLY',
+      yearly: 'FREQ=YEARLY',
+      annually: 'FREQ=YEARLY',
+    },
+    RRK = ['FREQ', 'INTERVAL', 'BYDAY', 'BYMONTHDAY', 'BYMONTH', 'BYSETPOS', 'UNTIL', 'COUNT', 'WKST', 'BYHOUR', 'BYMINUTE', 'BYSECOND'],
+    RRD = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
+  function linkRepeat(v) {
+    v = String(v).trim();
+    if (!v || v.length > 200) return null;
+    v = (REPW[v.toLowerCase()] || v.replace(/^RRULE:/i, '')).toUpperCase();
+    const o = {};
+    for (const part of v.split(';')) {
+      if (!part.trim()) continue;
+      const i = part.indexOf('=');
+      if (i < 1) return null;
+      o[part.slice(0, i).trim()] = part.slice(i + 1).trim();
+    }
+    const freq = { DAILY: 'day', WEEKLY: 'week', MONTHLY: 'month', YEARLY: 'year' }[o.FREQ],
+      num = (s, lo, hi) => (/^[+-]?\d{1,4}$/.test(s) && +s >= lo && +s <= hi ? +s : null);
+    if (!freq || Object.keys(o).some(k => !RRK.includes(k))) return null;
+    const every = o.INTERVAL == null ? 1 : num(o.INTERVAL, 1, freq === 'year' ? 8 : 99);
+    if (every == null) return null;
+    const sp = { freq, every };
+    if (o.BYDAY) {
+      const ds = o.BYDAY.split(',').map(s => /^([+-]?\d{1,2})?(MO|TU|WE|TH|FR|SA|SU)$/.exec(s.trim()));
+      if (ds.some(m => !m)) return null;
+      if (freq === 'day' || freq === 'week') {
+        // weekdays only; "every day on these weekdays" is the same as every week on them
+        if (o.BYSETPOS || ds.some(m => m[1]) || (freq === 'day' && every > 1)) return null;
+        sp.freq = 'week';
+        sp.days = [...new Set(ds.map(m => RRD.indexOf(m[2])))].sort((a, b) => a - b);
+      } else {
+        // one weekday of the month: 2TU, -1FR, or TU with BYSETPOS=2; in a year, only with its month
+        const n = ds.length === 1 ? num(ds[0][1] != null ? ds[0][1] : o.BYSETPOS, -1, 4) : null;
+        if (!n || (freq === 'year' && !o.BYMONTH) || (ds[0][1] != null && o.BYSETPOS)) return null;
+        sp.nth = n;
+        sp.wd = RRD.indexOf(ds[0][2]);
+      }
+    } else if (o.BYSETPOS) return null;
+    if (o.BYMONTHDAY) {
+      sp.md = num(o.BYMONTHDAY, 1, 31);
+      if (!sp.md || sp.nth || (freq !== 'month' && freq !== 'year')) return null;
+    }
+    if (o.BYMONTH) {
+      sp.mo = num(o.BYMONTH, 1, 12);
+      if (!sp.mo || freq !== 'year') return null;
+    }
+    if (o.UNTIL) {
+      const m = /^(\d{4})-?(\d\d)-?(\d\d)(T[\dZ]*)?$/.exec(o.UNTIL),
+        k = m && `${m[1]}-${m[2]}-${m[3]}`;
+      if (!k || keyOf(fromKey(k)) !== k) return null;
+      sp.until = k;
+    }
+    if (o.COUNT) {
+      sp.count = num(o.COUNT, 1, 1000);
+      if (!sp.count) return null;
+    }
+    return sp;
+  }
+  // The rule a link's repeat makes from a day: it starts on the first day from there that it fits (the 15th, the second
+  // Tuesday…). With the first occurrence still to come, or none (it has ended).
+  function ruleAt(sp, k, t) {
+    const k0 = fromKey(k).getDate(),
+      fits = d => {
+        const x = fromKey(d),
+          n = x.getDate();
+        if (sp.mo && x.getMonth() + 1 !== sp.mo) return false;
+        if (sp.nth) return wdOf(d) === sp.wd && (sp.nth === -1 ? n + 7 > dimOf(x) : Math.ceil(n / 7) === sp.nth);
+        if (sp.md) return n === sp.md;
+        return !sp.mo || n === Math.min(k0, dimOf(x));
+      };
+    let s = k;
+    for (let i = 0; i < 800 && !fits(s); i++) s = addDays(s, 1);
+    if (!fits(s)) return null;
+    const year = sp.freq === 'year',
+      f = { freq: year ? 'month' : sp.freq, every: year ? sp.every * 12 : sp.every };
+    if (f.freq === 'week') f.days = sp.days || [wdOf(s)];
+    if (sp.nth) f.nth = sp.nth;
+    if (sp.until) f.until = sp.until;
+    const r = cleanRule({ ...f, text: t.text, note: t.note, subs: t.subs, start: s }, 'r' + uid());
+    if (!r) return null;
+    // COUNT ends it on its last occurrence, when that falls within about four years (a longer count runs on)
+    if (sp.count) {
+      let c = 0,
+        last = null;
+      for (let i = 0, d = r.start; i < 1500 && c < sp.count; i++, d = addDays(d, 1))
+        if (occurs(r, d)) {
+          c++;
+          last = d;
+        }
+      if (c === sp.count && !(r.until && r.until < last)) r.until = last;
+    }
+    const tk = todayKey(),
+      first = nextOcc(r, r.start > tk ? r.start : tk);
+    return first ? { rule: r, first } : null;
+  }
+  // A note in a link is plain text, with the Markdown the note editor understands: **bold**, *italic*, `code`,
+  // ~~strike~~, lists, and links. It is then cleaned like any other note.
+  const MDI =
+    /(`[^`\n]+`)|\*\*([^*\n]+)\*\*|~~([^~\n]+)~~|(?<![*\w])\*([^*\s](?:[^*\n]*[^*\s])?)\*(?![*\w])|(?<![_\w])_([^_\s](?:[^_\n]*[^_\s])?)_(?![_\w])|\[([^[\]\n]+)\]\(([^()\s]+)\)|((?:https?:\/\/|www\.)[^\s<]*[^\s<.,;:!?)\]'"»])/gi;
+  function mdLine(s) {
+    let h = '',
+      last = 0;
+    for (const m of s.matchAll(MDI)) {
+      const u = m[7] || m[8] ? safeUrl(m[7] || m[8]) : null;
+      h += esc(s.slice(last, m.index));
+      last = m.index + m[0].length;
+      h += m[1]
+        ? `<code>${esc(m[1].slice(1, -1))}</code>`
+        : m[2]
+          ? `<b>${mdLine(m[2])}</b>`
+          : m[3]
+            ? `<s>${mdLine(m[3])}</s>`
+            : m[4] || m[5]
+              ? `<i>${mdLine(m[4] || m[5])}</i>`
+              : u
+                ? `<a href="${esc(u)}">${esc(m[6] || m[8])}</a>`
+                : esc(m[0]);
+    }
+    return h + esc(s.slice(last));
+  }
+  function mdNote(text) {
+    let h = '',
+      list = '';
+    for (const ln of String(text).replace(/\r\n?/g, '\n').trim().split('\n')) {
+      const m = /^\s*(?:([-*+•])|\d{1,3}[.)])\s+(.*)$/.exec(ln),
+        kind = m ? (m[1] ? 'ul' : 'ol') : '';
+      if (kind !== list) h += (list ? `</${list}>` : '') + (kind ? `<${kind}>` : '');
+      list = kind;
+      h += kind ? `<li>${mdLine(m[2])}</li>` : `<div>${mdLine(ln) || '<br>'}</div>`;
+    }
+    return h + (list ? `</${list}>` : '');
+  }
+  // The link an assistant can write by hand: #add?task=…&note=…&sub=…&day=…&repeat=…, each task=… starting a task and
+  // the words after it describing that task. A day before the first task is the day for the tasks that name none.
+  function readQuery(qs) {
+    const raw = [];
+    let def = null,
+      it = null;
+    for (const [k0, v] of new URLSearchParams(qs)) {
+      const k = k0.trim().toLowerCase();
+      if (k === 'task') {
+        if (raw.length === 100) break;
+        raw.push((it = { t: v, n: [], s: [], day: null, rep: null }));
+      } else if (k === 'day' || k === 'date') {
+        if (it) it.day = v;
+        else def = v;
+      } else if (!it) continue;
+      else if (k === 'note') it.n.push(v);
+      else if (k === 'sub' || k === 'subtask') it.s.push(v);
+      else if (k === 'repeat') it.rep = v;
+    }
+    const sub = s => {
+      const m = /^\s*(?:[-*•]\s+)?(?:\[([ xX])\]\s*)?([\s\S]*)$/.exec(s);
+      return [m[2], m[1] && m[1] !== ' ' ? 1 : 0];
+    };
+    let d = def != null ? linkDay(def) : null;
+    if (d && d < todayKey()) d = todayKey();
+    return {
+      list: raw
+        .map(x =>
+          incoming(x.t, x.n.length ? mdNote(x.n.join('\n').slice(0, 10000)) : undefined, x.s.slice(0, 100).map(sub), x.day, x.rep),
+        )
+        .filter(Boolean),
+      def: d,
+    };
   }
   async function linkFor(list) {
     const pl = list.length === 1 ? { v: 1, ...packTask(list[0]) } : { v: 1, d: list.map(packTask) };
@@ -4207,61 +4397,109 @@ try {
     share(list, b);
   }
   let IN = null;
+  const INRE = /^#add[=?]/;
   async function readIncoming() {
     if (locked) return;
-    const m = /^#add=([jz])([\w-]{4,24000})$/.exec(location.hash);
-    if (!m) return;
+    const h = location.hash;
+    if (!INRE.test(h)) return;
     try {
       history.replaceState(null, '', location.href.split('#')[0]);
     } catch (e) {}
-    let pl = null;
-    try {
-      let u8 = b64.dec(m[2]);
-      if (m[1] === 'z') u8 = await through(u8, new DecompressionStream('deflate-raw'), 2e5);
-      pl = JSON.parse(new TextDecoder().decode(u8));
-    } catch (e) {}
-    const list =
-      pl && pl.v === 1
-        ? (Array.isArray(pl.d) ? pl.d.slice(0, 100) : [pl]).map(unpackTask).filter(Boolean)
-        : [];
-    if (!list.length) {
+    let got = { list: [], def: null };
+    if (h.length <= 32000) {
+      if (h[4] === '?') got = readQuery(h.slice(5));
+      else {
+        const m = /^#add=([jz])([\w-]{4,24000})$/.exec(h);
+        if (m) got.list = await readPacked(m[1], m[2]);
+      }
+    }
+    if (!got.list.length) {
       toast('That link doesn’t hold a task');
       return;
     }
-    IN = { list, to: todayKey() };
+    showInbox(got.list, got.def);
+  }
+  async function readPacked(kind, data) {
+    let pl = null;
+    try {
+      let u8 = b64.dec(data);
+      if (kind === 'z') u8 = await through(u8, new DecompressionStream('deflate-raw'), 2e5);
+      pl = JSON.parse(new TextDecoder().decode(u8));
+    } catch (e) {}
+    return pl && pl.v === 1 ? (Array.isArray(pl.d) ? pl.d.slice(0, 100) : [pl]).map(unpackTask).filter(Boolean) : [];
+  }
+  // The tasks go to one day, shown on the chip, unless the link puts them on different days: then each keeps its own,
+  // and the chip, if any, holds the day for those that name none.
+  function showInbox(list, def) {
+    const own = new Set(list.map(it => it.own).filter(Boolean)),
+      one = !own.size || (own.size === 1 && list.every(it => it.own));
+    for (const it of list) it.fix = one ? null : it.own;
+    IN = { list, to: (one && [...own][0]) || def || todayKey() };
     const many = list.length > 1;
     $.inbox.classList.toggle('multi', many);
     $.inT.textContent = many ? `${list.length} tasks for you` : 'A task for you';
-    if (many) {
-      const shown = list.slice(0, 4),
-        rest = list.length - shown.length;
-      $.inTitle.innerHTML = shown.map(t => `<span class="inl"><i class="mini"></i>${titleHTML(t.text)}</span>`).join('');
-      $.inMeta.textContent = rest ? `and ${rest} more` : '';
-      $.inMeta.hidden = !rest;
-    } else {
-      const t = list[0],
-        n = (t.subs || []).length,
-        meta = [t.note ? 'Note' : '', n ? `${n} ${n > 1 ? 'sub-tasks' : 'sub-task'}` : ''].filter(Boolean).join(' · ');
-      $.inTitle.innerHTML = titleHTML(t.text);
-      $.inMeta.textContent = meta;
-      $.inMeta.hidden = !meta;
-    }
+    $.inList.hidden = !many;
+    $.inList.innerHTML = many
+      ? list
+          .map(
+            it =>
+              `<li class="inl"><i class="mini" aria-hidden="true"></i><div><p class="inlt">${titleHTML(it.task.text)}</p><p class="inlm"></p></div></li>`,
+          )
+          .join('')
+      : '';
+    $.inTitle.innerHTML = many ? '' : titleHTML(list[0].task.text);
     $.inYes.textContent = many ? 'Add all' : 'Add';
     renderInbox();
     $.inbox.style.top = q('header').offsetHeight - 6 + 'px';
     $.inbox.getAnimations().forEach(x => x.cancel());
     $.inbox.hidden = false;
     guard('inbox', () => closeInbox());
+    // a list too long for the dialog scrolls, and the keyboard can reach it
+    if (many && $.inList.scrollHeight > $.inList.clientHeight + 1) $.inList.tabIndex = 0;
+    else $.inList.removeAttribute('tabindex');
     an($.inbox, [{ opacity: 0, transform: 'translateY(-14px) scale(.97)' }, { opacity: 1, transform: 'none' }], {
       easing: POP.ease,
       duration: POP.dur,
     });
     $.inYes.focus({ preventScroll: true });
   }
+  // Where an incoming task lands from a day: there, or, if it repeats, on its first occurrence still to come.
+  function planOf(it, k) {
+    if (it.memo && it.memo.k === k) return it.memo.p;
+    const tk = todayKey(),
+      r = it.rep && ruleAt(it.rep, k, it.task),
+      p = r ? { k: r.first, t: fromRule(r.rule, r.first), r: r.rule } : { k: it.rep && k < tk ? tk : k, t: it.task };
+    it.memo = { k, p };
+    return p;
+  }
+  const dayShort = k => (Math.abs(diff(todayKey(), k)) <= 1 ? dayLabel(k).toLowerCase() : dayLabel(k));
+  function inMeta(it, k) {
+    const t = it.task,
+      n = (t.subs || []).length,
+      p = planOf(it, k),
+      bits = [t.note ? 'Note' : '', n ? `${n} ${n > 1 ? 'sub-tasks' : 'sub-task'}` : ''];
+    if (p.r) bits.push(`${ruleText(p.r)}, from ${dayShort(p.k)}`);
+    else {
+      if (it.fix) bits.push(dayLabel(p.k));
+      if (it.rep) bits.push('Its repeat is over');
+      else if (it.repBad) bits.push('Repeat not understood');
+    }
+    return bits.filter(Boolean).join(' · ');
+  }
   function renderInbox() {
     if (!IN) return;
+    const many = IN.list.length > 1,
+      metas = many ? $.inList.querySelectorAll('.inlm') : [$.inMeta];
+    $.inDay.hidden = IN.list.every(it => it.fix);
     $.inDayL.textContent = dayLabel(IN.to);
     $.inDay.classList.toggle('set', IN.to !== todayKey());
+    IN.list.forEach((it, i) => {
+      const m = metas[i],
+        s = inMeta(it, it.fix || IN.to);
+      if (!m) return;
+      m.textContent = s;
+      m.hidden = !s;
+    });
   }
   function closeInbox() {
     if ($.inbox.hidden) return;
@@ -4279,30 +4517,64 @@ try {
     );
   }
   $.inNo.onclick = closeInbox;
+  // All of them in one go, with one undo, whatever days they go to.
   $.inYes.onclick = () => {
     if (!IN) return;
     const { list, to } = IN,
-      many = list.length > 1;
+      tk = todayKey(),
+      plans = list.map(it => planOf(it, it.fix || to)),
+      rules = plans.some(p => p.r) && cur >= tk,
+      keys = [...new Set([...plans.map(p => p.k), ...(rules ? [cur] : [])])];
     closeInbox();
-    record([to]);
-    day(to).tasks.push(...list);
-    commit(to);
-    if (to === cur) {
+    record(keys);
+    const room = {},
+      made = [];
+    for (const p of plans) {
+      if (!(p.k in room)) room[p.k] = 300 - tasks(p.k).length;
+      if (room[p.k] <= 0) continue;
+      room[p.k]--;
+      if (p.r) S.rules[p.r.id] = p.r;
+      day(p.k).tasks.push(p.t);
+      made.push(p);
+    }
+    if (!made.length) {
+      UN.pop();
+      toast('That day is full');
+      return;
+    }
+    // a new repeat may also fall on the day on screen
+    if (rules) ensure(cur);
+    keys.forEach(commit);
+    const n = made.length,
+      days = [...new Set(made.map(p => p.k))],
+      cut = n < plans.length ? ` (a day is full: ${plans.length - n} left out)` : '',
+      here = made.map(p => (p.k === cur ? p.t.id : p.r && occurs(p.r, cur) && cur >= tk ? occId(p.r, cur) : null)).filter(Boolean);
+    if (here.length) {
       flip(() => {
         renderList();
         renderAux();
       });
-      const li = rowOf(list[0].id);
-      if (li) {
-        li.scrollIntoView({ block: 'nearest', behavior: RM.matches ? 'auto' : 'smooth' });
-        list.forEach(t => rowOf(t.id) && flash(rowOf(t.id)));
-      }
-      toast(many ? `${list.length} tasks added` : 'Task added', 'undo');
+      const li = rowOf(here[0]);
+      if (li) li.scrollIntoView({ block: 'nearest', behavior: RM.matches ? 'auto' : 'smooth' });
+      here.forEach(id => rowOf(id) && flash(rowOf(id)));
     } else {
-      const d = Math.sign(diff(cur, to)) || 1;
+      const d = Math.sign(diff(cur, days[0])) || 1;
       nudge(d > 0 ? $.next : $.prev, d);
-      toast(many ? `Added ${list.length} tasks to ${dayName(to)}` : `Added to ${dayName(to)}`, 'undo');
     }
+    toast(
+      (n === 1 && made[0].r
+        ? `${ruleText(made[0].r)}, from ${dayName(made[0].k)}`
+        : days.length > 1
+          ? `Added ${n} tasks to ${days.length} days`
+          : days[0] === cur
+            ? n > 1
+              ? `${n} tasks added`
+              : 'Task added'
+            : n > 1
+              ? `Added ${n} tasks to ${dayName(days[0])}`
+              : `Added to ${dayName(days[0])}`) + cut,
+      'undo',
+    );
   };
   $.inDay.onclick = () => ($.dpop.classList.contains('on') ? closePops(true) : openDpop($.inDay));
 
@@ -5385,7 +5657,7 @@ try {
       introLater = false;
       intro();
     }
-    if (location.hash.startsWith('#add=')) later(readIncoming, 600);
+    if (INRE.test(location.hash)) later(readIncoming, 600);
   }
   L.lockForm.addEventListener('submit', async e => {
     e.preventDefault();
@@ -6451,7 +6723,7 @@ try {
   ]).then(() => (locked ? (introLater = true) : intro()));
   bindDoc(document);
   cloud.init();
-  if (!locked && location.hash.startsWith('#add=')) later(readIncoming, RM.matches ? 0 : 900);
+  if (!locked && INRE.test(location.hash)) later(readIncoming, RM.matches ? 0 : 900);
   if (
     'serviceWorker' in navigator &&
     (location.protocol === 'https:' || location.hostname === 'localhost') &&

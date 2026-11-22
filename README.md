@@ -18,6 +18,7 @@ One Day is a single-page web app with no framework, no runtime dependencies, no 
 - **Paste a list.** Paste several lines into the composer, or into a card's sub-task field, and each line becomes a task (or a sub-task). Bullets, numbers and checkboxes are left out, as Markdown, Notion, notes and to-do apps write them, and ticked items (`- [x]`, ☑, ✅) come in done. In the composer, a line set further in than the one above (as Notion and Markdown nest them) comes in as its sub-task. One undo takes them all back.
 - **Repeat.** A task can come back every few days, weeks or months: on chosen weekdays, or on a date or a weekday of the month. Each occurrence appears when its day comes; ticking or deleting one leaves the others alone, and missed ones don't pile up as leftovers.
 - **Send a task, or the whole day.** Share a task as a link from its card, or all of the day's open tasks at once (to someone else, or to yourself on another device). The task travels inside the link, after the `#`, which browsers never send to a server; whoever opens it can add it to their own One Day, on the day they choose.
+- **Tasks from your assistant.** Claude, ChatGPT or any assistant can write such a link for you: several tasks at once, each with a note, sub-tasks, a day and a repeat. One Day shows them all and adds them in one go, with one undo. The [link format](docs/links.md) is open, Claude Desktop and Claude Code get a small local [MCP server](mcp), and other assistants only need a paragraph of instructions.
 - **Tasks that feel physical.** Tick, drag to reorder, send to tomorrow, delete. Every action can be undone, and every motion is driven by springs.
 - **Notes and sub-tasks.** Click a task to open it: a rich-text note (bold, italic, strikethrough, code, lists, links) and a checklist. The task's circle fills as the checklist gets done. Click the title of an open task, or double-click any task, to rename it.
 - **Tags.** Type `#anything` in a task or a sub-task. Tags autocomplete, and clicking one searches for it.
@@ -59,7 +60,7 @@ On a phone: tap a task to open it, hold then drag to reorder, swipe sideways to 
 - **What the browser keeps for One Day**, all in its `localStorage`: your tasks (`oneday.v1`, or `oneday.vault` when the lock is on), the timer's settings (`oneday.timer`), your light or dark choice (`oneday.theme`) and, if you put off the offer to install it, that you did (`oneday.install`). The service worker's cache (`one-day-v…`) holds the app's own files only.
 - **No cookies, no analytics, no third-party requests.** The font is bundled with the app, and the Content Security Policy only lets the app's own files load. The footer links are plain links: nothing is contacted until you click one. The dogood.day link tells that site you came from One Day, in its address (`utm_source=day.bemorin.com`) and as the referrer (the site's address only, no page and no identifier); the others send nothing.
 - **The service worker caches the app's files only**, so it opens instantly and works offline. It never reads your tasks.
-- **Sent tasks travel in the link itself**, after the `#`, never through a server. Anyone who has the link can read the task, as with any message.
+- **Sent tasks travel in the link itself**, after the `#`, never through a server. Anyone who has the link can read the task, as with any message. The same goes for links written by an assistant: its provider sees what you ask it, as always, but no One Day server is involved, and the [MCP server](mcp) runs on your computer without any network access. See [docs/links.md](docs/links.md#privacy-plainly).
 - **Works offline, even from a cold start**, once you have opened it online one time. Install it (or add it to your Home Screen) so the browser keeps its storage: Safari can clear the data of sites you have not opened for a week.
 - **Backups are yours.** Search → _Export backup_ downloads a JSON file (encrypted when the lock is on). _Import backup_ merges one back without overwriting existing tasks.
 - **The lock is optional, and only yours.** With a passphrase, your tasks are kept encrypted in the browser and backups are encrypted too. Nobody can open them without it, not even the maker of One Day, so a forgotten passphrase cannot be recovered: the only way out is to erase the tasks and start again. Changing the passphrase changes the key that encrypts them, so an old copy and the old passphrase open nothing written since. If your browser saves the passphrase, it can fill it in for anyone using that browser. Tasks saved before you turned the lock on can stay in the browser’s own files for a while, until it clears them.
@@ -81,7 +82,7 @@ Found a problem? See [SECURITY.md](SECURITY.md).
 
 One Day targets **WCAG 2.2 AA**: everything works with a keyboard (including a keyboard alternative to dragging), controls have accessible names, focus is visible and returns where it came from, text meets 4.5:1 contrast, and all motion is turned off when _Reduce motion_ is on.
 
-The test suite runs [axe-core](https://github.com/dequelabs/axe-core) on the main view, an open card, search, the timer and the day picker, in light and dark. Automated checks cover a subset of WCAG, so testing with VoiceOver or NVDA is still worthwhile.
+The test suite runs [axe-core](https://github.com/dequelabs/axe-core) on the main view, an open card, search, the timer, the day picker and incoming tasks, in light and dark. Automated checks cover a subset of WCAG, so testing with VoiceOver or NVDA is still worthwhile.
 
 ## Install it as an app
 
@@ -129,6 +130,8 @@ scripts/
   icons.mjs             draws the icon and writes every size
   build-standalone.mjs  one self-contained HTML file (dist/one-day.html)
   demo-video.mjs        the demo video, 1080p60 and 720p (npm run video, needs ffmpeg)
+mcp/                    the local MCP server for Claude (one tool, no dependencies)
+docs/links.md           the link format that carries tasks into One Day
 tests/                  Playwright tests
 ```
 

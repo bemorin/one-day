@@ -1,0 +1,36 @@
+{
+  "name": "one-day-mcp",
+  "version": "1.0.0",
+  "description": "A local MCP server that turns tasks into One Day links. No network, no storage, no dependencies.",
+  "license": "MIT",
+  "author": "Ben Morin (https://bemorin.com)",
+  "homepage": "https://github.com/bemorin/one-day/tree/main/mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bemorin/one-day.git",
+    "directory": "mcp"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "one-day",
+    "todo"
+  ],
+  "type": "module",
+  "bin": {
+    "one-day-mcp": "server.mjs"
+  },
+  "exports": {
+    ".": "./link.mjs"
+  },
+  "files": [
+    "server.mjs",
+    "link.mjs",
+    "manifest.json",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}
