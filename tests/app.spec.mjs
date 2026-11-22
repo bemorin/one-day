@@ -1058,6 +1058,22 @@ test.describe('in a narrow window with a mouse', () => {
   });
 });
 
+test.describe('on Android', () => {
+  test.use({
+    viewport: { width: 412, height: 860 },
+    hasTouch: true,
+    isMobile: true,
+    userAgent: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36',
+  });
+  test('the page does not draw under the system buttons, so the bottom bar never hides beneath them', async ({ page }) => {
+    await open(page);
+    const vp = await page.locator('meta[name="viewport"]').getAttribute('content');
+    expect(vp).not.toContain('viewport-fit');
+    expect(vp).toContain('interactive-widget=resizes-content');
+    await expect(page.locator('#mbar')).toBeVisible();
+  });
+});
+
 test.describe('on a touch screen', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
@@ -1070,7 +1086,12 @@ test.describe('on a touch screen', () => {
     await expect(page.locator('#sq')).toBeFocused();
     // it rises from the bottom; the top of the day shows above it
     await expect.poll(() => page.locator('#srch').evaluate(n => Math.round(n.getBoundingClientRect().top))).toBe(70);
-    expect(await page.locator('#srch').evaluate(n => Math.round(innerHeight - n.getBoundingClientRect().bottom))).toBe(0);
+    const [sb, mt] = await Promise.all([
+      page.locator('#srch').evaluate(n => n.getBoundingClientRect().bottom),
+      page.locator('#mbar').evaluate(n => n.getBoundingClientRect().top),
+    ]);
+    expect(Math.abs(sb - mt)).toBeLessThan(1.5);
+    await expect(page.locator('#mbSearch')).toHaveAttribute('aria-expanded', 'true');
     await expect(page.locator('#slist .about')).toBeHidden();
     // a tap on the day closes it
     await page.locator('#scrim').tap({ position: { x: 60, y: 20 } });
@@ -1103,6 +1124,63 @@ test.describe('on a touch screen', () => {
     }, [b.x - 120, b.y + b.height / 2]);
     await expect(page.locator('#srch')).toHaveClass(/\bon\b/);
     await expect.poll(() => page.locator('#srch').evaluate(n => Math.round(n.getBoundingClientRect().top))).toBe(70);
+    // the lit Search button in the bar closes it
+    await page.locator('#mbSearch').tap();
+    await expect(page.locator('#srch')).not.toHaveClass(/\bon\b/);
+    await expect(page.locator('#mbSearch')).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('an open panel lights its button in the bar, which stays above it and switches panels', async ({ page }) => {
+    await open(page);
+    const lit = id =>
+      page.evaluate(id => {
+        const b = document.getElementById(id),
+          r = b.getBoundingClientRect(),
+          hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return b.getAttribute('aria-expanded') === 'true' && !!hit && b.contains(hit);
+      }, id);
+    await page.locator('#mbMore').tap();
+    await expect(page.locator('#more')).toBeVisible();
+    await expect.poll(() => lit('mbMore')).toBe(true);
+    // More sits on the bar
+    const [mb, bt] = await Promise.all([
+      page.locator('#more').evaluate(n => n.getBoundingClientRect().bottom),
+      page.locator('#mbar').evaluate(n => n.getBoundingClientRect().top),
+    ]);
+    expect(Math.abs(mb - bt)).toBeLessThan(1.5);
+    // from More straight to the timer: one panel at a time
+    await page.locator('#mbTimer').tap();
+    await expect(page.locator('#tpop')).toHaveClass(/\bon\b/);
+    await expect(page.locator('#more')).toBeHidden();
+    await expect.poll(() => lit('mbTimer')).toBe(true);
+    await expect(page.locator('#mbMore')).toHaveAttribute('aria-expanded', 'false');
+    // and from the timer to search
+    await page.locator('#mbSearch').tap();
+    await expect(page.locator('#srch')).toHaveClass(/\bon\b/);
+    await expect(page.locator('#tpop')).not.toHaveClass(/\bon\b/);
+    await expect.poll(() => lit('mbSearch')).toBe(true);
+    await expect(page.locator('#mbTimer')).toHaveAttribute('aria-expanded', 'false');
+    // from search to More
+    await page.locator('#mbMore').tap();
+    await expect(page.locator('#more')).toBeVisible();
+    await expect(page.locator('#srch')).not.toHaveClass(/\bon\b/);
+    await expect(page.locator('#mbSearch')).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('More: its links to dogood.day and the croissant are buttons like the backups, with no rules between', async ({ page }) => {
+    await open(page);
+    await page.locator('#mbMore').tap();
+    await expect(page.locator('#more')).toBeVisible();
+    await expect(page.locator('#more hr')).toHaveCount(0);
+    const w = await page.locator('#more .sbk').evaluate(n => n.getBoundingClientRect().width);
+    for (const sel of ['#more .spromo:not(.kofi)', '#more .spromo.kofi']) {
+      const [width, shadow, align] = await page
+        .locator(sel)
+        .evaluate(n => [n.getBoundingClientRect().width, getComputedStyle(n).boxShadow, getComputedStyle(n).textAlign]);
+      expect(Math.abs(width - w)).toBeLessThan(1.5);
+      expect(shadow).not.toBe('none');
+      expect(align).toBe('center');
+    }
   });
 
   test('the timer sheet sits over a scrim; a tap on it closes both', async ({ page }) => {
@@ -1203,7 +1281,7 @@ test.describe('on a touch screen', () => {
     await expect(page.locator('#more .slinks a')).toHaveCount(4);
     // the croissant says why it is there, on a row of its own under dogood.day
     await expect(page.locator('#more .spromo.kofi')).toHaveText('This app is free. Buy me a 🥐 if you want.');
-    await expect(page.locator('#more .spromo:not(.kofi) + hr + .spromo.kofi')).toHaveCount(1);
+    await expect(page.locator('#more .spromo:not(.kofi) + .spromo.kofi')).toHaveCount(1);
     await page.locator('#scrim').tap({ position: { x: 60, y: 120 } });
     await expect(page.locator('#more')).toBeHidden();
 

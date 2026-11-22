@@ -1,5 +1,11 @@
 /*! One Day — a calm, one-day-at-a-time task list. MIT License. */
 'use strict';
+// Chrome on Android can report no bottom inset at launch for a page drawn under the system buttons (viewport-fit=cover):
+// the bottom bar then sits under them until the keyboard comes and goes. There, the browser keeps the page above them.
+if (/Android/i.test(navigator.userAgent)) {
+  const vp = document.querySelector('meta[name="viewport"]');
+  if (vp) vp.content = vp.content.replace(/,\s*viewport-fit=cover/, '');
+}
 try {
   const th = localStorage.getItem('oneday.theme');
   if (th === 'light' || th === 'dark') document.documentElement.dataset.theme = th;
@@ -2299,6 +2305,7 @@ try {
     closePops();
     $.tpop.classList.add('on');
     $.tmb.setAttribute('aria-expanded', 'true');
+    $.mbTimer.setAttribute('aria-expanded', 'true');
     segRender(false);
     tmShowRun(TM.st !== 'idle', false);
     tpRender(0);
@@ -2322,6 +2329,7 @@ try {
     $.rpop.classList.remove('on');
     $.meta.setAttribute('aria-expanded', 'false');
     $.tmb.setAttribute('aria-expanded', 'false');
+    $.mbTimer.setAttribute('aria-expanded', 'false');
     $.dchip.setAttribute('aria-expanded', 'false');
     $.inDay.setAttribute('aria-expanded', 'false');
     if (RP && RP.from) RP.from.setAttribute('aria-expanded', 'false');
@@ -2879,6 +2887,7 @@ try {
     $.sq.value = qv || '';
     $.srch.inert = false;
     $.srch.classList.add('on');
+    $.mbSearch.setAttribute('aria-expanded', 'true');
     syncScrim();
     renderSearch();
     $.sq.focus({ preventScroll: true });
@@ -2905,6 +2914,7 @@ try {
     if (!$.srch.classList.contains('on')) return;
     $.srch.classList.remove('on');
     $.srch.inert = true;
+    $.mbSearch.setAttribute('aria-expanded', 'false');
     syncScrim();
     hideTip(0);
     const f = searchFrom;
@@ -4052,13 +4062,11 @@ try {
       links = f ? [...f.querySelectorAll('nav a')].map(x => x.cloneNode(true).outerHTML).join('') : '';
     $.moreList.innerHTML =
       `<div class="sbk"><button type="button" class="sbk-b" data-act="import">${IC.up}<span>Import backup</span></button>` +
-      `<button type="button" class="sbk-b" data-act="export">${IC.down}<span>${canTop ? 'Export backup' : 'Copy backup'}</span></button></div><hr>` +
+      `<button type="button" class="sbk-b" data-act="export">${IC.down}<span>${canTop ? 'Export backup' : 'Copy backup'}</span></button></div>` +
       (promo
         ? `<a class="spromo" href="${esc(promo.href)}" target="_blank" rel="noopener" referrerpolicy="strict-origin">${promo.innerHTML}</a>`
         : '') +
-      (promo && kofi ? '<hr>' : '') +
       (kofi ? freeLine(kofi, 'spromo kofi') : '') +
-      '<hr>' +
       `<p class="slinks">${links}</p>`;
     compose(false);
     closePops();
@@ -4168,6 +4176,10 @@ try {
   };
   $.mbSearch.onclick = () => {
     bounce($.mbSearch);
+    if ($.srch.classList.contains('on')) {
+      closeSearch(false);
+      return;
+    }
     closeMore();
     compose(false);
     openSearch();
@@ -4176,6 +4188,7 @@ try {
     bounce($.mbTimer);
     closeMore();
     compose(false);
+    closeSearch(false);
     $.tpop.classList.contains('on') ? closePops(true) : openTimer();
   };
   $.mbAdd.onclick = () => {
@@ -4192,7 +4205,11 @@ try {
   };
   $.mbMore.onclick = () => {
     bounce($.mbMore);
-    moreOpen ? closeMore() : openMore();
+    if (moreOpen) closeMore();
+    else {
+      closeSearch(false);
+      openMore();
+    }
   };
   // Popovers follow their anchor when the keyboard comes or goes.
   function replacePops() {
