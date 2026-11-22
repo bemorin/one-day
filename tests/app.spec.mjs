@@ -1231,15 +1231,20 @@ test.describe('links from assistants', () => {
       ['FREQ=MONTHLY;BYDAY=-1FR', 'Every month on the last Friday, from Fri 27 Nov'],
       ['FREQ=MONTHLY;BYDAY=WE;BYSETPOS=2', 'Every month on the second Wednesday, from Wed 9 Dec'],
       ['FREQ=MONTHLY;BYMONTHDAY=1', 'Every month on the 1st, from Tue 1 Dec'],
-      ['RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=4TH', 'Every 12 months on the fourth Thursday, from Thu 26 Nov'],
+      ['RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=4TH', 'Every year on the fourth Thursday of November, from Thu 26 Nov'],
       ['freq=daily;count=3', 'Every day, from today, until Wed 25 Nov'],
-      ['FREQ=YEARLY;COUNT=10', 'Every 12 months on the 23rd, from today, until Fri 23 Nov 2035'],
+      ['FREQ=YEARLY;COUNT=10', 'Every year on 23 November, from today, until Fri 23 Nov 2035'],
       // a date November lacks falls on its last day, from the start
       ['FREQ=MONTHLY;BYMONTHDAY=31', 'Every month on the last day, from Mon 30 Nov'],
       ['FREQ=MONTHLY;BYMONTHDAY=-1', 'Every month on the last day, from Mon 30 Nov'],
       // far apart, and from a day already gone: still followed
-      ['FREQ=YEARLY;INTERVAL=3', 'Every 36 months on the 21st, from Wed 21 Nov 2029', '2026-11-21'],
-      ['FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=29', 'Every 12 months on the 29th, from Sun 28 Feb 2027'],
+      ['FREQ=YEARLY;INTERVAL=3', 'Every 3 years on 21 November, from Wed 21 Nov 2029', '2026-11-21'],
+      ['FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=29', 'Every year on 29 February, from Sun 28 Feb 2027'],
+      // COUNT, worked out for each kind of rule; one that would end past the year 9999 runs on
+      ['FREQ=WEEKLY;BYDAY=TU,TH;COUNT=6', 'Every Tuesday and Thursday, from tomorrow, until Thu 10 Dec'],
+      ['FREQ=MONTHLY;BYDAY=-1FR;COUNT=3', 'Every month on the last Friday, from Fri 27 Nov, until Fri 29 Jan 2027'],
+      ['FREQ=MONTHLY;BYMONTHDAY=31;COUNT=3', 'Every month on the last day, from Mon 30 Nov, until Sun 31 Jan 2027'],
+      ['FREQ=YEARLY;INTERVAL=8;COUNT=1000', 'Every 8 years on 23 November, from today'],
       ['FREQ=HOURLY', 'Repeat not understood'],
       ['FREQ=MONTHLY;BYDAY=5MO', 'Repeat not understood'],
       ['FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=30', 'Repeat not understood'],
@@ -1262,7 +1267,8 @@ test.describe('links from assistants', () => {
     expect(rule(10).until).toBe('2035-11-23');
     expect(rule(8)).toMatchObject({ freq: 'month', every: 12, nth: 4, start: '2026-11-26' });
     expect(rule(11)).toMatchObject({ start: '2026-10-31', skip: ['2026-10-31'] });
-    expect(st.days['2026-11-30'].tasks.map(t => t.text)).toEqual(['R11', 'R12']);
+    expect(st.days['2026-11-30'].tasks.map(t => t.text)).toEqual(['R11', 'R12', 'R17']);
+    expect(rule(18).until).toBeUndefined();
     // the rest came as plain tasks, today
     expect(st.days[MON].tasks.filter(t => reps[+t.text.slice(1)] && +t.text.slice(1) >= kept).map(t => t.rule || null)).toEqual(
       Array(reps.length - kept).fill(null),
@@ -1292,17 +1298,40 @@ test.describe('links from assistants', () => {
     expect(Object.values(days).flatMap(d => d.tasks.map(t => t.text))).not.toContain('Water the plants');
   });
 
-  test('One Day keeps up to 300 repeats: past that, a task comes without its own', async ({ page }) => {
+  test('One Day keeps up to 300 repeats: past that, a task comes without its own; ended ones make room', async ({ page }) => {
     await page.addInitScript(() => {
       const rules = {};
-      for (let i = 0; i < 299; i++) rules['q' + i] = { text: 'Later ' + i, start: '2031-01-01', freq: 'day', every: 1 };
+      for (let i = 0; i < 297; i++) rules['q' + i] = { text: 'Later ' + i, start: '2031-01-01', freq: 'day', every: 1 };
+      for (let i = 0; i < 2; i++) rules['e' + i] = { text: 'Ended ' + i, start: '2026-01-01', freq: 'day', every: 1, until: '2026-02-01' };
       localStorage.setItem('oneday.v1', JSON.stringify({ days: {}, rules }));
     });
     await openOn(page);
-    await page.goto('/#add?task=A&repeat=daily&task=B&repeat=daily&task=C&repeat=daily');
+    await page.goto('/#add?task=A&repeat=daily&task=B&repeat=daily&task=C&repeat=daily&task=D&repeat=daily&task=E&repeat=daily');
     await page.locator('#inYes').click();
-    await expect(page.locator('#toast')).toContainText('3 tasks added (2 without their repeats: One Day keeps 300 at most)');
-    expect(Object.keys((await stored(page)).rules)).toHaveLength(300);
+    await expect(page.locator('#toast')).toContainText('5 tasks added (2 without their repeats: One Day keeps 300 at most)');
+    const ids = Object.keys((await stored(page)).rules);
+    expect(ids).toHaveLength(300);
+    expect(ids.filter(id => id[0] === 'e')).toEqual([]);
+    // one undo brings everything back as it was
+    await page.keyboard.press('Control+z');
+    expect(Object.keys((await stored(page)).rules)).toHaveLength(299);
+  });
+
+  test('a repeat from a link keeps its end: Done with nothing changed changes nothing, a change keeps the end', async ({ page }) => {
+    await openOn(page);
+    await page.goto('/#add?task=Stretch&repeat=FREQ=DAILY;COUNT=5');
+    await page.locator('#inYes').click();
+    const r = row(page, 'Stretch');
+    await r.locator('.mt').click();
+    await expect(r.locator('.rbtn')).toContainText('Every day, until Friday 27 November');
+    await r.locator('.rbtn').click();
+    await page.locator('#rdone').click();
+    const one = () => stored(page).then(st => Object.values(st.rules)[0]);
+    expect(await one()).toMatchObject({ freq: 'day', every: 1, start: MON, until: '2026-11-27' });
+    await r.locator('.rbtn').click();
+    await page.locator('#rplus').click();
+    await page.locator('#rdone').click();
+    expect(await one()).toMatchObject({ freq: 'day', every: 2, until: '2026-11-27' });
   });
 
   test('the compact form carries a day and a repeat too; accents, emoji and encoded signs come through as written', async ({ page }) => {

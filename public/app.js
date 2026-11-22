@@ -139,7 +139,8 @@ try {
   const todayKey = () => keyOf(new Date()),
     diff = (a, b) => Math.round((fromKey(b) - fromKey(a)) / 864e5);
   const WD = new Intl.DateTimeFormat('en-GB', { weekday: 'long' }),
-    MO = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' });
+    MO = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' }),
+    MON = new Intl.DateTimeFormat('en-GB', { month: 'long' });
   const FULL = new Intl.DateTimeFormat('en-GB', {
       weekday: 'long',
       day: 'numeric',
@@ -1099,6 +1100,12 @@ try {
     }
     const s = fromKey(r.start),
       wd = wdOf(r.start);
+    if (e % 12 === 0) {
+      const y = e / 12;
+      if (short) return y === 1 ? 'Yearly' : `Every ${y} years`;
+      const on = r.nth != null ? `the ${NTH[r.nth]} ${WDL[wd]} of ${MON.format(s)}` : `${s.getDate()} ${MON.format(s)}`;
+      return `${y === 1 ? 'Every year' : `Every ${y} years`} on ${on}`;
+    }
     if (short)
       return e > 1
         ? `Every ${e} months`
@@ -1146,7 +1153,7 @@ try {
       id = old ? old.id : 'r' + uid(),
       later_ = old ? ahead(id, cur) : [];
     record([cur, ...later_]);
-    const r = cleanRule({ ...f, text: t.text, note: t.note, subs: t.subs, start: cur }, id);
+    const r = cleanRule({ ...f, until: old ? old.until : undefined, text: t.text, note: t.note, subs: t.subs, start: cur }, id);
     if (!r) return;
     dropAhead(id, later_);
     S.rules[id] = r;
@@ -4073,6 +4080,12 @@ try {
     RP.f.nth = m === 'date' ? null : m === 'last' ? -1 : Math.ceil(fromKey(RP.start).getDate() / 7);
     renderRp(false);
   };
+  const sameRule = (r, f) =>
+    !!r &&
+    r.freq === f.freq &&
+    r.every === f.every &&
+    (f.freq !== 'week' || r.days.join() === f.days.join()) &&
+    (f.freq !== 'month' || (r.nth == null ? null : r.nth) === (f.nth == null ? null : f.nth));
   function applyRp(on) {
     const o = RP;
     if (!o) return;
@@ -4090,8 +4103,9 @@ try {
     const t = find(o.id);
     if (o.from && o.from.isConnected) o.from.focus({ preventScroll: true });
     if (!t) return;
-    if (on) setRule(t, f);
-    else if (o.had) stopRule(t);
+    if (on) {
+      if (!sameRule(t.rule && S.rules[t.rule], f)) setRule(t, f);
+    } else if (o.had) stopRule(t);
   }
   $.rdone.onclick = () => applyRp(true);
   $.rnone.onclick = () => applyRp(false);
@@ -4304,24 +4318,44 @@ try {
         const mon = addDays(r.start, -wdOf(r.start)),
           w = (Math.ceil(Math.floor(diff(mon, from) / 7) / r.every) + i) * r.every;
         ks = r.days.map(d => addDays(mon, w * 7 + d));
-      } else {
-        const mm = s.getMonth() + (Math.ceil(((f.getFullYear() - s.getFullYear()) * 12 + f.getMonth() - s.getMonth()) / r.every) + i) * r.every,
-          y = s.getFullYear(),
-          dim = new Date(y, mm + 1, 0).getDate();
-        let date = Math.min(s.getDate(), dim);
-        if (r.nth != null) {
-          const wd = wdOf(r.start),
-            fw = (new Date(y, mm, 1).getDay() + 6) % 7,
-            lw = (new Date(y, mm, dim).getDay() + 6) % 7;
-          date = r.nth === -1 ? dim - ((lw - wd + 7) % 7) : 1 + ((wd - fw + 7) % 7) + (r.nth - 1) * 7;
-        }
-        ks = [keyOf(new Date(y, mm, date))];
-      }
+      } else ks = [monthOcc(r, (Math.ceil(((f.getFullYear() - s.getFullYear()) * 12 + f.getMonth() - s.getMonth()) / r.every) + i) * r.every)];
       for (const k of ks) {
-        if (r.until && k > r.until) return;
+        if (k.length !== 10 || (r.until && k > r.until)) return;
         if (k >= from && occurs(r, k)) yield k;
       }
     }
+  }
+  // The day a monthly rule falls on, m months after its start's month.
+  function monthOcc(r, m) {
+    const s = fromKey(r.start),
+      y = s.getFullYear(),
+      mm = s.getMonth() + m,
+      dim = new Date(y, mm + 1, 0).getDate();
+    let date = Math.min(s.getDate(), dim);
+    if (r.nth != null) {
+      const wd = wdOf(r.start),
+        fw = (new Date(y, mm, 1).getDay() + 6) % 7,
+        lw = (new Date(y, mm, dim).getDay() + 6) % 7;
+      date = r.nth === -1 ? dim - ((lw - wd + 7) % 7) : 1 + ((wd - fw + 7) % 7) + (r.nth - 1) * 7;
+    }
+    return keyOf(new Date(y, mm, date));
+  }
+  // A rule's n-th occurrence from its start, worked out rather than walked to (COUNT can be 1000), or null past the
+  // year 9999. Only a monthly rule can skip its start (see startOf).
+  function nthOcc(r, n) {
+    let k;
+    if (r.freq === 'day') k = addDays(r.start, (n - 1) * r.every);
+    else if (r.freq === 'month') k = monthOcc(r, (n - 1 + (r.skip ? 1 : 0)) * r.every);
+    else {
+      const mon = addDays(r.start, -wdOf(r.start)),
+        len = r.days.length,
+        first = r.days.filter(d => addDays(mon, d) >= r.start).length;
+      k =
+        n <= first
+          ? addDays(mon, r.days[len - first + n - 1])
+          : addDays(mon, (Math.floor((n - first - 1) / len) + 1) * r.every * 7 + r.days[(n - first - 1) % len]);
+    }
+    return k.length === 10 && occurs({ ...r, until: null }, k) ? k : null;
   }
   // The rule a link's repeat makes from a day, with its first occurrence still to come, or none (it has ended).
   function ruleAt(sp, k, t) {
@@ -4336,15 +4370,8 @@ try {
     const r = cleanRule({ ...f, text: t.text, note: t.note, subs: t.subs, start: st.start }, 'r' + uid());
     if (!r) return null;
     // COUNT ends it on its last occurrence
-    if (sp.count) {
-      let c = 0,
-        last = null;
-      for (const d of occFrom(r, r.start)) {
-        last = d;
-        if (++c === sp.count) break;
-      }
-      if (c === sp.count) r.until = last;
-    }
+    const last = sp.count && nthOcc(r, sp.count);
+    if (last && !(r.until && r.until < last)) r.until = last;
     const tk = todayKey(),
       first = occFrom(r, r.start > tk ? r.start : tk).next().value;
     return first ? { rule: r, first } : null;
@@ -4615,8 +4642,9 @@ try {
     if (!IN) return;
     const { list, to } = IN,
       tk = todayKey();
-    // One Day keeps up to 300 repeats: past that, a task comes without its own
-    let roomR = 300 - Object.keys(S.rules).length,
+    // One Day keeps up to 300 repeats: past that, a task comes without its own. Those that have ended make room.
+    const over = Object.keys(S.rules).filter(id => S.rules[id].until && S.rules[id].until < tk);
+    let roomR = 300 - Object.keys(S.rules).length + over.length,
       bare = 0;
     const plans = list.map(it => {
         const p = planOf(it, it.fix || to);
@@ -4643,6 +4671,7 @@ try {
       toast('That day is full');
       return;
     }
+    if (made.some(p => p.r)) for (const id of over) delete S.rules[id];
     // a new repeat may also fall on the day on screen
     if (rules) ensure(cur);
     keys.forEach(commit);
