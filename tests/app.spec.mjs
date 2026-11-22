@@ -1418,20 +1418,51 @@ test.describe('links from assistants', () => {
     await expect(page.locator('#inList .inlm')).toHaveText(['Tomorrow', 'Note · 1 sub-task', 'Every Tuesday and Friday, from tomorrow']);
   });
 
+  test('a box per task: one left unticked stays out, and with none ticked nothing can be added', async ({ page }) => {
+    await openOn(page);
+    await page.goto('/#add?task=Buy+bread&task=Call+the+bank&day=tomorrow&task=Gym');
+    const boxes = page.locator('#inList .inck');
+    await expect(boxes).toHaveCount(3);
+    await expect(page.getByRole('checkbox', { name: /Call the bank/ })).toBeChecked();
+    await expect(page.locator('#inYes')).toHaveText('Add all');
+    // a click anywhere on the line takes it out
+    await page.locator('#inList .inl', { hasText: 'Call the bank' }).click();
+    await expect(page.locator('#inList .inl.off')).toHaveText(/Call the bank/);
+    await expect(page.locator('#inYes')).toHaveText('Add 2');
+    for (const b of await boxes.all()) await b.uncheck();
+    await expect(page.locator('#inYes')).toBeDisabled();
+    await expect(page.locator('#inDay')).toBeHidden();
+    await boxes.first().check();
+    await boxes.last().check();
+    await expect(page.locator('#inYes')).toHaveText('Add 2');
+    await page.locator('#inYes').click();
+    await expect(page.locator('#toast')).toContainText('2 tasks added');
+    await expect(row(page, 'Buy bread')).toBeVisible();
+    await expect(row(page, 'Gym')).toBeVisible();
+    await page.keyboard.press('ArrowRight');
+    await expect(row(page, 'Call the bank')).toHaveCount(0);
+    expect(Object.values((await stored(page)).days).flatMap(d => d.tasks.map(t => t.text))).not.toContain('Call the bank');
+  });
+
   test('a link of a hundred tasks scrolls inside the dialog and the keyboard can reach it', async ({ page }) => {
     await openOn(page);
     await page.goto('/#add?' + Array.from({ length: 120 }, (_, i) => `task=Task+${i + 1}&day=${i % 2 ? 'tomorrow' : 'friday'}`).join('&'));
     await expect(page.locator('#inT')).toHaveText('100 tasks for you');
     const list = page.locator('#inList');
-    await expect(list).toHaveAttribute('tabindex', '0');
     const box = await list.boundingBox();
     expect(box.height).toBeLessThan(400);
     // a faint edge says there is more, until the end is in view
     await expect(list).toHaveClass(/\bfade\b/);
-    await list.evaluate(el => el.scrollTo(0, el.scrollHeight));
+    // the keyboard reaches the list through its boxes; the last one brings the end into view
+    await page.locator('#inYes').press('Shift+Tab');
+    await page.locator('#inNo').press('Shift+Tab');
+    await expect(page.locator('#inList .inck').last()).toBeFocused();
     await expect(list).not.toHaveClass(/\bfade\b/);
+    await page.keyboard.press('Space');
+    await page.locator('#inList .inck').first().uncheck();
+    await expect(page.locator('#inYes')).toHaveText('Add 98');
     await page.locator('#inYes').click();
-    await expect(page.locator('#toast')).toContainText('Added 100 tasks to 2 days');
+    await expect(page.locator('#toast')).toContainText('Added 98 tasks to 2 days');
   });
 });
 
@@ -2736,12 +2767,14 @@ test.describe('accessibility (axe, WCAG 2.2 AA)', () => {
       page.evaluate(() => {
         location.hash = '#add=j' + btoa(JSON.stringify({ v: 1, t: 'Hello #work', n: '<b>x</b>', s: [['a']] })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
       }),
-    'incoming tasks, a long list with days and repeats': async page =>
-      page.evaluate(() => {
+    'incoming tasks, a long list with days and repeats, one left out': async page => {
+      await page.evaluate(() => {
         location.hash =
           '#add?task=Plan+the+week+%23work&note=**Monday**+first&sub=Email&repeat=weekdays&task=Gym&day=tomorrow&repeat=nonsense&' +
           Array.from({ length: 20 }, (_, i) => `task=Task+${i + 1}&day=${i % 2 ? 'friday' : 'tomorrow'}`).join('&');
-      }),
+      });
+      await page.locator('#inList .inck').nth(1).uncheck();
+    },
   };
   for (const scheme of ['light', 'dark'])
     for (const [name, go] of Object.entries(states))

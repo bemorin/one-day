@@ -3088,34 +3088,90 @@ mark {
   -webkit-mask-image: linear-gradient(#000 calc(100% - 36px), #0000);
   mask-image: linear-gradient(#000 calc(100% - 36px), #0000);
 }
-.inl {
+/* each task a box, ticked to go in; one left out reads struck through */
+.inl label {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 10px;
   padding: 4px 0;
+  cursor: pointer;
 }
-.inl .mini {
+.inck {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  top: 4px;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.inbx {
   flex: none;
-  width: 16px;
-  height: 16px;
-  margin-top: 2px;
-  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 6px;
   box-shadow: inset 0 0 0 1.5px var(--line2);
+  pointer-events: none;
+  transition:
+    background-color 0.15s,
+    box-shadow 0.15s,
+    transform 0.25s var(--pop);
 }
-.inl > div {
+.inbx svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: var(--bg);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+}
+.inck:checked + .inbx {
+  background: var(--ink);
+  box-shadow: none;
+}
+.inck:checked + .inbx svg {
+  opacity: 1;
+}
+.inck:focus-visible + .inbx {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.inl label:active .inbx {
+  transform: scale(0.88);
+}
+.intx {
+  display: block;
   min-width: 0;
 }
 .inlt {
-  margin: 0;
+  display: block;
   font-size: 15px;
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
 .inlm {
-  margin: 1px 0 0;
+  display: block;
+  margin-top: 1px;
   font-size: 12.5px;
   line-height: 1.35;
   color: var(--mute);
+}
+.inl.off .inlt {
+  color: var(--mute);
+  text-decoration: line-through;
+}
+.inacts .pbtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  transform: none;
 }
 @media (max-width: 719px) and (hover: none) {
   #sb,

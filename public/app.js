@@ -602,6 +602,7 @@ try {
 
   /* rows */
   const IC = {
+    tick: '<svg viewBox="0 0 12 12"><path d="M2.6 6.3 5 8.6l4.4-5"/></svg>',
     mv: '<svg viewBox="0 0 20 20"><path d="M4 10h11.5M11 5.5l4.5 4.5-4.5 4.5"/></svg>',
     rm: '<svg viewBox="0 0 20 20"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg>',
     ex: '<svg viewBox="0 0 20 20"><path d="m5.5 8 4.5 4.5L14.5 8"/></svg>',
@@ -4543,7 +4544,10 @@ try {
   function showInbox(list) {
     const own = new Set(list.map(it => it.own).filter(Boolean)),
       one = !own.size || (own.size === 1 && list.every(it => it.own));
-    for (const it of list) it.fix = one ? null : it.own;
+    for (const it of list) {
+      it.fix = one ? null : it.own;
+      it.on = true;
+    }
     IN = { list, to: (one && [...own][0]) || todayKey() };
     const many = list.length > 1;
     $.inbox.classList.toggle('multi', many);
@@ -4552,13 +4556,12 @@ try {
     $.inList.innerHTML = many
       ? list
           .map(
-            it =>
-              `<li class="inl"><i class="mini" aria-hidden="true"></i><div><p class="inlt">${titleHTML(it.task.text)}</p><p class="inlm"></p></div></li>`,
+            (it, i) =>
+              `<li class="inl" data-i="${i}"><label><input type="checkbox" class="inck" checked><span class="inbx" aria-hidden="true">${IC.tick}</span><span class="intx"><span class="inlt">${titleHTML(it.task.text)}</span><span class="inlm"></span></span></label></li>`,
           )
           .join('')
       : '';
     $.inTitle.innerHTML = many ? '' : titleHTML(list[0].task.text);
-    $.inYes.textContent = many ? 'Add all' : 'Add';
     renderInbox();
     $.inbox.style.top = q('header').offsetHeight - 6 + 'px';
     $.inbox.getAnimations().forEach(x => x.cancel());
@@ -4572,17 +4575,22 @@ try {
     });
     $.inYes.focus({ preventScroll: true });
   }
-  // A list too long for the dialog scrolls, the keyboard can reach it, and a faint lower edge says there is more below
-  // until its end is in view.
+  // A list too long for the dialog scrolls (its boxes take the keyboard there), and a faint lower edge says there is
+  // more below until its end is in view.
   const fadeList = () =>
     $.inList.classList.toggle('fade', $.inList.scrollTop + $.inList.clientHeight < $.inList.scrollHeight - 2);
-  function fitList() {
-    if (!$.inList.hidden && $.inList.scrollHeight > $.inList.clientHeight + 1) $.inList.tabIndex = 0;
-    else $.inList.removeAttribute('tabindex');
-    fadeList();
-  }
+  const fitList = fadeList;
   $.inList.addEventListener('scroll', fadeList, { passive: true });
   window.addEventListener('resize', () => IN && fitList());
+  // A task left unticked stays out; the button says how many go in.
+  $.inList.addEventListener('change', e => {
+    const c = e.target.closest('.inck'),
+      li = c && c.closest('.inl');
+    if (!li || !IN) return;
+    IN.list[+li.dataset.i].on = c.checked;
+    li.classList.toggle('off', !c.checked);
+    renderInbox();
+  });
   // Where an incoming task lands from a day: there, or, if it repeats, on its first occurrence still to come.
   function planOf(it, k) {
     if (it.memo && it.memo.k === k) return it.memo.p;
@@ -4609,8 +4617,11 @@ try {
   function renderInbox() {
     if (!IN) return;
     const many = IN.list.length > 1,
-      metas = many ? $.inList.querySelectorAll('.inlm') : [$.inMeta];
-    $.inDay.hidden = IN.list.every(it => it.fix);
+      metas = many ? $.inList.querySelectorAll('.inlm') : [$.inMeta],
+      on = IN.list.filter(it => it.on);
+    $.inDay.hidden = on.every(it => it.fix);
+    $.inYes.textContent = !many ? 'Add' : on.length === IN.list.length ? 'Add all' : on.length ? `Add ${on.length}` : 'Add';
+    $.inYes.disabled = !on.length;
     $.inDayL.textContent = dayLabel(IN.to);
     $.inDay.classList.toggle('set', IN.to !== todayKey());
     IN.list.forEach((it, i) => {
@@ -4640,8 +4651,10 @@ try {
   // All of them in one go, with one undo, whatever days they go to.
   $.inYes.onclick = () => {
     if (!IN) return;
-    const { list, to } = IN,
+    const list = IN.list.filter(it => it.on),
+      { to } = IN,
       tk = todayKey();
+    if (!list.length) return;
     // One Day keeps up to 300 repeats: past that, a task comes without its own. Those that have ended make room.
     const over = Object.keys(S.rules).filter(id => S.rules[id].until && S.rules[id].until < tk);
     let roomR = 300 - Object.keys(S.rules).length + over.length,

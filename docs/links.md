@@ -83,7 +83,7 @@ Three tasks: a talk to prepare on Friday, with a note and two sub-tasks; plants 
 
 - One Day takes the tasks out of the address at once, so a reload or the Back button does not offer them again. Your browser's history may still list the link, as it lists any address you open.
 - A dialog lists the tasks, each with its note, sub-tasks, day and repeat, and the last day of a repeat that ends. When they all go to the same day, the day chip shows it and can change it for all of them. When the link spreads them over several days, each keeps its own, and the chip holds the day for those that name none.
-- **Add** (or **Add all**) puts them in, with one undo. **Ignore** drops them. Nothing is stored before that.
+- Each task has a box, ticked: untick one to leave it out. **Add all** (or **Add 12**, once some are unticked) puts the ticked ones in, with one undo. **Ignore** drops them all. Nothing is stored before that.
 
 ### The compact form
 
