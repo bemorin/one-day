@@ -323,7 +323,13 @@
           <div class="grab" aria-hidden="true"></div>
           <div id="moreList"></div>
         </div>
-        <input type="file" id="impf" accept="application/json,.json" hidden />
+        <input
+          type="file"
+          id="impf"
+          accept=".json,.csv,.txt,.md,.zip,application/json,text/csv,text/plain,text/markdown,application/zip"
+          multiple
+          hidden
+        />
         <div class="dpop" id="dpop" role="dialog" aria-label="Add the task to">
           <div class="dq" id="dq">
             <button type="button" class="chip" data-d="today">Today</button
@@ -610,6 +616,18 @@
           ><button class="pbtn" id="lsGo" type="submit">Protect</button>
         </div>
       </form>
+    </div>
+    <div class="modal" id="imp" role="dialog" aria-modal="true" aria-labelledby="impT" aria-describedby="impSub" hidden>
+      <div class="lcard icard" id="impCard">
+        <h2 id="impT"></h2>
+        <p class="lsub" id="impSub">Read here, in this browser. Nothing is sent anywhere.</p>
+        <div class="imlist" id="impList" role="region" aria-label="Where they go" tabindex="0"></div>
+        <div class="imnote" id="impNote" hidden></div>
+        <div class="racts">
+          <button class="tbtn" id="impNo" type="button">Cancel</button
+          ><button class="pbtn" id="impGo" type="button">Add all</button>
+        </div>
+      </div>
     </div>
     <script src="app.js"></script>
   </body>

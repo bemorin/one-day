@@ -3673,6 +3673,88 @@ mark {
   }
 }
 
+/* importing from another app: what comes in, day by day, before it is added */
+.icard {
+  width: min(440px, 100%);
+  text-align: left;
+}
+.icard h2 {
+  font-size: 23px;
+}
+.icard .lsub {
+  margin: 0;
+}
+.imlist {
+  max-height: min(46vh, 400px);
+  margin: 0 -24px;
+  padding: 0 24px 6px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-block: 1px solid var(--line);
+}
+.imlist:focus-visible {
+  outline-offset: -2px;
+  border-radius: 0;
+}
+/* while more is below, the list fades at its foot */
+.imlist.more {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
+}
+.imh {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 12px 0 4px;
+  background: var(--bg);
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--mute);
+}
+.imd {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.imd li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1px 12px;
+  padding: 7px 0;
+}
+.imd li + li {
+  border-top: 1px solid var(--line);
+}
+.imk {
+  font-size: 14.5px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.imc {
+  font-size: 13px;
+  color: var(--mute);
+  white-space: nowrap;
+}
+.imx {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--mute);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.imm,
+.imnote p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--mute);
+}
+.imnote p:first-child {
+  margin-top: 0;
+}
+
 /* footer: under the card on large screens; small screens show the same links in search */
 #app.pre ~ .foot {
   opacity: 0;

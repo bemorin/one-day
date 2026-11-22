@@ -1,0 +1,121 @@
+{
+  "kind": "tasks#taskLists",
+  "items": [
+    {
+      "kind": "tasks#taskList",
+      "id": "MDE0NjY1NjIxNjM5NjI4MTE5NTI6MDow",
+      "title": "My Tasks",
+      "updated": "2026-11-23T18:02:11.000Z",
+      "items": [
+        {
+          "kind": "tasks#task",
+          "id": "aGtUa3FwT2VhSUxwV0pVaQ",
+          "title": "Renew the passport",
+          "notes": "Two photos first.\nThe form: https://example.org/passport-form",
+          "status": "needsAction",
+          "due": "2026-11-25T00:00:00.000Z",
+          "updated": "2026-11-22T08:15:30.000Z",
+          "position": "00000000000000000000",
+          "links": [],
+          "web_view_link": "https://tasks.google.com/task/aGtUa3FwT2VhSUxwV0pVaQ"
+        },
+        {
+          "kind": "tasks#task",
+          "id": "bU9vV2JGc2Z4b0JmcGxZYQ",
+          "title": "Print the photos",
+          "status": "needsAction",
+          "parent": "aGtUa3FwT2VhSUxwV0pVaQ",
+          "updated": "2026-11-22T08:16:02.000Z",
+          "position": "00000000000000000000",
+          "links": []
+        },
+        {
+          "kind": "tasks#task",
+          "id": "Y1NkU2l4bkZ6ZWlmY3VJZQ",
+          "title": "Fill in the form",
+          "notes": "Use black ink.",
+          "status": "completed",
+          "completed": "2026-11-23T09:30:00.000Z",
+          "parent": "aGtUa3FwT2VhSUxwV0pVaQ",
+          "updated": "2026-11-23T09:30:00.000Z",
+          "position": "00000000000000000001",
+          "links": []
+        },
+        {
+          "kind": "tasks#task",
+          "id": "ZkRiNkFRNmVqTUdCa1JxbA",
+          "title": "Call the bank",
+          "status": "completed",
+          "due": "2026-11-20T00:00:00.000Z",
+          "completed": "2026-11-20T16:45:00.000Z",
+          "updated": "2026-11-20T16:45:00.000Z",
+          "position": "00000000000000000001",
+          "links": []
+        },
+        {
+          "kind": "tasks#task",
+          "id": "a3FpN0V5RlRiWkFUeUJ1dw",
+          "title": "Reply to the landlord",
+          "status": "needsAction",
+          "updated": "2026-11-21T11:00:00.000Z",
+          "position": "00000000000000000002",
+          "links": [
+            {
+              "type": "email",
+              "description": "About the heating",
+              "link": "https://mail.google.com/mail/#all/18c2f0e1a2b3c4d5"
+            }
+          ]
+        },
+        {
+          "kind": "tasks#task",
+          "id": "dFJ0a2ZQbXdYS0Q0M2xHZw",
+          "title": "Sort the old photos",
+          "status": "completed",
+          "completed": "2026-10-02T08:00:00.000Z",
+          "hidden": true,
+          "updated": "2026-10-03T08:00:00.000Z",
+          "position": "00000000000000000003",
+          "links": []
+        },
+        {
+          "kind": "tasks#task",
+          "id": "cWtjTkRDeEVSVnlFcm1aZg",
+          "title": "A task that was deleted",
+          "status": "needsAction",
+          "deleted": true,
+          "updated": "2026-11-01T10:00:00.000Z",
+          "position": "00000000000000000004",
+          "links": []
+        }
+      ]
+    },
+    {
+      "kind": "tasks#taskList",
+      "id": "UkZ3d3pNcVpWa2NJMnBSeQ",
+      "title": "Groceries",
+      "updated": "2026-11-23T07:40:00.000Z",
+      "items": [
+        {
+          "kind": "tasks#task",
+          "id": "SEN0Ql9YdFZqV1l4a0hYbg",
+          "title": "Oat milk",
+          "status": "needsAction",
+          "updated": "2026-11-23T07:40:00.000Z",
+          "position": "00000000000000000000",
+          "links": []
+        },
+        {
+          "kind": "tasks#task",
+          "id": "eW1aSGpVaUNoS1lMRnRCbg",
+          "title": "Coffee beans",
+          "status": "completed",
+          "completed": "2026-11-22T17:10:00.000Z",
+          "updated": "2026-11-22T17:10:00.000Z",
+          "position": "00000000000000000001",
+          "links": []
+        }
+      ]
+    }
+  ]
+}

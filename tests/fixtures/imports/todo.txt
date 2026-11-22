@@ -1,0 +1,8 @@
+(A) 2026-11-20 Call the plumber about the leak +Home @phone due:2026-11-24
+(B) Pick up the parcel +errands due:2026-11-26
+Water the plants +Home rec:+1w due:2026-11-24
+2026-11-22 Read the article on https://example.com/notes @reading
+Plan the winter trip +travel t:2026-12-01
+Pay the gym membership +Home rec:1m due:2026-12-01
+Back up the laptop +admin rec:3b
+x 2026-11-23 2026-11-21 Buy stamps +errands pri:B

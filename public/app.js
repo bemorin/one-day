@@ -3205,24 +3205,51 @@ try {
       () => toast('This browser blocked the backup'),
     );
   }
+  // A One Day backup is merged at once; another app's export is shown first (see "importing from other apps").
   $.impf.addEventListener('change', async () => {
-    const f = $.impf.files && $.impf.files[0];
+    const files = [...($.impf.files || [])].slice(0, 20);
     $.impf.value = '';
-    if (!f) return;
-    if (f.size > 5e6) {
-      toast('That file is too large to be a backup');
+    if (!files.length) return;
+    if (files.some(f => f.size > 20e6)) {
+      toast('That file is too large to import');
       return;
     }
-    let j = null;
+    let got;
     try {
-      j = JSON.parse(await f.text());
-    } catch (e) {}
-    if (j && j.app === 'one-day' && !j.days && j.vault) {
+      got = await readFiles(files);
+    } catch (e) {
+      const m = e && e.message;
+      toast(
+        m === 'zip'
+          ? 'This browser can’t open that .zip: unzip it, then pick the file inside'
+          : m === 'too large'
+            ? 'That file is too large to import'
+            : 'That file could not be read',
+      );
+      return;
+    }
+    if (got.length > 1 && got.some(f => /^\s*\{\s*"app"\s*:\s*"one-day"/.test(f.text.slice(0, 200)))) {
+      toast('A One Day backup imports on its own: pick it alone');
+      return;
+    }
+    if (got.length === 1 && /^\s*\{/.test(got[0].text)) {
+      let j = null;
+      try {
+        j = JSON.parse(got[0].text);
+      } catch (e) {}
+      if (j && j.app === 'one-day') return importBackup(j);
+    }
+    const found = readExports(got);
+    if (found) showImport(found);
+    else toast('That file isn’t a backup or an export One Day can read');
+  });
+  async function importBackup(j) {
+    if (!j.days && j.vault) {
       const inner = await openBackup(j.vault);
       if (!inner) return;
       j = { app: 'one-day', days: inner.days, rules: inner.rules, tags: inner.tags };
     }
-    if (!j || j.app !== 'one-day' || !j.days || typeof j.days !== 'object') {
+    if (!j.days || typeof j.days !== 'object') {
       toast('That file isn’t a One Day backup');
       return;
     }
@@ -3273,7 +3300,667 @@ try {
       ruled ? `${ruled} repeating ${ruled > 1 ? 'tasks' : 'task'}` : '',
     ].filter(Boolean);
     toast(what.length ? `Imported ${what.join(' and ')}` : 'Nothing new in that backup', what.length ? 'undo' : null);
+  }
+
+  /* importing from other apps: an export from Todoist, TickTick, Google Tasks or todo.txt is read here, in the page,
+     and nothing is sent anywhere. Each file becomes plain items (words, note, sub-tasks, tags, a day, a repeat); a
+     dialog shows where they will go before anything is added, and one undo takes them all back. */
+  async function readFiles(files) {
+    const out = [];
+    for (const f of files) {
+      const u8 = new Uint8Array(await f.arrayBuffer());
+      if (u8[0] === 0x50 && u8[1] === 0x4b && u8[2] === 3 && u8[3] === 4)
+        for (const e of await unzip(u8)) out.push({ name: e.name, text: utf8(e.bytes) });
+      else out.push({ name: f.name, text: utf8(u8) });
+    }
+    return out;
+  }
+  // UTF-8, as these apps write it; a file an older Windows app saved falls back to its code page
+  function utf8(u8) {
+    try {
+      return new TextDecoder('utf-8', { fatal: true }).decode(u8);
+    } catch (e) {
+      return new TextDecoder('windows-1252').decode(u8);
+    }
+  }
+  // The text files in a .zip (Todoist's backups and Google Takeout come as one), opened with the browser's own inflate
+  // and never past 40 MB in all.
+  async function unzip(u8) {
+    const v = new DataView(u8.buffer, u8.byteOffset, u8.byteLength),
+      out = [];
+    let e = -1;
+    for (let i = u8.length - 22; i >= 0 && i >= u8.length - 65557; i--)
+      if (v.getUint32(i, true) === 0x06054b50) {
+        e = i;
+        break;
+      }
+    if (e < 0 || typeof DecompressionStream !== 'function') throw new Error('zip');
+    let p = v.getUint32(e + 16, true),
+      left = 40e6;
+    for (let n = Math.min(v.getUint16(e + 10, true), 4000); n > 0 && out.length < 60; n--) {
+      if (p + 46 > u8.length || v.getUint32(p, true) !== 0x02014b50) break;
+      const flags = v.getUint16(p + 8, true),
+        how = v.getUint16(p + 10, true),
+        size = v.getUint32(p + 20, true),
+        nl = v.getUint16(p + 28, true),
+        at = v.getUint32(p + 42, true),
+        name = new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nl));
+      p += 46 + nl + v.getUint16(p + 30, true) + v.getUint16(p + 32, true);
+      if (flags & 1 || !/\.(csv|json|txt)$/i.test(name) || /(^|\/)(__MACOSX\/|\.)/.test(name)) continue;
+      if (at + 30 > u8.length || v.getUint32(at, true) !== 0x04034b50) continue;
+      const from = at + 30 + v.getUint16(at + 26, true) + v.getUint16(at + 28, true),
+        data = u8.subarray(from, from + size);
+      let bytes = null;
+      if (how === 0) bytes = data;
+      else if (how === 8) {
+        let ds;
+        try {
+          ds = new DecompressionStream('deflate-raw');
+        } catch (er) {
+          throw new Error('zip');
+        }
+        bytes = await through(data, ds, left).catch(er => {
+          if (er && er.message === 'too large') throw er;
+          return null;
+        });
+      }
+      if (!bytes) continue;
+      left -= bytes.length;
+      out.push({ name, bytes });
+    }
+    return out;
+  }
+  // A CSV file's rows, as RFC 4180 writes them: a quoted field may hold the separator, quotes ("") and line breaks.
+  function csvRows(s, sep = ',') {
+    const rows = [],
+      n = s.length,
+      end = c => c === sep || c === '\n' || c === '\r';
+    let row = [],
+      i = 0;
+    while (i < n && rows.length < 200000) {
+      let f = '';
+      if (s[i] === '"') {
+        let j = i + 1;
+        for (;;) {
+          const q = s.indexOf('"', j);
+          if (q < 0) {
+            f += s.slice(j);
+            i = n;
+            break;
+          }
+          f += s.slice(j, q);
+          if (s[q + 1] === '"') j = q + 2;
+          else {
+            i = q + 1;
+            break;
+          }
+          f += '"';
+        }
+        while (i < n && !end(s[i])) f += s[i++];
+      } else {
+        let j = i;
+        while (j < n && !end(s[j])) j++;
+        f = s.slice(i, j);
+        i = j;
+      }
+      row.push(f);
+      if (i >= n) break;
+      if (s[i] === sep) {
+        if (++i >= n) row.push('');
+        continue;
+      }
+      if (s[i] === '\r' && s[i + 1] === '\n') i++;
+      i++;
+      rows.push(row);
+      row = [];
+    }
+    if (row.length) rows.push(row);
+    return rows;
+  }
+  // A note written elsewhere as plain text or Markdown: its lines and lists, links, **bold**, ~~strike~~ and `code`.
+  const IMI =
+    /(`[^`\n]+`)|\*\*([^*\n]+)\*\*|~~([^~\n]+)~~|\[([^[\]\n]+)\]\((https?:\/\/[^\s()]+(?:\([^\s()]*\)[^\s()]*)?)\)|(https?:\/\/[^\s<>"]*[^\s<>".,;:!?)\]'»])/gi;
+  function imLine(s) {
+    let h = '',
+      last = 0;
+    for (const m of s.matchAll(IMI)) {
+      const u = m[5] || m[6];
+      h += esc(s.slice(last, m.index));
+      last = m.index + m[0].length;
+      h += m[1]
+        ? `<code>${esc(m[1].slice(1, -1))}</code>`
+        : m[2]
+          ? `<b>${imLine(m[2])}</b>`
+          : m[3]
+            ? `<s>${imLine(m[3])}</s>`
+            : `<a href="${esc(u)}">${esc(m[4] || u)}</a>`;
+    }
+    return h + esc(s.slice(last));
+  }
+  function imNote(text) {
+    let h = '',
+      list = '';
+    const lines = String(text || '').slice(0, 30000).replace(/\r\n?/g, '\n').trim();
+    if (!lines) return '';
+    for (const ln of lines.split('\n')) {
+      const m = /^\s*(?:([-*+•])|\d{1,3}[.)])\s+(.*)$/.exec(ln),
+        kind = m ? (m[1] ? 'ul' : 'ol') : '';
+      if (kind !== list) h += (list ? `</${list}>` : '') + (kind ? `<${kind}>` : '');
+      list = kind;
+      h += kind ? `<li>${imLine(m[2])}</li>` : `<div>${imLine(ln) || '<br>'}</div>`;
+    }
+    return h + (list ? `</${list}>` : '');
+  }
+  // A list, project or label as a #tag: lower case, spaces as hyphens, only what a tag can hold. The lists every
+  // account starts with (an inbox, "My Tasks") say nothing, so they bring no tag.
+  const IMDEF = new Set(['inbox', 'my-tasks', 'boîte-de-réception', 'mes-tâches', 'eingang', 'meine-aufgaben', 'bandeja-de-entrada', 'mis-tareas']);
+  function imTag(s) {
+    const g = String(s || '')
+      .normalize('NFC')
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/[^\p{L}\p{N}_\-\/]/gu, '')
+      .replace(/-{2,}/g, '-')
+      .replace(/^[-_\/]+|[-\/]+$/g, '')
+      .slice(0, 40);
+    return TAGNAME.test(g) && !IMDEF.has(g) ? g : '';
+  }
+  // A day from a date that may carry a time: "2026-11-25", "2026-11-25T14:00:00+0000", "20261125". A time with a zone
+  // is read in this browser's zone (or the one named), a date alone as it is written.
+  function imDay(v, tz) {
+    const s = String(v || '').trim(),
+      m = /^(\d{4})-?(\d\d)-?(\d\d)(?:[T ](\d\d):?(\d\d)(?::?(\d\d)(?:\.\d+)?)?\s*(Z|[+-]\d\d:?\d\d)?)?$/i.exec(s);
+    if (!m) return null;
+    let k = `${m[1]}-${m[2]}-${m[3]}`;
+    if (m[7]) {
+      const z = m[7].toUpperCase() === 'Z' ? 'Z' : m[7].replace(/^([+-]\d\d):?(\d\d)$/, '$1:$2'),
+        t = new Date(`${k}T${m[4]}:${m[5]}:${m[6] || '00'}${z}`);
+      if (isNaN(t)) return null;
+      k = tz ? zoneDay(t, tz) || keyOf(t) : keyOf(t);
+    }
+    return keyOf(fromKey(k)) === k ? k : null;
+  }
+  const zoneDay = (t, tz) => {
+    try {
+      const p = Object.fromEntries(
+        new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
+          .formatToParts(t)
+          .map(x => [x.type, x.value]),
+      );
+      return `${p.year}-${p.month}-${p.day}`;
+    } catch (e) {
+      return null;
+    }
+  };
+  // A moment from a date-time with a zone, in milliseconds, or null.
+  function imAt(v) {
+    const m = /^(\d{4}-\d\d-\d\d)[T ](\d\d:\d\d(?::\d\d)?(?:\.\d+)?)\s*(Z|[+-]\d\d:?\d\d)$/i.exec(String(v || '').trim());
+    if (!m) return null;
+    const t = Date.parse(`${m[1]}T${m[2]}${m[3].toUpperCase() === 'Z' ? 'Z' : m[3].replace(/^([+-]\d\d):?(\d\d)$/, '$1:$2')}`);
+    return isNaN(t) ? null : t;
+  }
+  /* A repeat from another app as a One Day rule from the task's day, or null when One Day can't follow it. A repeat is
+     { freq: day, week, month or year, every, days: weekdays (0 is Monday), md: a date of the month (31 is the last day),
+     nth and wd: a weekday of the month (the second Tuesday, the last Friday), mo: a yearly one's month, until }. */
+  function imRule(rep, base) {
+    if (!rep || !FREQ.concat('year').includes(rep.freq)) return null;
+    const year = rep.freq === 'year',
+      every = (rep.every || 1) * (year ? 12 : 1);
+    if (!Number.isInteger(every) || every < 1 || every > 99) return null;
+    const f = { freq: year ? 'month' : rep.freq, every };
+    let start = base;
+    if (f.freq === 'week') f.days = rep.days && rep.days.length ? rep.days : [wdOf(base)];
+    if (f.freq === 'month' && (rep.md || rep.nth || rep.mo)) {
+      if (rep.nth && !(rep.nth === -1 || (rep.nth >= 1 && rep.nth <= 4))) return null;
+      const s = imStart(rep, base, every);
+      if (!s) return null;
+      start = s.start;
+      if (s.skip) f.skip = [s.skip];
+      if (rep.nth) f.nth = rep.nth;
+    }
+    if (rep.until) {
+      if (rep.until < todayKey() || rep.until < start) return null;
+      f.until = rep.until;
+    }
+    return { ...f, start };
+  }
+  // The first day from `base` a monthly or yearly repeat falls on: its date, or its weekday, of the month. A date that
+  // month lacks (the 31st in November) falls on its last day, as it will in such months afterwards: the rule then
+  // starts from that date in an earlier month, and skips that start.
+  function imStart(rep, base, every) {
+    const d0 = fromKey(base),
+      y = d0.getFullYear();
+    for (let i = 0; i < 130; i++) {
+      const m = d0.getMonth() + i,
+        dim = new Date(y, m + 1, 0).getDate();
+      if (rep.mo && new Date(y, m, 1).getMonth() + 1 !== rep.mo) continue;
+      let date = Math.min(rep.md || d0.getDate(), dim);
+      if (rep.nth) {
+        const fw = (new Date(y, m, 1).getDay() + 6) % 7,
+          lw = (new Date(y, m, dim).getDay() + 6) % 7;
+        date = rep.nth === -1 ? dim - ((lw - rep.wd + 7) % 7) : 1 + ((rep.wd - fw + 7) % 7) + (rep.nth - 1) * 7;
+      }
+      const s = keyOf(new Date(y, m, date));
+      if (s < base) continue;
+      if (!rep.md || rep.md <= dim) return { start: s };
+      if (every !== 1 && every !== 12) continue;
+      for (let j = 1; j <= 8; j++) {
+        const pm = m - j * every;
+        if (new Date(y, pm + 1, 0).getDate() < rep.md) continue;
+        const a = keyOf(new Date(y, pm, rep.md));
+        return { start: a, skip: a };
+      }
+    }
+    return null;
+  }
+  /* An import as One Day will hold it. A done task goes on the day it was done (the history), a dated one on its day,
+     the rest on today; a repeat becomes a rule, with its next occurrence on its day. One Day's limits hold: 300 tasks a
+     day, 100 sub-tasks a task, 300 repeats, and what this browser can keep (the oldest done tasks go first). */
+  function imPlan(items) {
+    const tk = todayKey(),
+      P = { days: {}, rules: {}, reps: [], n: 0, noted: 0, cut: 0, full: new Set(), undated: 0, subcut: 0, old: 0, tags: new Map(), big: false },
+      left = {},
+      put = (k, t) => {
+        if (!(k in left)) left[k] = 300 - tasks(k).length;
+        if (left[k] <= 0) {
+          P.full.add(k);
+          return false;
+        }
+        left[k]--;
+        (P.days[k] || (P.days[k] = [])).push(t);
+        return true;
+      };
+    let rules = Object.keys(S.rules).length;
+    for (const it of items) {
+      const words = String(it.text || '').replace(/\s+/g, ' ').trim();
+      if (!words) continue;
+      const own = tagsOf(words),
+        tags = [...new Set((it.tags || []).map(imTag))].filter(g => g && !own.includes(g)),
+        tail = tags.map(g => ' #' + g).join(''),
+        text = (words.slice(0, Math.max(40, 500 - tail.length)) + tail).slice(0, 500);
+      const subs0 = (it.subs || []).filter(x => x && String(x.text || '').trim()),
+        subs = subs0.slice(0, 100).map(x => ({ id: uid(), text: String(x.text).replace(/\s+/g, ' ').trim().slice(0, 300), done: !!x.done }));
+      let note = imNote(it.note);
+      if (it.done) {
+        if (!it.doneDay) {
+          P.undated++;
+          continue;
+        }
+        const [t] = clean([{ id: uid(), text, done: true, at: it.at || fromKey(it.doneDay).getTime() + 432e5, note, subs }]);
+        if (!t) continue;
+        if (put(it.doneDay, t)) P.n++;
+        else P.cut++;
+      } else {
+        const base = it.due || tk;
+        let r = null;
+        if (it.rep && rules < 300) {
+          const f = imRule(it.rep, base);
+          r = f && cleanRule({ ...f, text, note, subs: subs.map(x => ({ text: x.text })) }, 'r' + uid());
+        }
+        if (r) {
+          rules++;
+          P.rules[r.id] = r;
+          P.reps.push(r);
+          P.n++;
+          // its next occurrence, from its day or today, waits on that day; ensure() makes the ones after
+          const k = nextOcc(r, base > tk ? base : tk);
+          if (k) put(k, fromRule(r, k));
+        } else {
+          if (it.repText) {
+            note += `<div>${esc(`Repeats in ${it.app}: ${it.repText}`)}</div>`;
+            P.noted++;
+          }
+          const [t] = clean([{ id: uid(), text, done: false, note, subs }]);
+          if (!t) continue;
+          if (put(base, t)) P.n++;
+          else P.cut++;
+        }
+      }
+      if (subs0.length > 100) P.subcut += subs0.length - 100;
+      for (const g of tags) P.tags.set(g, (P.tags.get(g) || 0) + 1);
+    }
+    // what this browser can keep: about 5 MB in all, less once encrypted; the oldest done tasks are left out first
+    const size = o => JSON.stringify(o).length,
+      cap = vault ? 3.3e6 : 4.5e6;
+    let total = size(S) + size(P.days) + size(P.rules);
+    for (const k of Object.keys(P.days).sort()) {
+      if (total <= cap || k >= tk) break;
+      const l = P.days[k],
+        keep = l.filter(t => !t.done);
+      total -= size(l) - size(keep);
+      P.old += l.length - keep.length;
+      P.n -= l.length - keep.length;
+      if (keep.length) P.days[k] = keep;
+      else delete P.days[k];
+    }
+    P.big = total > cap;
+    return P;
+  }
+
+  /* Each app's export is known by what it holds, whatever the file is called. readExports() gives the apps found and
+     their items: { text, note (plain text or Markdown), subs: [{ text, done }], tags, done, doneDay, at, due, rep,
+     repText (the repeat as the app wrote it, for the note when One Day can't follow it) }. */
+  function readExports(got) {
+    const apps = [],
+      items = [];
+    let known = false;
+    for (const f of got) {
+      const r = readExport(f.name.split('/').pop(), f.text);
+      if (!r) continue;
+      known = true;
+      if (!apps.includes(r.app)) apps.push(r.app);
+      for (const it of r.items) {
+        if (items.length >= 20000) break;
+        it.app = r.app;
+        items.push(it);
+      }
+    }
+    return known ? { apps, items } : null;
+  }
+  function readExport(name, text) {
+    const head = text.slice(0, 3000);
+    if (/^\s*[[{]/.test(head)) {
+      let j = null;
+      try {
+        j = JSON.parse(text);
+      } catch (e) {}
+      return j && j.kind === 'tasks#taskLists' && Array.isArray(j.items) ? { app: 'Google Tasks', items: fromGoogle(j) } : null;
+    }
+    if (TDH.test(head)) return { app: 'Todoist', items: fromTodoist(text, name) };
+    if (TTH.test(head)) return { app: 'TickTick', items: fromTickTick(text) };
+    if (/\.(csv|json)$/i.test(name)) return null;
+    if (/^(todo|done)\.txt$/i.test(name) || (!/\.(md|markdown)$/i.test(name) && TXT.test(text.slice(0, 20000))))
+      return { app: 'todo.txt', items: fromTodoTxt(text) };
+    // any other list, one item a line, is read as a pasted one: bullets and boxes left out, what is set in nested
+    if (/\.(txt|md|markdown)$/i.test(name))
+      return {
+        app: name,
+        items: nestItems(listItems(text, 20000)).map(x => ({ ...x, tags: [], doneDay: x.done ? todayKey() : null })),
+      };
+    return null;
+  }
+
+  const TDH = /^"?TYPE"?,"?CONTENT"?,/,
+    TTH = /"Folder Name","List Name","Title"/;
+  function fromTodoist() {
+    return [];
+  }
+  function fromTickTick() {
+    return [];
+  }
+
+  // Google Tasks, from Google Takeout (Tasks.json): its lists, each with its tasks. A done task carries the moment it
+  // was done; a due date is a day (written as midnight UTC); a sub-task names its parent. Recurrence isn't exported.
+  function fromGoogle(j) {
+    const out = [];
+    for (const list of j.items.slice(0, 1000)) {
+      if (!list || !Array.isArray(list.items)) continue;
+      const all = list.items.filter(t => t && typeof t === 'object' && !t.deleted && typeof t.id === 'string'),
+        byId = new Map(all.map(t => [t.id, t])),
+        pos = t => (typeof t.position === 'string' ? t.position : ''),
+        made = new Map(),
+        tag = typeof list.title === 'string' ? list.title : '';
+      all.sort((a, b) => (pos(a) < pos(b) ? -1 : pos(a) > pos(b) ? 1 : 0));
+      const words = t => {
+        const title = typeof t.title === 'string' ? t.title.trim() : '',
+          notes = typeof t.notes === 'string' ? t.notes : '',
+          links = (Array.isArray(t.links) ? t.links : [])
+            .filter(l => l && typeof l.link === 'string' && /^https?:\/\//i.test(l.link))
+            .map(l => `- [${String(l.description || l.link).replace(/[[\]\n]/g, ' ')}](${l.link})`);
+        return { title: title || notes.trim().split('\n')[0].trim(), notes: [title ? notes : notes.trim().split('\n').slice(1).join('\n'), ...links].filter(Boolean).join('\n') };
+      };
+      const top = t => {
+        for (let i = 0; i < 20 && t.parent && byId.has(t.parent); i++) t = byId.get(t.parent);
+        return t;
+      };
+      for (const t of all) {
+        if (t.parent && byId.has(t.parent)) continue;
+        const w = words(t),
+          done = t.status === 'completed',
+          at = done ? imAt(t.completed) : null;
+        const it = { text: w.title, note: w.notes, subs: [], tags: [tag], done, due: done ? null : imDay(String(t.due || '').slice(0, 10)) };
+        if (done) {
+          it.at = at;
+          it.doneDay = at != null ? keyOf(new Date(at)) : imDay(String(t.due || '').slice(0, 10));
+        }
+        made.set(t.id, it);
+        out.push(it);
+      }
+      // a sub-task joins the task at the top of its line; its own notes go into that task's note
+      for (const t of all) {
+        if (!t.parent || !byId.has(t.parent)) continue;
+        const it = made.get(top(t).id);
+        if (!it) continue;
+        const w = words(t);
+        if (!w.title) continue;
+        it.subs.push({ text: w.title, done: t.status === 'completed' });
+        if (w.notes.trim()) it.note = `${it.note ? it.note + '\n\n' : ''}**${w.title.replace(/\*/g, '')}**\n${w.notes}`;
+      }
+    }
+    return out;
+  }
+
+  // todo.txt: a task a line. "x 2026-11-20 2026-11-02 Call Sam +work @phone due:2026-11-25" was done on the 20th;
+  // +projects and @contexts become tags, due: is its day (else t:, the day it may start), rec: how it repeats; a priority
+  // and pri: are left out. done.txt, the archive, is written the same way.
+  const TXT =
+    /^(?:x \d{4}-\d\d-\d\d |\([A-Z]\) |\d{4}-\d\d-\d\d \S)|(?:^|\s)(?:(?:due|t):\d{4}-\d\d-\d\d|rec:\+?\d{0,2}[dbwmy]|\+[\p{L}\p{N}])/mu;
+  function fromTodoTxt(text) {
+    const out = [],
+      tk = todayKey();
+    for (const raw of text.split(/\r\n|\r|\n/)) {
+      let l = raw.trim(),
+        m;
+      if (!l) continue;
+      const it = { text: '', tags: [], done: false };
+      if ((m = /^x\s+(?:(\d{4}-\d\d-\d\d)\s+)?(?:\d{4}-\d\d-\d\d\s+)?(?:\([A-Z]\)\s+)?/.exec(l))) {
+        it.done = true;
+        it.doneDay = m[1] ? imDay(m[1]) : null;
+        l = l.slice(m[0].length);
+      } else if ((m = /^(?:\([A-Z]\)\s+)?(?:\d{4}-\d\d-\d\d\s+)?/.exec(l))) l = l.slice(m[0].length);
+      const words = [];
+      let start = null,
+        hidden = false;
+      for (const w of l.split(/\s+/)) {
+        const kv = /^([^\s:]+):([^\s:]+)$/.exec(w),
+          k = kv && kv[1].toLowerCase();
+        if (/^[+@][^\s]/.test(w)) it.tags.push(w.slice(1));
+        else if (kv && !/^\/\//.test(kv[2]) && ['due', 't', 'rec', 'pri', 'h'].includes(k)) {
+          if (k === 'due') it.due = imDay(kv[2]);
+          else if (k === 't') start = imDay(kv[2]);
+          else if (k === 'rec') {
+            it.rep = recRep(kv[2]);
+            it.repText = w;
+          } else if (k === 'h') hidden = kv[2] === '1';
+        } else words.push(w);
+      }
+      // Simpletask's h:1 lines only hold its lists
+      if (hidden) continue;
+      it.text = words.join(' ') || it.tags.map(g => '#' + g).join(' ');
+      if (!it.done && !it.due && start && start > tk) it.due = start;
+      if (it.done && !it.doneDay && it.due) it.doneDay = it.due;
+      out.push(it);
+    }
+    return out;
+  }
+  // An iCalendar RRULE (TickTick writes its repeats so): the parts One Day can follow, or null. A repeat that ends after
+  // a number of times, skips holidays or happens several times a day is not one of them.
+  const RRD = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'],
+    MAXD = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  function rruleRep(v) {
+    const o = {};
+    for (const part of String(v || '').replace(/^\s*RRULE:/i, '').split(';')) {
+      const i = part.indexOf('=');
+      if (i > 0) o[part.slice(0, i).trim().toUpperCase()] = part.slice(i + 1).trim().toUpperCase();
+      else if (part.trim()) return null;
+    }
+    const freq = { DAILY: 'day', WEEKLY: 'week', MONTHLY: 'month', YEARLY: 'year' }[o.FREQ],
+      num = (s, lo, hi) => (/^[+-]?\d{1,4}$/.test(s) && +s >= lo && +s <= hi ? +s : null);
+    if (!freq || Object.keys(o).some(k => !['FREQ', 'INTERVAL', 'BYDAY', 'BYMONTHDAY', 'BYMONTH', 'BYSETPOS', 'UNTIL', 'WKST'].includes(k))) return null;
+    const rep = { freq, every: o.INTERVAL == null ? 1 : num(o.INTERVAL, 1, 99) };
+    if (!rep.every) return null;
+    if (o.BYDAY) {
+      const ds = o.BYDAY.split(',').map(s => /^([+-]?\d{1,2})?(MO|TU|WE|TH|FR|SA|SU)$/.exec(s.trim()));
+      if (ds.some(m => !m)) return null;
+      if (freq === 'day' || freq === 'week') {
+        // weekdays only; every day on some weekdays is every week on them
+        if (o.BYSETPOS || ds.some(m => m[1]) || (freq === 'day' && rep.every > 1)) return null;
+        rep.freq = 'week';
+        rep.days = [...new Set(ds.map(m => RRD.indexOf(m[2])))].sort((a, b) => a - b);
+      } else {
+        // one weekday of the month: 2TU, -1FR, or TU with BYSETPOS=2; in a year, only with its month
+        const n = ds.length === 1 ? num(ds[0][1] != null ? ds[0][1] : o.BYSETPOS, -1, 4) : null;
+        if (!n || (freq === 'year' && !o.BYMONTH) || (ds[0][1] != null && o.BYSETPOS)) return null;
+        rep.nth = n;
+        rep.wd = RRD.indexOf(ds[0][2]);
+      }
+    } else if (o.BYSETPOS) return null;
+    if (o.BYMONTH) {
+      rep.mo = num(o.BYMONTH, 1, 12);
+      if (!rep.mo || freq !== 'year') return null;
+    }
+    if (o.BYMONTHDAY) {
+      // a date of the month (-1, the last day, in a monthly repeat); in a year, only with a month that has it
+      rep.md = freq === 'month' && o.BYMONTHDAY === '-1' ? 31 : num(o.BYMONTHDAY, 1, 31);
+      if (!rep.md || rep.nth || (freq !== 'month' && !rep.mo) || (rep.mo && rep.md > MAXD[rep.mo - 1])) return null;
+    }
+    if (o.UNTIL) {
+      rep.until = imDay(o.UNTIL.replace(/^(\d{8})T.*$/, '$1'));
+      if (!rep.until) return null;
+    }
+    return rep;
+  }
+  // rec:1w, rec:+2m, rec:3d, rec:1y, rec:1b (business days): "+" counts from the due date rather than from the day it
+  // was done. One Day counts from the day either way.
+  function recRep(v) {
+    const m = /^\+?(\d{0,2})([dbwmy])$/i.exec(v);
+    if (!m) return null;
+    const n = +(m[1] || 1),
+      u = m[2].toLowerCase();
+    if (u === 'b') return n === 1 ? { freq: 'week', every: 1, days: [0, 1, 2, 3, 4] } : null;
+    return n ? { freq: { d: 'day', w: 'week', m: 'month', y: 'year' }[u], every: n } : null;
+  }
+
+  /* the import dialog: how many tasks, on which days, before they are added */
+  const IM = {};
+  'imp impCard impT impSub impList impNote impNo impGo'.split(' ').forEach(id => (IM[id] = document.getElementById(id)));
+  let IMP = null;
+  const plainTitle = t => t.replace(TAGRE, '$1').replace(/\s+/g, ' ').trim() || t;
+  function showImport(found) {
+    const P = imPlan(found.items),
+      from = AND.format(found.apps);
+    if (P.big) return toast('That is more than this browser can keep: nothing was added');
+    if (!P.n)
+      return toast(
+        P.full.size ? 'Those days are full: nothing was added' : P.undated ? 'Only done tasks without a date: nothing to add' : `Nothing to import from ${from}`,
+      );
+    if (pip) pip.close();
+    closePops();
+    closeMore();
+    compose(false);
+    const tk = todayKey(),
+      ks = Object.keys(P.days),
+      soon = ks.filter(k => k >= tk).sort(),
+      before = ks.filter(k => k < tk).sort().reverse(),
+      count = l => {
+        const d = l.filter(t => t.done).length,
+          o = l.length - d;
+        return [o ? `${o} ${o > 1 ? 'tasks' : 'task'}` : '', d ? `${d} done` : ''].filter(Boolean).join(', ');
+      },
+      row = k => {
+        const l = P.days[k],
+          names = l.slice(0, 3).map(t => plainTitle(t.text));
+        return `<li><span class="imk">${esc(dayLabel(k))}</span><span class="imc">${count(l)}</span><span class="imx">${esc(names.join(', '))}${l.length > 3 ? ', …' : ''}</span></li>`;
+      },
+      group = (title, keys) =>
+        keys.length
+          ? `<h3 class="imh">${title}</h3><ul class="imd">${keys.slice(0, 200).map(row).join('')}</ul>` +
+            (keys.length > 200 ? `<p class="imm">and ${keys.length - 200} more days</p>` : '')
+          : '';
+    IM.impList.innerHTML =
+      group('From today', soon) +
+      (P.reps.length
+        ? `<h3 class="imh">Repeating</h3><ul class="imd">${P.reps
+            .slice(0, 200)
+            .map(r => `<li><span class="imk">${esc(plainTitle(r.text))}</span><span class="imx">${esc(ruleText(r))}</span></li>`)
+            .join('')}</ul>`
+        : '') +
+      group('Before today', before);
+    const notes = [],
+      tags = [...P.tags.keys()],
+      s = (n, one, many) => `${n} ${n > 1 ? many : one}`;
+    if (tags.length)
+      notes.push(`Lists, projects and labels come in as tags: ${tags.slice(0, 5).map(g => '#' + g).join(', ')}${tags.length > 5 ? ` and ${tags.length - 5} more` : ''}.`);
+    if (P.noted) notes.push(`${s(P.noted, 'repeat', 'repeats')} One Day can’t follow ${P.noted > 1 ? 'are written in their notes' : 'is written in its note'}.`);
+    if (P.full.size)
+      notes.push(`${P.cut ? s(P.cut, 'task', 'tasks') + ' left out: ' : ''}${P.full.size > 1 ? `${P.full.size} days are` : dayLabel([...P.full][0]) + ' is'} full (300 tasks a day).`);
+    if (P.undated) notes.push(`${s(P.undated, 'done task', 'done tasks')} without a date ${P.undated > 1 ? 'are' : 'is'} left out.`);
+    if (P.old) notes.push(`The oldest ${s(P.old, 'done task is', 'done tasks are')} left out: this browser can’t keep more.`);
+    if (P.subcut) notes.push(`${s(P.subcut, 'sub-task', 'sub-tasks')} over 100 in a task ${P.subcut > 1 ? 'are' : 'is'} left out.`);
+    IM.impNote.innerHTML = notes.map(x => `<p>${esc(x)}</p>`).join('');
+    IM.impNote.hidden = !notes.length;
+    IM.impT.textContent = P.n > 1 ? `${P.n} tasks from ${from}` : `A task from ${from}`;
+    IM.impGo.textContent = P.n > 1 ? 'Add all' : 'Add';
+    const ae = D().activeElement;
+    IMP = { items: found.items, from, back: ae && ae !== D().body ? ae : null };
+    IM.impList.scrollTop = 0;
+    home.inert = true;
+    modalIn(TAP && TAP.el.isConnected && Date.now() - TAP.t < 1500 ? TAP.el : IMP.back, IM.imp, IM.impCard);
+    imFade();
+    guard('imp', () => closeImport());
+    IM.impGo.focus({ preventScroll: true });
+  }
+  const imFade = () => {
+    const l = IM.impList;
+    l.classList.toggle('more', l.scrollTop + l.clientHeight < l.scrollHeight - 2);
+  };
+  IM.impList.addEventListener('scroll', imFade, { passive: true });
+  function closeImport() {
+    const m = IMP;
+    if (!m) return null;
+    IMP = null;
+    unguard('imp');
+    modalOut(IM.imp, IM.impCard);
+    if (!locked) home.inert = false;
+    if (m.back && m.back.isConnected && !m.back.closest('[inert]')) m.back.focus({ preventScroll: true });
+    return m;
+  }
+  IM.impNo.onclick = () => closeImport();
+  IM.imp.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation();
+    closeImport();
   });
+  IM.imp.addEventListener('click', e => {
+    if (e.target === IM.imp) closeImport();
+  });
+  // Add all: planned again against the days as they are now, then added in one step that one undo takes back.
+  IM.impGo.onclick = () => {
+    const m = closeImport();
+    if (!m || locked) return;
+    const P = imPlan(m.items);
+    if (P.big || !P.n) {
+      toast(P.big ? 'That is more than this browser can keep: nothing was added' : 'Those days are full: nothing was added');
+      return;
+    }
+    const keys = Object.keys(P.days);
+    record(Object.keys(P.rules).length ? [...keys, cur] : keys);
+    Object.assign(S.rules, P.rules);
+    for (const k of keys) {
+      day(k).tasks.push(...P.days[k]);
+      commit(k);
+    }
+    if (!keys.length) persist();
+    closeSearch();
+    ensure(cur);
+    flip(() => {
+      renderList();
+      renderAux();
+    });
+    toast(`Imported ${P.n > 1 ? P.n + ' tasks' : 'a task'} from ${m.from}`, 'undo');
+  };
 
   /* tag suggestions while typing */
   let SG = null;
@@ -3679,7 +4366,7 @@ try {
   const BUL = /^(?:[•◦▪·‣⁃]\s*|(?:[-*+–—]|\d{1,3}[.)]|\(\d{1,3}\)|[a-zA-Z][.)])\s+)/,
     BOX = /^(?:\[( |x|X)?\]|([☐☑☒✅✔✓□▢◻⬜]))\uFE0F?\s*/,
     OPEN = '☐□▢◻⬜';
-  function listItems(txt) {
+  function listItems(txt, max = 100) {
     const out = [];
     for (const raw of String(txt).split(/\r\n|\r|\n/)) {
       let l = raw.replace(/\s+/g, ' ').trim(),
@@ -3693,7 +4380,7 @@ try {
       l = l.trim().slice(0, 500);
       // how far in the line starts (a tab counts as four spaces)
       if (l) out.push({ text: l, done, ind: raw.match(/^[ \t]*/)[0].replace(/\t/g, '    ').length });
-      if (out.length >= 100) break;
+      if (out.length >= max) break;
     }
     return out;
   }
@@ -5081,7 +5768,7 @@ try {
 
   /* keys */
   function onKey(e) {
-    if (locked || LSM) return;
+    if (locked || LSM || IMP) return;
     const t = e.target,
       typing = t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName),
       k = e.key,
@@ -5863,6 +6550,8 @@ try {
     KID = '';
     // a settings dialog open now must not go on with what the lock wipes
     closeLockset(null);
+    closeImport();
+    IM.impList.textContent = '';
     closePops();
     closeSearch(false);
     closeInbox();
@@ -6183,10 +6872,8 @@ try {
   /* The dialog's motion. On a computer it grows from what opened it, over a scrim that dims and softens the
      page, and its parts settle in one after the other; on a phone it is a sheet that rises from the bottom.
      It leaves the way it came, faster, and can be caught on the way: opening again starts from where it is. */
-  function modalIn(from) {
-    const m = L.lockset,
-      card = L.lsForm,
-      sheet = W().matchMedia(BARQ).matches;
+  function modalIn(from, m = L.lockset, card = L.lsForm) {
+    const sheet = W().matchMedia(BARQ).matches;
     m.getAnimations({ subtree: true }).forEach(a => a.cancel());
     m.classList.remove('out');
     m.hidden = false;
@@ -6214,10 +6901,8 @@ try {
         }),
       );
   }
-  function modalOut() {
-    const m = L.lockset,
-      card = L.lsForm,
-      sheet = W().matchMedia(BARQ).matches,
+  function modalOut(m = L.lockset, card = L.lsForm) {
+    const sheet = W().matchMedia(BARQ).matches,
       o = { easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' };
     m.classList.add('out');
     // no first keyframe: each part leaves from where it is now, even halfway in
