@@ -1134,7 +1134,8 @@ test.describe('in a narrow window with a mouse', () => {
     const about = page.locator('#slist .about');
     await expect(about).toBeVisible();
     await expect(about.locator('.links a')).toHaveCount(4);
-    await expect(about.locator('.kofi')).toHaveText('This app is free. Buy me a 🥐 if you want.');
+    await expect(about.locator('.kofi')).toHaveText('This app is free. If you want, buy me a 🥐.');
+    await expect(about.locator('.kofi')).toHaveAttribute('aria-label', 'This app is free. If you want, buy me a croissant on Ko-fi.');
     expect(await about.evaluate(n => getComputedStyle(n).alignItems)).toBe('center');
   });
 });
@@ -1409,7 +1410,7 @@ test.describe('on a touch screen', () => {
     await expect(page.locator('#more [data-act="export"]')).toBeVisible();
     await expect(page.locator('#more .slinks a')).toHaveCount(4);
     // the croissant says why it is there, on a row of its own under dogood.day
-    await expect(page.locator('#more .spromo.kofi')).toHaveText('This app is free. Buy me a 🥐 if you want.');
+    await expect(page.locator('#more .spromo.kofi')).toHaveText('This app is free. If you want, buy me a 🥐.');
     await expect(page.locator('#more .spromo:not(.kofi) + .spromo.kofi')).toHaveCount(1);
     await page.locator('#scrim').tap({ position: { x: 60, y: 120 } });
     await expect(page.locator('#more')).toBeHidden();
@@ -1982,6 +1983,23 @@ test.describe('the lock', () => {
       await expect(page.locator('#lockPass')).not.toBeFocused();
     });
   });
+});
+
+test.describe('More on a phone, scanned (axe, WCAG 2.2 AA)', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  for (const scheme of ['light', 'dark'])
+    test(scheme, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await open(page);
+      await page.locator('#mbMore').tap();
+      await expect(page.locator('#more')).toBeVisible();
+      await page.waitForTimeout(450);
+      const { violations } = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+        .include('#more')
+        .analyze();
+      expect(violations.map(v => `${v.id}: ${v.nodes.map(n => n.target.join(' ')).join(', ')}`)).toEqual([]);
+    });
 });
 
 test.describe('accessibility (axe, WCAG 2.2 AA)', () => {

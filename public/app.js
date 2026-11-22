@@ -2899,10 +2899,12 @@ try {
       links = [...f.querySelectorAll('nav a')].map(a => a.cloneNode(true).outerHTML).join('');
     return `<div class="about">${promo ? promo.cloneNode(true).outerHTML : ''}${kofi ? freeLine(kofi, 'kofi') : ''}<p class="links">${links}</p></div>`;
   }
-  // Under the card the croissant speaks for itself; small screens have room for the whole sentence.
+  // Under the card the croissant speaks for itself; small screens have room for the whole sentence. The words it
+  // shows come first, in the same order, in the name a screen reader says: the croissant is drawn last and named there.
   function freeLine(k, cls) {
-    const label = k.getAttribute('aria-label') || k.textContent.trim();
-    return `<a class="${cls}" href="${esc(k.href)}" target="_blank" rel="noopener" aria-label="${esc(`This app is free. ${label} if you want.`)}">This app is free. <b>${esc(k.textContent.trim())}</b> if you want.</a>`;
+    const low = t => t.charAt(0).toLowerCase() + t.slice(1),
+      label = low(k.getAttribute('aria-label') || k.textContent.trim());
+    return `<a class="${cls}" href="${esc(k.href)}" target="_blank" rel="noopener" aria-label="${esc(`This app is free. If you want, ${label}.`)}">This app is free. If you want, <b>${esc(low(k.textContent.trim()))}</b>.</a>`;
   }
   function moveHl() {
     const b = $.slist.querySelector(`.sr[data-i="${SEL}"]`);
