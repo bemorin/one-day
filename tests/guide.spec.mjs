@@ -36,6 +36,20 @@ function webpSize(buf) {
   return null;
 }
 
+// A JPEG file's own width and height, from its frame header.
+function jpegSize(buf) {
+  for (let o = 2; o + 9 < buf.length; ) {
+    if (buf[o] !== 0xff) return null;
+    const m = buf[o + 1],
+      n = buf.readUInt16BE(o + 2);
+    if (m >= 0xc0 && m <= 0xc3) return [buf.readUInt16BE(o + 7), buf.readUInt16BE(o + 5)];
+    o += 2 + n;
+  }
+  return null;
+}
+const PUBLIC = new URL('../public/', import.meta.url);
+const fileOf = address => new URL(new URL(address).pathname.slice(1), PUBLIC);
+
 test('the guide loads cleanly: no errors, no third-party requests, strict CSP', async ({ page, baseURL }) => {
   const errors = [],
     foreign = [];
@@ -81,15 +95,54 @@ test('SEO basics: a title, a description, one h1, headings in order, every ancho
   });
   expect(missing).toEqual([]);
   expect(twice).toEqual([]);
-  // "On this page" lists every section, in order, by its heading
-  const toc = await page.$$eval('.toc a', as => as.map(a => [a.hash.slice(1), a.textContent.trim()]));
-  const sections = await page.$$eval('.body > section', ss => ss.map(s => [s.id, s.querySelector('h2').textContent.trim()]));
-  expect(toc).toEqual(sections);
+  // "On this page" lists every chapter and every section, in order, by its heading
+  const toc = await page.$$eval('.toc a', as =>
+    as.map(a => [
+      a.hash.slice(1),
+      [...a.childNodes]
+        .filter(n => !(n.nodeType === 1 && n.getAttribute('aria-hidden')))
+        .map(n => n.textContent)
+        .join('')
+        .trim(),
+    ]),
+  );
+  const parts = await page.$$eval('.body .chapter, .body .chapter > section', ns =>
+    ns.map(n => [n.id, n.querySelector(n.classList.contains('chapter') ? 'h2' : 'h3').textContent.trim()]),
+  );
+  expect(parts.length).toBe(26);
+  expect(toc).toEqual(parts);
+  // chapters are h2, their sections h3, everything under those h4
+  expect(await page.$$eval('.chapter > .ch h2', hs => hs.length)).toBe(6);
+  expect(await page.$$eval('.chapter > section > h3', hs => hs.length)).toBe(20);
 });
 
+for (const [path, title, image] of [
+  ['/guide/', 'How to use One Day', 'https://day.bemorin.com/guide/share.jpg'],
+  ['/', 'One Day', 'https://day.bemorin.com/share.jpg'],
+])
+  test(`a link to ${path} shares a picture of the app (WhatsApp, X…)`, async ({ page, request }) => {
+    await page.goto(path);
+    const meta = async p => page.locator(`meta[property="${p}"], meta[name="${p}"]`).getAttribute('content');
+    expect(await meta('og:title')).toBe(title);
+    expect(await meta('og:image')).toBe(image);
+    expect(await meta('og:image:width')).toBe('1200');
+    expect(await meta('og:image:height')).toBe('630');
+    expect((await meta('og:image:alt')).length).toBeGreaterThan(20);
+    expect(await meta('twitter:card')).toBe('summary_large_image');
+    expect(new URL(await meta('og:url')).origin).toBe('https://day.bemorin.com');
+    // the picture npm run shots made: a JPEG of 1200 by 630, light enough for WhatsApp
+    const buf = readFileSync(fileOf(image));
+    expect(jpegSize(buf)).toEqual([1200, 630]);
+    expect(buf.length).toBeLessThan(300 * 1024);
+    const r = await request.get(new URL(image).pathname);
+    expect(r.status()).toBe(200);
+    expect(r.headers()['content-type']).toBe('image/jpeg');
+  });
+
 test('every picture is there, in light and dark, with its own size written in the page', async ({ request }) => {
-  const tags = [...PAGE.matchAll(/<img\b[^>]*\bsrc="shots\/([^"]+)"[^>]*>/g)];
-  const used = [...new Set(tags.map(m => m[1]))].sort();
+  const tags = [...PAGE.matchAll(/<img\b[^>]*\bsrc="shots\/([^"]+)"[^>]*>/g)],
+    sources = [...PAGE.matchAll(/<source\b[^>]*\bsrcset="shots\/([^"]+)"[^>]*>/g)];
+  const used = [...new Set([...tags, ...sources].map(m => m[1]))].sort();
   // the folder holds the pictures the page shows, and only those
   expect(readdirSync(SHOTS).filter(f => !f.startsWith('.')).sort()).toEqual(used);
   for (const f of used) {
@@ -104,6 +157,14 @@ test('every picture is there, in light and dark, with its own size written in th
     expect(tag, f).toContain(`height="${size[1]}"`);
     expect(tag, f).toMatch(/\balt="[^"]{12,}"/);
     expect(tag, f).toContain('loading="lazy"');
+  }
+  // a moving picture has the size of the still one in its <picture>, so either holds the same place
+  for (const m of PAGE.matchAll(/<picture\b[^>]*>([\s\S]*?)<\/picture>/g)) {
+    const moving = /srcset="shots\/([^"]+)"/.exec(m[1])[1],
+      img = /<img\b[^>]*>/.exec(m[1])[0],
+      [w, h] = webpSize(readFileSync(new URL(moving, SHOTS)));
+    expect(img, moving).toContain(`width="${w}"`);
+    expect(img, moving).toContain(`height="${h}"`);
   }
   // light and dark versions of a picture say the same thing
   for (const [tag] of tags.filter(m => /class="l"/.test(m[0]))) {
@@ -129,9 +190,10 @@ for (const scheme of ['light', 'dark'])
     await scrollThrough(page);
     await page.waitForLoadState('networkidle');
     const other = scheme === 'light' ? 'dark' : 'light',
-      mine = [...new Set(PAGE.match(new RegExp(`shots/[a-z-]+-${scheme}\\.webp`, 'g')))].map(p => p.slice(6));
-    // every picture of this look, once; of the other, only the day shown in both, side by side
-    expect([...new Set(got.filter(f => f.endsWith(`-${scheme}.webp`)))].sort()).toEqual(mine.sort());
+      shown = await page.$$eval('img[src^="shots/"]', is => is.filter(i => i.getClientRects().length).map(i => i.currentSrc.split('/').pop()));
+    // every picture shown, once; of the other look, only the day shown in both, side by side
+    expect([...new Set(got)].sort()).toEqual([...new Set(shown)].sort());
+    expect(shown.filter(f => f.endsWith(`-${scheme}.webp`)).length).toBeGreaterThan(17);
     expect(got.filter(f => f.endsWith(`-${other}.webp`))).toEqual([`day-${other}.webp`]);
   });
 
@@ -166,19 +228,24 @@ test('Copy page as Markdown: the whole guide, in the clipboard only', async ({ p
   expect(md.startsWith('# How to use One Day\n\nOne Day is a calm to-do list')).toBe(true);
   for (const s of [
     'From https://day.bemorin.com/guide/',
-    '## Getting started',
+    '## Basics',
+    '### Getting started',
+    '#### Leftovers',
     '- click the **arrows** at the top left, or press ← and →;',
-    '## Keyboard shortcuts',
+    '## Tools',
+    '### Keyboard shortcuts',
     '**Anywhere**',
     '| Back to today | D or Home |',
-    '### The installed app shows an old version',
+    '#### The installed app shows an old version',
     '![One Day on a computer: Tuesday 14 April',
     '(https://day.bemorin.com/guide/shots/day-light.webp)',
     '[privacy policy](https://bemorin.com/privacy#one-day)',
     '[Moving to a new phone or computer](https://day.bemorin.com/guide/#moving)',
     '> **A forgotten passphrase cannot be recovered.**',
     '`one-day-backup-2026-04-14.json`',
-    '## Something unclear?',
+    '### Something unclear?',
+    '- [Email me](mailto:hello@bemorin.com?subject=One%20Day%20guide)',
+    '- [Ask on GitHub](https://github.com/bemorin/one-day/issues)',
   ])
     expect(md).toContain(s);
   // one picture per figure, in light, except the light and dark pair
@@ -188,19 +255,41 @@ test('Copy page as Markdown: the whole guide, in the clipboard only', async ({ p
   await expect(page.locator('#copy')).toHaveText('Copy page as Markdown', { timeout: 6000 });
 });
 
-test('On this page sits beside the text on a wide screen and marks the section being read', async ({ page }) => {
+test('On this page sits on the left of the text on a wide screen and marks the section being read', async ({ page }) => {
   await guide(page);
   const [toc, body] = await Promise.all([page.locator('.toc').boundingBox(), page.locator('.body').boundingBox()]);
-  expect(toc.x).toBeGreaterThan(body.x + body.width);
+  expect(toc.x + toc.width).toBeLessThan(body.x);
+  // it fits a laptop's screen without scrolling
+  expect(await page.locator('.toc').evaluate(n => n.scrollHeight <= n.clientHeight + 1)).toBe(true);
   await page.evaluate(() => document.getElementById('lock').scrollIntoView());
   await expect(page.locator('.toc a[href="#lock"]')).toHaveAttribute('aria-current', 'true');
   await expect(page.locator('.toc a[aria-current]')).toHaveCount(1);
+  // its chapter's number turns red, like today's date
+  const red = n => page.locator(`.toc a[href="#${n}"] .n`).evaluate(e => getComputedStyle(e).color);
+  await expect.poll(() => red('data')).toBe('rgb(228, 0, 43)');
+  await expect.poll(() => red('basics')).toBe('rgb(110, 110, 110)');
   // it stays in view while the text goes by
   const t = await page.locator('.toc').boundingBox();
   expect(t.y).toBeGreaterThan(0);
   expect(t.y).toBeLessThan(160);
   await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
-  await expect(page.locator('.toc a[href="#faq"]')).toHaveAttribute('aria-current', 'true');
+  await expect(page.locator('.toc a[href="#contact"]')).toHaveAttribute('aria-current', 'true');
+});
+
+test('Live rolls: a moving picture of the timer, a still one with Reduce motion', async ({ page }) => {
+  const anim = readFileSync(new URL('timer-live-light.webp', SHOTS));
+  expect(anim.toString('ascii', 12, 16)).toBe('VP8X');
+  expect(anim[20] & 0x02).toBe(0x02);
+  expect(anim.toString('latin1').split('ANMF').length - 1).toBeGreaterThan(20);
+  const pic = () => page.locator('#timer picture.l img').evaluate(i => i.currentSrc.split('/').pop());
+  await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'no-preference' });
+  await page.goto('/guide/#timer');
+  await page.locator('#timer picture.l img').scrollIntoViewIfNeeded();
+  await expect.poll(pic).toBe('timer-live-light.webp');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.reload();
+  await page.locator('#timer picture.l img').scrollIntoViewIfNeeded();
+  await expect.poll(pic).toBe('timer-live-still-light.webp');
 });
 
 test.describe('the guide on a phone', () => {
@@ -240,17 +329,18 @@ test.describe('the app links to the guide', () => {
     await page.goto('/');
     await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
   };
-  test('on a large screen, from a pill after the lock, in a new tab; the footer keeps its one line', async ({ page, context }) => {
+  test('on a large screen, from a pill before the sun, in a new tab; the footer keeps its one line', async ({ page, context }) => {
     await app(page);
     const pill = page.getByRole('link', { name: 'Guide' });
     await expect(pill).toHaveCount(1);
     await expect(pill).toHaveAttribute('id', 'gpill');
     await expect(pill).toHaveAttribute('target', '_blank');
-    // the last of the pills above the card, as tall as the others, its edge on the footer's
+    // above the card: the guide, the sun, the lock, as tall as one another; the lock's edge on the footer's
     const [g, l, t, n] = await Promise.all(['#gpill', '#lpill', '#theme', '#foot nav'].map(s => page.locator(s).boundingBox()));
-    expect(g.x).toBeGreaterThan(l.x + l.width);
+    expect(g.x + g.width).toBeLessThan(t.x);
+    expect(t.x + t.width).toBeLessThan(l.x);
     expect([g.width, g.height]).toEqual([t.width, t.height]);
-    expect(Math.abs(g.x + g.width - (n.x + n.width))).toBeLessThan(1);
+    expect(Math.abs(l.x + l.width - (n.x + n.width))).toBeLessThan(1);
     // the footer's own copy of the link is for search and More: under the card the row is full
     await expect(page.locator('#foot .gd')).toBeHidden();
     for (const s of ['#foot .promo', '#foot .kofi', '#foot nav']) expect(Math.round((await page.locator(s).boundingBox()).height)).toBe(40);
@@ -329,7 +419,7 @@ test('the guide opens offline once the app has been opened', async ({ browser })
   cold.on('pageerror', e => errors.push(e.message));
   await cold.goto(url + 'guide/#lock');
   await expect(cold.locator('h1')).toHaveText('How to use One Day');
-  await expect(cold.locator('#lock h2')).toBeVisible();
+  await expect(cold.locator('#lock h3')).toBeVisible();
   expect(await cold.evaluate(() => getComputedStyle(document.querySelector('h1')).fontWeight)).toBe('800');
   await cold.evaluate(() => document.fonts.ready);
   expect(await cold.evaluate(() => document.fonts.check('800 40px Archivo'))).toBe(true);

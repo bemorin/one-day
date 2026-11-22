@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 // The guide's screenshots, taken from the app itself with made-up tasks on a fixed day (Tuesday 14 April 2026, 09:41),
 // in light and dark, on a computer and on a phone. Run it after any visible change, then commit what it writes:
-// the pictures, and their sizes in the guide's <img> tags.
-//   npm run shots             -> public/guide/shots/*.webp, and width/height in public/guide/index.html
-//   npm run shots -- timer    -> only the shots whose name contains "timer"
+// the pictures, and their sizes in the guide's <img> tags. It also makes the pictures a link shows when it is shared
+// (WhatsApp, X, iMessage…), for the app and for the guide.
+//   npm run shots             -> public/guide/shots/*.webp, width/height in public/guide/index.html,
+//                                public/share.jpg and public/guide/share.jpg
+//   npm run shots -- timer    -> only the shots whose name contains "timer" ("share": the shared pictures)
 // Needs the dev dependencies (npm install). Nothing here reaches the network: the app is served from this folder.
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
@@ -94,6 +96,12 @@ const PHONE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
 const COLUMN = [292, 988];
 
 const row = (page, text) => page.locator('#list .row', { hasText: text }).first();
+// The timer's panel on its own: what is behind it (the bar, the date, the tasks) is hidden, so no cut words show
+// around it.
+const panelAlone = page =>
+  page.evaluate(() => {
+    for (const s of ['#app .rule', '#app .bar', '#app .date', '#vp']) document.querySelector(s).style.visibility = 'hidden';
+  });
 const away = page => page.mouse.move(4, 856);
 
 // Each shot: the device, the tasks, what to do in the app, and what the picture must hold (selectors).
@@ -191,8 +199,11 @@ const SHOTS = [
       await page.locator('#tpre [data-v="25"]').click();
       await page.locator('#tstart').click();
       await page.locator('#trun').waitFor();
+      await panelAlone(page);
     },
-    keep: ['#topbar', '.date', '#tpop'],
+    keep: ['#tpop'],
+    pad: 24,
+    column: false,
   },
   {
     name: 'inbox',
@@ -288,13 +299,13 @@ async function settle(page) {
 // The union of what the picture must hold, in CSS pixels.
 async function frame(page, shot) {
   return page.evaluate(
-    ({ keep, from, pad, padBottom, column }) => {
+    ({ keep, from, pad, padTop, padBottom, column }) => {
       const boxes = keep
         .flatMap(s => [...document.querySelectorAll(s)])
         .filter(n => n.getClientRects().length)
         .map(n => n.getBoundingClientRect());
       if (!boxes.length) throw new Error('nothing to frame: ' + keep.join(', '));
-      let top = Math.min(...boxes.map(b => b.top)) - pad,
+      let top = Math.min(...boxes.map(b => b.top)) - padTop,
         bottom = Math.max(...boxes.map(b => b.bottom)) + padBottom,
         left = Math.min(...boxes.map(b => b.left)) - pad,
         right = Math.max(...boxes.map(b => b.right)) + pad;
@@ -316,6 +327,7 @@ async function frame(page, shot) {
       keep: shot.keep,
       from: shot.from || null,
       pad: shot.pad ?? 18,
+      padTop: shot.padTop ?? shot.pad ?? 18,
       padBottom: shot.padBottom ?? shot.pad ?? 18,
       column: shot.column === false ? null : COLUMN,
     },
@@ -373,6 +385,250 @@ function webpSize(buf) {
   return [1 + (b & 0x3fff), 1 + ((b >> 14) & 0x3fff)];
 }
 
+// The pictures a shared link shows (Open Graph, X cards): 1200×630, a few words beside the app on a computer and a
+// phone. The app is captured without loss on its own page colour, so it sits on the picture's background seamlessly.
+const SHARES = [
+  {
+    file: join(root, 'public', 'share.jpg'),
+    brand: 'day.bemorin.com',
+    title: 'One Day',
+    size: 116,
+    line: 'A calm to-do list that shows one day at a time.',
+    foot: 'Free and private: no account, and your tasks never leave your device.',
+  },
+  {
+    file: join(root, 'public', 'guide', 'share.jpg'),
+    brand: 'One Day · Guide',
+    title: 'How to use One Day',
+    size: 86,
+    line: 'Every feature, in plain words and pictures.',
+    foot: 'day.bemorin.com/guide',
+  },
+];
+async function lossless(browser, device, keep) {
+  const ctx = await browser.newContext({
+    ...device,
+    colorScheme: 'light',
+    reducedMotion: 'reduce',
+    locale: 'en-GB',
+    timezoneId: 'Europe/London',
+    serviceWorkers: 'block',
+  });
+  await ctx.addInitScript(d => {
+    if (!localStorage.getItem('oneday.v1')) localStorage.setItem('oneday.v1', JSON.stringify(d));
+  }, data());
+  const page = await ctx.newPage();
+  await page.clock.setFixedTime(NOW);
+  await page.goto(BASE + '/');
+  await page.waitForFunction(() => !document.getElementById('app').classList.contains('pre'));
+  if (device === DESK) await away(page);
+  // the card alone with its shadow: the footer under it stays out of the picture
+  await page.evaluate(() => {
+    const foot = document.getElementById('foot');
+    if (foot) foot.style.visibility = 'hidden';
+  });
+  await settle(page);
+  const clip = keep ? await frame(page, { keep, pad: 40 }) : { x: 0, y: 0, ...device.viewport };
+  const cdp = await ctx.newCDPSession(page);
+  const { data: b64 } = await cdp.send('Page.captureScreenshot', { format: 'png', clip: { ...clip, scale: 2 } });
+  await ctx.close();
+  return 'data:image/png;base64,' + b64;
+}
+async function takeShares(browser) {
+  const [desk, phone] = await Promise.all([lossless(browser, DESK, ['#topbar', '#app']), lossless(browser, PHONE)]);
+  const font = (await readFile(join(root, 'public', 'fonts', 'archivo-latin.woff2'))).toString('base64'),
+    icon = (await readFile(join(root, 'public', 'icons', 'icon.svg'))).toString('base64');
+  const ctx = await browser.newContext({ viewport: { width: 1200, height: 630 }, deviceScaleFactor: 1 });
+  const page = await ctx.newPage();
+  const out = [];
+  for (const sh of SHARES) {
+    await page.setContent(`<!doctype html><html lang="en"><head><style>
+      @font-face { font-family: Archivo; src: url(data:font/woff2;base64,${font}) format('woff2'); font-weight: 100 900; font-stretch: 62% 125%; }
+      html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; background: #f5f5f7; }
+      body { position: relative; box-sizing: border-box; display: flex; flex-direction: column; padding: 62px 72px 58px;
+        font-family: Archivo, system-ui, sans-serif; color: #000; -webkit-font-smoothing: antialiased; }
+      .brand { display: flex; align-items: center; gap: 14px; font-size: 25px; font-weight: 700; font-variation-settings: 'wdth' 106; letter-spacing: -0.01em; }
+      .brand img { width: 44px; height: 44px; border-radius: 11px; }
+      .words { flex: 1; display: flex; flex-direction: column; justify-content: center; width: 530px; }
+      h1 { margin: 0; line-height: 0.93; font-weight: 800; font-variation-settings: 'wdth' 112; letter-spacing: -0.045em; text-wrap: balance; }
+      p { margin: 26px 0 0; font-size: 29px; line-height: 1.32; color: #5f5f5f; text-wrap: balance; }
+      .foot { width: 520px; font-size: 21px; line-height: 1.35; font-weight: 600; color: #3a3a3a; text-wrap: balance; }
+      .desk { position: absolute; left: 618px; top: 18px; width: 572px; }
+      .phone { position: absolute; left: 1004px; top: 240px; width: 166px; border-radius: 25px; box-shadow: 0 0 0 1px rgb(0 0 0 / 0.08), 0 30px 60px -18px rgb(0 0 0 / 0.38); }
+    </style></head><body>
+      <div class="brand"><img src="data:image/svg+xml;base64,${icon}" alt=""><span>${sh.brand}</span></div>
+      <div class="words"><h1 style="font-size: ${sh.size}px">${sh.title}</h1><p>${sh.line}</p></div>
+      <div class="foot">${sh.foot}</div>
+      <img class="desk" src="${desk}" alt="">
+      <img class="phone" src="${phone}" alt="">
+    </body></html>`);
+    await page.evaluate(() => Promise.all([document.fonts.ready, ...[...document.images].map(i => i.decode())]));
+    const buf = await page.screenshot({ type: 'jpeg', quality: 88 });
+    await writeFile(sh.file, buf);
+    out.push({ file: sh.file.slice(root.length + 1).replace(/\\/g, '/'), bytes: buf.length });
+  }
+  await ctx.close();
+  return out;
+}
+
+// The live timer, rolling: the clock stands still while the timer is set, then moves one second at a time. At each
+// second the digits roll; their animations are held and played frame by frame, so the picture is the same at every
+// run. After the first frame, each frame keeps only the digits that roll that second, without loss (smaller, too).
+const STEP = 50;
+async function takeLive(browser, scheme) {
+  const ctx = await browser.newContext({
+    ...DESK,
+    colorScheme: scheme,
+    reducedMotion: 'no-preference',
+    locale: 'en-GB',
+    timezoneId: 'Europe/London',
+    serviceWorkers: 'block',
+  });
+  await ctx.addInitScript(d => {
+    if (!localStorage.getItem('oneday.v1')) localStorage.setItem('oneday.v1', JSON.stringify(d));
+  }, data());
+  const page = await ctx.newPage();
+  await page.clock.install({ time: new Date(NOW) });
+  await page.goto(BASE + '/');
+  await page.waitForFunction(() => !document.getElementById('app').classList.contains('pre'));
+  await page.evaluate(() => document.fonts.ready);
+  await page.clock.pauseAt(new Date(Date.parse(NOW) + 20000));
+  // the page's own timers stand still from here: wait, in real time, for what moves in real time
+  const still = async () => {
+    for (let i = 0; i < 80; i++) {
+      const busy = await page.evaluate(() =>
+        document.getAnimations().some(a => a.playState === 'running' && Number.isFinite(a.effect.getComputedTiming().endTime)),
+      );
+      if (!busy) break;
+      await sleep(50);
+    }
+    await sleep(200);
+  };
+  await page.locator('#tmb').click();
+  await page.locator('#tpop.on').waitFor();
+  await page.locator('#tpre [data-v="25"]').click();
+  await page.locator('#tstart').click();
+  await page.locator('#seg [data-m="live"]').click();
+  await panelAlone(page);
+  await away(page);
+  await still();
+  const box = await frame(page, SHOTS.find(x => x.name === 'timer'));
+  const S = DESK.deviceScaleFactor;
+  // the digits rolling now (the ones holding a digit on its way out), in whole CSS pixels inside the picture:
+  // at 2x their offsets are even, as frames need
+  const rolling = async () => {
+    const r = await page.evaluate(() =>
+      [...document.querySelectorAll('#tbig .dg')]
+        .filter(n => n.querySelector('.out'))
+        .map(n => {
+          const b = n.getBoundingClientRect();
+          return [b.left, b.top, b.right, b.bottom];
+        }),
+    );
+    if (!r.length) return null;
+    const x0 = Math.max(box.x, Math.floor(Math.min(...r.map(b => b[0]))) - 4),
+      y0 = Math.max(box.y, Math.floor(Math.min(...r.map(b => b[1]))) - 8),
+      x1 = Math.min(box.x + box.width, Math.ceil(Math.max(...r.map(b => b[2]))) + 4),
+      y1 = Math.min(box.y + box.height, Math.ceil(Math.max(...r.map(b => b[3]))) + 8);
+    return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+  };
+  const cdp = await ctx.newCDPSession(page);
+  const grab = async (clip, quality = 90) =>
+    Buffer.from((await cdp.send('Page.captureScreenshot', { format: 'webp', quality, clip: { ...clip, scale: S } })).data, 'base64');
+  const frames = [{ x: 0, y: 0, buf: await grab(box), ms: 900 }];
+  for (let k = 0; k < 3; k++) {
+    await page.clock.runFor(1000);
+    // the digits have started rolling: hold their animations, then play them frame by frame
+    const span = await page.evaluate(() => {
+      let end = 0;
+      for (const a of document.getAnimations())
+        if (a.playState === 'running' && Number.isFinite(a.effect.getComputedTiming().endTime)) {
+          a.pause();
+          a.currentTime = 0;
+          end = Math.max(end, a.effect.getComputedTiming().endTime);
+        }
+      return end;
+    });
+    const digits = await rolling();
+    if (!digits) {
+      frames[frames.length - 1].ms += 1000;
+      continue;
+    }
+    const steps = Math.max(1, Math.ceil(span / STEP));
+    for (let i = 1; i <= steps; i++) {
+      await page.evaluate(t => {
+        for (const a of document.getAnimations())
+          if (a.playState === 'paused' && Number.isFinite(a.effect.getComputedTiming().endTime)) a.currentTime = t;
+      }, Math.min(span, i * STEP));
+      frames.push({ x: (digits.x - box.x) * S, y: (digits.y - box.y) * S, buf: await grab(digits, 100), ms: STEP });
+    }
+    await page.evaluate(() => {
+      for (const a of document.getAnimations())
+        if (a.playState === 'paused' && Number.isFinite(a.effect.getComputedTiming().endTime)) a.finish();
+    });
+    frames[frames.length - 1].ms += Math.max(0, 1000 - steps * STEP);
+  }
+  // the last second rests a little longer before it all starts again
+  frames[frames.length - 1].ms += 1200;
+  await still();
+  const rest = await grab(box);
+  await ctx.close();
+  const anim = animatedWebp(frames, webpSize(frames[0].buf));
+  const out = [];
+  for (const [file, buf] of [
+    ['timer-live-' + scheme + '.webp', anim],
+    ['timer-live-still-' + scheme + '.webp', rest],
+  ]) {
+    await writeFile(join(OUT, file), buf);
+    const [width, height] = webpSize(buf);
+    out.push({ file, width, height, bytes: buf.length, frames: buf === anim ? frames.length : 1 });
+  }
+  return out;
+}
+
+// An animated WebP from WebP frames: each frame's picture data, placed on the canvas, for so many milliseconds.
+function animatedWebp(frames, [W, H]) {
+  const chunk = (id, payload) => {
+    const b = Buffer.alloc(8 + payload.length + (payload.length & 1));
+    b.write(id, 0, 'ascii');
+    b.writeUInt32LE(payload.length, 4);
+    payload.copy(b, 8);
+    return b;
+  };
+  let alpha = false;
+  const anmf = frames.map(f => {
+    const picture = [];
+    for (let o = 12; o + 8 <= f.buf.length; ) {
+      const id = f.buf.toString('ascii', o, o + 4),
+        n = f.buf.readUInt32LE(o + 4),
+        end = o + 8 + n + (n & 1);
+      if (id === 'ALPH') alpha = true;
+      if (id === 'ALPH' || id === 'VP8 ' || id === 'VP8L') picture.push(f.buf.subarray(o, end));
+      o = end;
+    }
+    const [w, h] = webpSize(f.buf),
+      head = Buffer.alloc(16);
+    if (f.x % 2 || f.y % 2) throw new Error('frames must sit on even pixels');
+    head.writeUIntLE(f.x / 2, 0, 3);
+    head.writeUIntLE(f.y / 2, 3, 3);
+    head.writeUIntLE(w - 1, 6, 3);
+    head.writeUIntLE(h - 1, 9, 3);
+    head.writeUIntLE(f.ms, 12, 3);
+    head[15] = 0b10; // drawn over what is there (no blending), and left there
+    return chunk('ANMF', Buffer.concat([head, ...picture]));
+  });
+  const vp8x = Buffer.alloc(10);
+  vp8x[0] = 0x02 | (alpha ? 0x10 : 0);
+  vp8x.writeUIntLE(W - 1, 4, 3);
+  vp8x.writeUIntLE(H - 1, 7, 3);
+  const loop = Buffer.alloc(6); // background colour (unused), then 0: loop forever
+  const body = Buffer.concat([Buffer.from('WEBP'), chunk('VP8X', vp8x), chunk('ANIM', loop), ...anmf]);
+  const riff = Buffer.alloc(8);
+  riff.write('RIFF', 0, 'ascii');
+  riff.writeUInt32LE(body.length, 4);
+  return Buffer.concat([riff, body]);
+}
+
 // Each <img src="shots/…"> gets the size of its picture, so the page keeps its place while pictures load.
 async function writeSizes(sizes) {
   let html = await readFile(PAGE, 'utf8').catch(() => null);
@@ -408,6 +664,14 @@ async function main() {
         console.log(`${s.file.padEnd(26)} ${s.width}×${s.height}  ${Math.round(s.bytes / 1024)} KB`);
       }
     }
+    if (!only || 'share'.includes(only))
+      for (const s of await takeShares(browser)) console.log(`${s.file.padEnd(28)} 1200×630  ${Math.round(s.bytes / 1024)} KB`);
+    if (!only || 'timer-live'.includes(only))
+      for (const scheme of ['light', 'dark'])
+        for (const s of await takeLive(browser, scheme)) {
+          sizes.set(s.file, s);
+          console.log(`${s.file.padEnd(28)} ${s.width}×${s.height}  ${Math.round(s.bytes / 1024)} KB  ${s.frames} frame(s)`);
+        }
   } finally {
     await browser.close();
     server.kill();

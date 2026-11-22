@@ -2417,8 +2417,8 @@ test.describe('installing One Day', () => {
     await open(page);
     await offerInstall(page);
     await expect(page.locator('#ins')).toBeVisible();
-    // as far from the time as from the sun, on the line where the pills end
-    const [c, i, t] = await Promise.all(['#clock', '#ins', '#theme'].map(x => page.locator(x).boundingBox()));
+    // as far from the time as from the first pill (the guide's, before the sun), on the line where the pills end
+    const [c, i, t] = await Promise.all(['#clock', '#ins', '#gpill'].map(x => page.locator(x).boundingBox()));
     expect(Math.abs(i.x - (c.x + c.width) - (t.x - (i.x + i.width)))).toBeLessThan(2);
     expect(Math.abs(i.y + i.height - (t.y + t.height))).toBeLessThan(1);
     expect(Math.round(i.height)).toBe(40);

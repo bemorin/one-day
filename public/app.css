@@ -3760,7 +3760,7 @@ mark {
   opacity: 0;
 }
 /* the guide's link is here for search and More, where they show the footer's links; under the card the row is full,
-   so on a large screen the guide has its pill above it instead, after the lock */
+   so on a large screen the guide has its pill above it instead, before the sun */
 #foot .gd {
   display: none;
 }
@@ -4125,7 +4125,7 @@ mark {
   .topbar #theme:active {
     transform: scale(0.94);
   }
-  /* the guide: a question mark after the lock, the last of the pills (the footer has no room left) */
+  /* the guide: a question mark before the sun, and the lock after it (the footer under the card has no room left) */
   .gpill {
     text-decoration: none;
   }

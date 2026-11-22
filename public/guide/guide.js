@@ -39,6 +39,10 @@ function guideMarkdown(doc = document) {
     if (t === 'H1') out.push('# ' + text(n));
     else if (t === 'H2') out.push('## ' + text(n));
     else if (t === 'H3') out.push('### ' + text(n));
+    else if (t === 'H4') out.push('#### ' + text(n));
+    // a row of buttons (the ways to reach me) reads better as a list
+    else if (t === 'P' && n.classList.contains('links'))
+      out.push([...n.querySelectorAll('a')].map(a => `- [${text(a)}](${abs(a.getAttribute('href'))})`).join('\n'));
     else if (t === 'P') out.push(text(n));
     else if (t === 'UL' || t === 'OL')
       out.push([...n.children].map((li, i) => (t === 'OL' ? `${i + 1}. ` : '- ') + text(li)).join('\n'));
@@ -60,12 +64,6 @@ function guideMarkdown(doc = document) {
   block(hero.querySelector('.lede'));
   out.push(`From ${base}`);
   [...doc.querySelector('.body').children].forEach(block);
-  const help = doc.querySelector('.help');
-  if (help) {
-    block(help.querySelector('h2'));
-    block(help.querySelector('p'));
-    out.push([...help.querySelectorAll('.links a')].map(a => `- [${text(a)}](${abs(a.getAttribute('href'))})`).join('\n'));
-  }
   return out.filter(Boolean).join('\n\n') + '\n';
 }
 

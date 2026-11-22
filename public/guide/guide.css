@@ -86,6 +86,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  text-wrap: pretty;
 }
 a {
   color: inherit;
@@ -220,7 +221,7 @@ kbd {
   }
 }
 
-/* the page: one column; on a wide screen, "On this page" beside it */
+/* the page: one column; on a wide screen, "On this page" on the left, by chapter, beside the text */
 .page {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -230,13 +231,13 @@ kbd {
 }
 @media (min-width: 1120px) {
   .page {
-    max-width: calc(46rem + 14rem + 5rem + 2 * var(--gut));
-    grid-template-columns: minmax(0, 46rem) 14rem;
+    max-width: calc(14rem + 4.5rem + 46rem + 2 * var(--gut));
+    grid-template-columns: 14rem minmax(0, 46rem);
     grid-template-rows: auto 1fr;
     grid-template-areas:
-      'hero toc'
-      'body toc';
-    column-gap: 5rem;
+      'toc hero'
+      'toc body';
+    column-gap: 4.5rem;
   }
   .hero {
     grid-area: hero;
@@ -247,12 +248,15 @@ kbd {
   .toc {
     grid-area: toc;
     position: sticky;
-    top: calc(var(--top) + 40px);
+    top: calc(var(--top) + 28px);
     align-self: start;
-    max-height: calc(100vh - var(--top) - 64px);
+    max-height: calc(100vh - var(--top) - 44px);
     overflow-y: auto;
-    margin-top: 52px;
-    padding: 0 0 8px;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line2) transparent;
+    margin-top: 92px;
+    padding: 0 8px 16px 0;
   }
 }
 
@@ -261,7 +265,8 @@ kbd {
 }
 h1,
 h2,
-h3 {
+h3,
+h4 {
   margin: 0;
   line-height: 1.12;
   text-wrap: balance;
@@ -333,7 +338,7 @@ h1 {
   color: var(--mute);
 }
 
-/* On this page */
+/* On this page: the chapters, each with its sections */
 .toc {
   margin: 36px 0 0;
   padding: 20px 0 0;
@@ -341,7 +346,7 @@ h1 {
   font-size: 15px;
 }
 .toc-h {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   font-size: 13px;
   font-weight: 650;
   letter-spacing: 0.02em;
@@ -351,20 +356,47 @@ h1 {
   margin: 0;
   padding: 0;
   list-style: none;
-  columns: 2;
-  column-gap: 24px;
 }
 .toc li {
   margin: 0;
   padding: 0;
+}
+.toc .chs {
+  columns: 2;
+  column-gap: 28px;
+}
+.toc .chs > li {
   break-inside: avoid;
+  padding-bottom: 14px;
 }
 .toc a {
   display: block;
-  padding: 4px 0;
+  padding: 3px 0 3px 22px;
+  line-height: 1.4;
   color: var(--mute);
   text-decoration: none;
   transition: color 0.2s;
+}
+.toc .ch-a {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink);
+}
+/* each chapter's number, set like the app's date; red while you read it, like today's */
+.toc .n {
+  min-width: 14px;
+  font-weight: 800;
+  font-variation-settings: 'wdth' 112;
+  font-variant-numeric: tabular-nums;
+  color: var(--mute);
+  transition: color 0.2s;
+}
+.toc .chs > li:has(a[aria-current]) .n {
+  color: var(--red);
 }
 .toc a:hover,
 .toc a[aria-current] {
@@ -373,18 +405,29 @@ h1 {
 @media (min-width: 1120px) {
   .toc {
     border-top: 0;
+    padding-top: 0;
   }
-  .toc ol {
+  .toc .chs {
     columns: auto;
+  }
+  .toc .chs > li {
+    padding-bottom: 8px;
+  }
+  .toc .ch-a {
+    padding: 3px 0;
+  }
+  .toc ol ol {
+    margin: 1px 0 0 4px;
     border-left: 1px solid var(--line);
   }
-  .toc a {
+  .toc ol ol a {
     position: relative;
-    padding: 4px 0 4px 16px;
-    line-height: 1.4;
+    padding: 2px 0 2px 17px;
+    font-size: 14px;
+    line-height: 20px;
   }
-  /* where you are: a short red rule over the line, like today's */
-  .toc a[aria-current]::before {
+  /* where you are: a short red rule over the line */
+  .toc ol ol a[aria-current]::before {
     content: '';
     position: absolute;
     left: -1.5px;
@@ -396,24 +439,58 @@ h1 {
   }
 }
 
-/* the text */
+/* the text: chapters, each opened by its number as a day is by its date, then their sections */
 .body {
-  padding-bottom: 24px;
+  padding-bottom: 40px;
 }
-section {
-  padding-top: 64px;
+.chapter {
+  padding-top: 104px;
 }
-h2 {
-  font-size: clamp(27px, 4vw, 34px);
-  font-weight: 780;
-  font-variation-settings: 'wdth' 108;
-  letter-spacing: -0.03em;
-  margin-bottom: 18px;
+.chapter:first-child {
+  padding-top: 56px;
+}
+.ch {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--line);
+}
+.ch-n {
+  flex: none;
+  font-size: clamp(64px, 8vw, 92px);
+  font-weight: 800;
+  font-variation-settings: 'wdth' 112;
+  line-height: 0.8;
+  letter-spacing: -0.05em;
+  color: var(--line2);
+}
+.ch h2 {
+  font-size: clamp(28px, 4.2vw, 38px);
+  font-weight: 800;
+  font-variation-settings: 'wdth' 110;
+  letter-spacing: -0.035em;
+}
+.ch p {
+  margin: 8px 0 0;
+  font-size: 16.5px;
+  line-height: 1.5;
+  color: var(--mute);
+}
+.chapter > section {
+  padding-top: 56px;
 }
 h3 {
-  font-size: 20px;
+  font-size: clamp(23px, 3vw, 27px);
+  font-weight: 760;
+  font-variation-settings: 'wdth' 106;
+  letter-spacing: -0.025em;
+  margin-bottom: 16px;
+}
+h4 {
+  font-size: 19px;
   font-weight: 680;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.012em;
   margin: 36px 0 10px;
 }
 p,
@@ -450,6 +527,9 @@ li::marker {
 /* pictures from the app, in a soft frame */
 .shot {
   margin: 28px 0 36px;
+}
+.shot picture {
+  display: block;
 }
 .shot img {
   display: block;
@@ -535,28 +615,12 @@ td kbd {
   margin: 1px 0;
 }
 
-/* help, then the footer */
-.help {
-  max-width: calc(46rem + 2 * var(--gut));
-  margin: 24px auto 0;
-  padding: 40px var(--gut) 56px;
-}
-@media (min-width: 1120px) {
-  .help {
-    max-width: calc(46rem + 14rem + 5rem + 2 * var(--gut));
-    padding-right: calc(14rem + 5rem + var(--gut));
-  }
-}
-.help h2 {
-  margin-bottom: 12px;
-  padding-top: 40px;
-  border-top: 1px solid var(--line);
-}
-.help .links {
+/* the last section: three plain ways to reach me */
+#contact .links {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 20px;
+  margin-top: 22px;
 }
 .foot {
   display: flex;
@@ -595,8 +659,14 @@ td kbd {
   .crumb {
     display: none;
   }
-  section {
-    padding-top: 52px;
+  .chapter {
+    padding-top: 80px;
+  }
+  .chapter > section {
+    padding-top: 44px;
+  }
+  .ch {
+    gap: 14px;
   }
   .duo {
     gap: 10px;
@@ -635,7 +705,7 @@ td kbd {
   .skip,
   .acts,
   .toc,
-  .help .links {
+  #contact .links {
     display: none;
   }
   section {
