@@ -4864,13 +4864,15 @@ try {
     toast('This browser’s storage is full: your last changes aren’t saved');
   }
   // A tab still running an older One Day, or one that had not heard of the lock yet, may have written the tasks in
-  // clear. Once unlocked, that copy is merged in (the newer of each day wins), sealed, and only then removed.
+  // clear. Once unlocked, that copy is merged in task by task: a task the vault lacks is added, one both have keeps
+  // the version from the day changed last, and no task of the vault is ever dropped. Sealed, and only then is that
+  // copy removed, if it is still the one merged. Returns the copy merged, or null.
   function mergePlain() {
     let s = null;
     try {
       s = localStorage.getItem(LS);
     } catch (e) {}
-    if (s == null) return false;
+    if (s == null) return null;
     let p = null;
     try {
       p = JSON.parse(s);
@@ -4878,19 +4880,33 @@ try {
     if (p && p.days && typeof p.days === 'object') {
       const days = cleanDays(p.days),
         rules = cleanRules(p.rules);
-      for (const k of Object.keys(days)) if (!S.days[k] || days[k].u > (S.days[k].u || 0)) S.days[k] = days[k];
+      for (const k of Object.keys(days)) {
+        const a = S.days[k],
+          b = days[k];
+        if (!a) {
+          S.days[k] = b;
+          continue;
+        }
+        const newer = b.u > (a.u || 0),
+          at = new Map(a.tasks.map((t, i) => [t.id, i]));
+        for (const t of b.tasks) {
+          if (!at.has(t.id)) a.tasks.push(t);
+          else if (newer) a.tasks[at.get(t.id)] = t;
+        }
+        a.u = Math.max(a.u || 0, b.u);
+      }
       for (const id of Object.keys(rules)) if (!S.rules[id]) S.rules[id] = rules[id];
       IDX = null;
       TAGC = null;
     }
-    return true;
+    return s;
   }
-  async function dropPlain() {
+  async function dropPlain(s) {
     sealSoon();
     await flush();
     if (!sealOk || locked || !vault) return;
     try {
-      localStorage.removeItem(LS);
+      if (localStorage.getItem(LS) === s) localStorage.removeItem(LS);
     } catch (e) {}
   }
   // a passkey no longer used: the device's passkey manager may forget it too
@@ -5065,16 +5081,23 @@ try {
     });
   }
   async function opened(raw) {
+    const v = vault;
     let dek, j;
     try {
       dek = await dataKey(raw);
-      j = JSON.parse(TD.decode(await unseal(dek, vault.data)));
+      j = JSON.parse(TD.decode(await unseal(dek, v.data)));
     } finally {
       raw.fill(0);
     }
+    // another tab changed the key meanwhile: unlock again, with what is stored now
+    const st = storedVault();
+    if (!st || (st.kid || '') !== (v.kid || '')) {
+      vault = st || vault;
+      throw new Error('key changed');
+    }
     S = { days: cleanDays(j && j.days), rules: cleanRules(j && j.rules) };
     DEK = dek;
-    KID = vault.kid || '';
+    KID = v.kid || '';
     locked = false;
     UN.length = 0;
     RE.length = 0;
@@ -5086,7 +5109,7 @@ try {
     ensure(cur);
     repaint();
     renderChip();
-    if (merged) dropPlain();
+    if (merged != null) dropPlain(merged);
     if (introLater) {
       introLater = false;
       intro();
@@ -5243,21 +5266,26 @@ try {
   function away() {
     clearTimeout(awayT);
     home.classList.toggle('veil', document.hidden && !!vault && !locked && !pip);
+    if (!document.hidden) {
+      const late = awayAt && Date.now() - awayAt >= AWAY;
+      awayAt = 0;
+      if (late && vault && !locked && !pip) lockNow();
+      return;
+    }
     if (!vault || locked || pip) return;
-    if (document.hidden) {
-      awayAt = Date.now();
-      awayT = setTimeout(lockNow, AWAY);
-    } else if (awayAt && Date.now() - awayAt >= AWAY) lockNow();
+    awayAt = Date.now();
+    awayT = setTimeout(lockNow, AWAY);
   }
   document.addEventListener('visibilitychange', away);
   // another tab turned the lock on or off, changed the key, or wrote the tasks in clear
   window.addEventListener('storage', e => {
     if (e.key === LS) {
-      if (e.newValue != null && vault && !locked && DEK && mergePlain()) {
-        repaint();
-        renderChip();
-        dropPlain();
-      }
+      if (e.newValue == null || !vault || locked || !DEK) return;
+      const merged = mergePlain();
+      if (merged == null) return;
+      repaint();
+      renderChip();
+      dropPlain(merged);
       return;
     }
     if (e.key !== VK && e.key !== null) return;
@@ -5408,6 +5436,29 @@ try {
   // with the stored key: a lock, or another tab, in the meantime and nothing is written.
   const still = cur => !locked && !!vault && !!cur && (cur.kid || '') === KID,
     BUSY = { err: 'One Day was locked or changed meanwhile. Nothing was changed.' };
+  // The tasks as stored (another tab may have sealed some after this one), opened with this tab's key and sealed
+  // with a new one; null if anything changed meanwhile.
+  async function reseal(dek) {
+    await flush();
+    const cur = storedVault();
+    if (!still(cur)) return null;
+    const j = JSON.parse(TD.decode(await unseal(DEK, cur.data))),
+      tasks = { days: cleanDays(j && j.days), rules: cleanRules(j && j.rules) },
+      data = await sealWith(dek, TE.encode(JSON.stringify(tasks))),
+      now = storedVault();
+    if (!still(now) || now.data.ct !== cur.data.ct) return null;
+    return { cur: now, data, tasks };
+  }
+  // this tab now holds the new key, and the tasks as they were stored
+  function took(k, tasks) {
+    DEK = k.dek;
+    KID = k.kid;
+    S = tasks;
+    IDX = null;
+    TAGC = null;
+    repaint();
+    renderChip();
+  }
   // a new key for the tasks, sealed by the passphrase's key, and the tasks sealed by it
   async function newKey(kek) {
     const raw = rnd(32),
@@ -5435,6 +5486,8 @@ try {
         kid = toB64(rnd(12)),
         v = { v: 1, kid, uid, kdf: { iter: ITER, salt: toB64(salt) }, pass: await sealWith(kek, raw), data: await sealWith(dek, plain()) };
       if (made) v.bio = await bioSeal(made, raw);
+      // what another tab wrote in clear meanwhile goes in too
+      if (mergePlain() != null) v.data = await sealWith(dek, plain());
       // read it all back before the plain copy goes
       const back = await unseal(kek, v.pass);
       if (back.length !== 32 || back.some((x, i) => x !== raw[i])) throw new Error('lock check');
@@ -5467,16 +5520,13 @@ try {
       if (!was) return { err: 'That isn’t the current passphrase', el: 'old' };
       was.fill(0);
       const salt = rnd(16),
-        k = await newKey(await passKey(pass, salt, ITER));
-      await flush();
-      const data = await sealWith(k.dek, plain()),
-        cur = storedVault();
-      if (!still(cur)) return BUSY;
-      const { bio, ...rest } = cur;
-      vault = { ...rest, kid: k.kid, kdf: { iter: ITER, salt: toB64(salt) }, pass: k.pass, data };
+        k = await newKey(await passKey(pass, salt, ITER)),
+        r = await reseal(k.dek);
+      if (!r) return BUSY;
+      const { bio, ...rest } = r.cur;
+      vault = { ...rest, kid: k.kid, kdf: { iter: ITER, salt: toB64(salt) }, pass: k.pass, data: r.data };
       localStorage.setItem(VK, JSON.stringify(vault));
-      DEK = k.dek;
-      KID = k.kid;
+      took(k, r.tasks);
       if (bio) forgetPasskey(bio.id);
       return { toast: bio ? 'Passphrase changed. Set up fingerprint or face again if you want it.' : 'Passphrase changed' };
     },
@@ -5542,20 +5592,19 @@ try {
       const o = await passOpen(old, vault);
       if (!o) return { err: 'That isn’t the current passphrase', el: 'old' };
       o.raw.fill(0);
-      const k = await newKey(o.kek);
-      await flush();
-      const data = await sealWith(k.dek, plain()),
-        cur = storedVault();
-      if (!still(cur)) return BUSY;
-      const { bio, ...rest } = cur;
-      vault = { ...rest, kid: k.kid, pass: k.pass, data };
+      const k = await newKey(o.kek),
+        r = await reseal(k.dek);
+      if (!r) return BUSY;
+      const { bio, ...rest } = r.cur;
+      vault = { ...rest, kid: k.kid, pass: k.pass, data: r.data };
       localStorage.setItem(VK, JSON.stringify(vault));
-      DEK = k.dek;
-      KID = k.kid;
+      took(k, r.tasks);
       if (bio) forgetPasskey(bio.id);
       return { toast: 'Only your passphrase unlocks One Day now' };
     },
     async reset() {
+      const v = storedVault();
+      if (v && v.bio) forgetPasskey(v.bio.id);
       localStorage.removeItem(VK);
       try {
         localStorage.removeItem(LS);

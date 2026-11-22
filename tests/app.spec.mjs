@@ -1520,7 +1520,7 @@ test.describe('the lock', () => {
     expect(JSON.parse((await stored(page)).vault).bio).toBeTruthy();
 
     await page.reload();
-    await expect(page.locator('#lockBio')).toBeVisible();
+    await expect(page.locator('#lockBio')).toHaveText('Use fingerprint, face or PIN');
     await page.locator('#lockBio').click();
     await expect(page.locator('#lock')).toBeHidden({ timeout: 20000 });
     await expect(row(page, 'Plan the trip')).toBeVisible();
@@ -1668,9 +1668,11 @@ test.describe('the lock', () => {
           ),
         [text, today()],
       );
-    // unlocked: merged at once, sealed, and the copy in clear is removed
+    // unlocked: merged at once, task by task (the day's other tasks stay), sealed, and the copy in clear is removed
     await write('Buy stamps');
     await expect(row(page, 'Buy stamps')).toBeVisible();
+    await expect(row(page, 'Plan the trip')).toBeVisible();
+    await expect(row(page, 'Write the report')).toBeVisible();
     await expect.poll(async () => (await stored(page)).plain).toBeNull();
     expect((await stored(page)).vault).not.toContain('Buy stamps');
     // locked: it waits for the passphrase, then the same
@@ -1679,6 +1681,8 @@ test.describe('the lock', () => {
     await write('Call the vet');
     await unlock(page);
     await expect(row(page, 'Call the vet')).toBeVisible();
+    await expect(row(page, 'Buy stamps')).toBeVisible();
+    await expect(row(page, 'Plan the trip')).toBeVisible();
     await expect.poll(async () => (await stored(page)).plain).toBeNull();
     expect((await stored(page)).vault).not.toContain('Call the vet');
   });
@@ -1724,6 +1728,33 @@ test.describe('the lock', () => {
       [before, now, PASS],
     );
     expect(opens).toBe(false);
+  });
+
+  test('a new passphrase keeps the tasks another tab sealed meanwhile', async ({ page, context }) => {
+    await openLock(page);
+    await turnOn(page);
+    await page.keyboard.press('Escape');
+    const other = await context.newPage();
+    await other.emulateMedia({ reducedMotion: 'reduce' });
+    await other.goto('/');
+    await unlock(other);
+    await other.locator('#input').fill('Sealed in the other tab');
+    await other.locator('#input').press('Enter');
+    await expect(row(other, 'Sealed in the other tab')).toBeVisible();
+    await expect.poll(async () => JSON.parse((await stored(page)).vault).data.ct).toBeTruthy();
+    await other.waitForTimeout(300);
+    await page.keyboard.press('/');
+    await page.locator('#slist [data-act="lockchange"]').click();
+    await page.locator('#lsOld').fill(PASS);
+    await page.locator('#lsPass').fill('a brand new phrase');
+    await page.locator('#lsPass2').fill('a brand new phrase');
+    await page.locator('#lsGo').click();
+    await expect(page.locator('#lockset')).toBeHidden({ timeout: 20000 });
+    await page.keyboard.press('Escape');
+    await expect(row(page, 'Sealed in the other tab')).toBeVisible();
+    await page.reload();
+    await unlock(page, 'a brand new phrase');
+    await expect(row(page, 'Sealed in the other tab')).toBeVisible();
   });
 
   test('locking leaves no tag behind: the filter, the field and its placeholder are cleared', async ({ page }) => {
