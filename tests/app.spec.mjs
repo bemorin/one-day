@@ -828,13 +828,14 @@ test('digits stay right after the app comes back from another document (keep on 
   // Same journey as the floating window: the app moves to another document, rolls a day, comes back.
   await page.evaluate(async () => {
     const app = document.getElementById('app'),
-      home = document.getElementById('home'),
+      spot = document.createComment('app'),
       f = document.createElement('iframe');
     document.body.append(f);
+    app.before(spot);
     f.contentDocument.body.append(app);
     app.querySelector('#next').click();
     await new Promise(r => setTimeout(r, 1400));
-    home.prepend(app);
+    spot.replaceWith(app);
     f.remove();
   });
   await expect(page.locator('#num .dg .out')).toHaveCount(0);
@@ -844,6 +845,9 @@ test('digits stay right after the app comes back from another document (keep on 
 test('keep on top: the floating window is styled and follows the page theme', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' });
   await open(page);
+  const kids = () => page.evaluate(() => [...document.getElementById('home').children].map(n => n.id || n.className));
+  const before = await kids();
+  expect(before.indexOf('topbar')).toBeLessThan(before.indexOf('app'));
   await page.locator('#float').click();
   await expect
     .poll(() => page.evaluate(() => !!documentPictureInPicture.window?.document.getElementById('app')))
@@ -861,6 +865,10 @@ test('keep on top: the floating window is styled and follows the page theme', as
   await page.evaluate(() => documentPictureInPicture.window.close());
   await expect(page.locator('#home > #app')).toBeVisible();
   await expect(page.locator('#num .dg .out')).toHaveCount(0);
+  // back in its place: the page in the same order, the time and the pills above the card again
+  expect(await kids()).toEqual(before);
+  const [top, card] = await Promise.all(['#topbar', '#app'].map(s => page.locator(s).boundingBox()));
+  expect(top.y + top.height).toBeLessThanOrEqual(card.y + 1);
 });
 
 test.describe('repeating tasks', () => {

@@ -4788,6 +4788,10 @@ try {
     hideFmt();
     hideLb();
     hideSug();
+    // The card's place in the page is kept while it floats, so it comes back there: under the time and the
+    // pills, above the footer, whatever the page holds around it.
+    const spot = document.createComment('app');
+    app.before(spot);
     pd.body.append(app);
     document.body.classList.add('floating');
     setFloatUI(true);
@@ -4811,7 +4815,11 @@ try {
         stop(resortT);
         stop(noteT);
         settle();
-        home.prepend(app);
+        if (spot.parentNode) spot.replaceWith(app);
+        else {
+          const top = home.querySelector('#topbar');
+          top ? top.after(app) : home.prepend(app);
+        }
         pip = null;
         away();
         document.body.classList.remove('floating');
