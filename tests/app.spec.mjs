@@ -44,6 +44,18 @@ async function open(page, { motion = 'reduce' } = {}) {
   await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
 }
 const row = (page, text) => page.locator('#list .row', { hasText: text });
+// What Chrome and Edge lend while the app can be installed and is not: a prompt that serves once.
+const offerInstall = page =>
+  page.evaluate(() => {
+    const e = new Event('beforeinstallprompt', { cancelable: true });
+    window.__prompted = window.__prompted || 0;
+    e.prompt = () => {
+      window.__prompted++;
+      return Promise.resolve();
+    };
+    e.userChoice = Promise.resolve({ outcome: 'accepted', platform: 'web' });
+    window.dispatchEvent(e);
+  });
 
 test('loads cleanly: no errors, no third-party requests, strict CSP', async ({ page, baseURL }) => {
   const errors = [],
@@ -2002,6 +2014,148 @@ test.describe('More on a phone, scanned (axe, WCAG 2.2 AA)', () => {
     });
 });
 
+test.describe('installing One Day', () => {
+  test('nothing is offered while the browser offers nothing', async ({ page }) => {
+    await open(page);
+    for (const id of ['#ins', '#ipill', '#kb']) await expect(page.locator(id)).toBeHidden();
+    await expect(page.locator('#theme')).toBeVisible();
+  });
+
+  test('on a large screen, the offer sits in the middle of the time\'s line; it installs, then goes for good', async ({ page }) => {
+    await open(page);
+    await offerInstall(page);
+    await expect(page.locator('#ins')).toBeVisible();
+    // as far from the time as from the sun, on the line where the pills end
+    const [c, i, t] = await Promise.all(['#clock', '#ins', '#theme'].map(x => page.locator(x).boundingBox()));
+    expect(Math.abs(i.x - (c.x + c.width) - (t.x - (i.x + i.width)))).toBeLessThan(2);
+    expect(Math.abs(i.y + i.height - (t.y + t.height))).toBeLessThan(1);
+    expect(Math.round(i.height)).toBe(40);
+    await page.locator('#insGo').click();
+    expect(await page.evaluate(() => window.__prompted)).toBe(1);
+    await expect(page.locator('#ins')).toBeHidden();
+    await page.evaluate(() => window.dispatchEvent(new Event('appinstalled')));
+    await expect(page.locator('#toast')).toContainText('One Day is installed');
+    // installed, it is not offered again, whatever the browser says
+    await offerInstall(page);
+    await expect(page.locator('#ins')).toBeHidden();
+    await expect(page.locator('#ipill')).toBeHidden();
+  });
+
+  test('its cross puts the offer off for good: a small pill before the sun, still one click from installing', async ({ page }) => {
+    await open(page);
+    await offerInstall(page);
+    await page.locator('#insX').click();
+    await expect(page.locator('#ins')).toBeHidden();
+    await expect(page.locator('#ipill')).toBeVisible();
+    await expect(page.locator('#ipill')).toBeFocused();
+    const [pl, t, c] = await Promise.all(['#ipill', '#theme', '#clock'].map(x => page.locator(x).boundingBox()));
+    expect(pl.x + pl.width).toBeLessThan(t.x);
+    expect([pl.width, pl.height]).toEqual([t.width, t.height]);
+    // the time is back at the start of the line
+    expect(c.x).toBeLessThan(pl.x - 200);
+    await page.reload();
+    await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
+    await offerInstall(page);
+    await expect(page.locator('#ins')).toBeHidden();
+    await expect(page.locator('#ipill')).toBeVisible();
+    await page.locator('#ipill').click();
+    expect(await page.evaluate(() => window.__prompted)).toBe(1);
+  });
+
+  test('an installed app offers nothing', async ({ page }) => {
+    await page.addInitScript(() => {
+      const mm = window.matchMedia.bind(window);
+      window.matchMedia = q =>
+        /display-mode: standalone/.test(q)
+          ? { matches: true, media: q, onchange: null, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false }
+          : mm(q);
+    });
+    await open(page);
+    await offerInstall(page);
+    for (const id of ['#ins', '#ipill', '#kb']) await expect(page.locator(id)).toBeHidden();
+  });
+
+  test.describe('in a narrower window', () => {
+    test.use({ viewport: { width: 640, height: 800 } });
+    test('install, the theme and the lock wait behind one button, in one menu', async ({ page }) => {
+      await open(page);
+      await offerInstall(page);
+      await expect(page.locator('#kb')).toBeVisible();
+      await expect(page.locator('#theme')).toBeHidden();
+      await expect(page.locator('#lockb')).toBeHidden();
+      // the time stays in the middle of the bar
+      const [n, c, b] = await Promise.all(['#next', '#clock', '#sb'].map(x => page.locator(x).boundingBox()));
+      expect(Math.abs(c.x + c.width / 2 - (n.x + n.width + b.x) / 2)).toBeLessThan(2);
+      await page.locator('#kb').click();
+      await expect(page.locator('#kpop')).toHaveClass(/\bon\b/);
+      await expect(page.locator('#kb')).toHaveAttribute('aria-expanded', 'true');
+      await expect(page.locator('#kpop .kit')).toHaveText(['Install One Day', 'Dark mode', 'Protect with a passphrase']);
+      await expect(page.locator('#kpop .kit').first()).toBeFocused();
+      // the arrows go round the menu; Escape closes it and goes back to its button
+      await page.keyboard.press('ArrowDown');
+      await expect(page.locator('#kpop .kit').nth(1)).toBeFocused();
+      await page.keyboard.press('ArrowUp');
+      await page.keyboard.press('ArrowUp');
+      await expect(page.locator('#kpop .kit').nth(2)).toBeFocused();
+      await page.keyboard.press('Escape');
+      await expect(page.locator('#kpop')).not.toHaveClass(/\bon\b/);
+      await expect(page.locator('#kb')).toBeFocused();
+      // under its button, inside the card
+      await page.locator('#kb').click();
+      const [k, m] = await Promise.all(['#kb', '#kpop'].map(x => page.locator(x).boundingBox()));
+      expect(m.y).toBeGreaterThanOrEqual(k.y + k.height);
+      expect(Math.abs(m.x + m.width - (k.x + k.width))).toBeLessThan(2);
+      await page.locator('#kpop .kit', { hasText: 'Dark mode' }).click();
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+      await page.locator('#kb').click();
+      await expect(page.locator('#kpop .kit').nth(1)).toHaveText('Light mode');
+      await page.locator('#kpop .kit', { hasText: 'Install One Day' }).click();
+      expect(await page.evaluate(() => window.__prompted)).toBe(1);
+      // the offer used, the sun and the lock come back to the bar
+      await expect(page.locator('#kb')).toBeHidden();
+      await expect(page.locator('#theme')).toBeVisible();
+      await expect(page.locator('#lockb')).toBeVisible();
+    });
+  });
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    test('the offer comes first in More, in red; the bar keeps its sun', async ({ page }) => {
+      await open(page);
+      await offerInstall(page);
+      await expect(page.locator('#kb')).toBeHidden();
+      await page.locator('#mbMore').tap();
+      const b = page.locator('#moreList > :first-child');
+      await expect(b).toHaveClass(/\bsins\b/);
+      await expect(b).toHaveText('Install One Day');
+      const { violations } = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+        .include('#more')
+        .analyze();
+      expect(violations.map(v => v.id)).toEqual([]);
+      await b.tap();
+      expect(await page.evaluate(() => window.__prompted)).toBe(1);
+      await expect(page.locator('#more')).toBeHidden();
+    });
+  });
+
+  test.describe('on an iPhone', () => {
+    test.use({
+      viewport: { width: 390, height: 844 },
+      hasTouch: true,
+      isMobile: true,
+      userAgent:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1',
+    });
+    test('Safari lends no prompt: the offer says where Add to Home Screen is', async ({ page }) => {
+      await open(page);
+      await page.locator('#mbMore').tap();
+      await page.locator('#moreList .sins').tap();
+      await expect(page.locator('#toast')).toContainText('then Add to Home Screen');
+    });
+  });
+});
+
 test.describe('accessibility (axe, WCAG 2.2 AA)', () => {
   const scan = page =>
     new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
@@ -2042,6 +2196,16 @@ test.describe('accessibility (axe, WCAG 2.2 AA)', () => {
       await page.keyboard.press('Escape');
       await page.locator('#lpill').click();
       await expect(page.locator('#lock')).toBeVisible();
+    },
+    'install offer': async page => offerInstall(page),
+    'install, put off': async page => {
+      await offerInstall(page);
+      await page.locator('#insX').click();
+    },
+    'install menu, narrower': async page => {
+      await page.setViewportSize({ width: 640, height: 800 });
+      await offerInstall(page);
+      await page.locator('#kb').click();
     },
     'incoming task': async page =>
       page.evaluate(() => {

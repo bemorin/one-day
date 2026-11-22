@@ -15,7 +15,7 @@ try {
     home = document.getElementById('home'),
     q = s => app.querySelector(s),
     $ = {};
-  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inT inTitle inMeta inDay inDayL inNo inYes mbar mbSearch mbTimer mbTimerL mbAdd mbSend mbMore scrim more moreList theme sendd fx fbtn fname fclr fpop ftags fnone fqL fq spicks lockb'
+  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inT inTitle inMeta inDay inDayL inNo inYes mbar mbSearch mbTimer mbTimerL mbAdd mbSend mbMore scrim more moreList theme sendd fx fbtn fname fclr fpop ftags fnone fqL fq spicks lockb kb kpop'
     .split(' ')
     .forEach(id => ($[id] = q('#' + id)));
   const fill = q('.rule i'),
@@ -573,6 +573,10 @@ try {
     lock: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.25" y="7" width="9.5" height="6.75" rx="1.75"/><path d="M5.25 7V5.25a2.75 2.75 0 0 1 5.5 0V7"/></svg>',
     unlock:
       '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.25" y="7" width="9.5" height="6.75" rx="1.75"/><path d="M5.25 7V5.25a2.75 2.75 0 0 1 5.35-.9"/></svg>',
+    install:
+      '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.75" y="2.75" width="10.5" height="10.5" rx="3"/><path d="M8 5.5v5M5.5 8h5"/></svg>',
+    sun: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.75"/><path d="M8 1.75V3M8 13v1.25M14.25 8H13M3 8H1.75M12.42 3.58l-.88.88M4.46 11.54l-.88.88M12.42 12.42l-.88-.88M4.46 4.46l-.88-.88"/></svg>',
+    moon: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.25 9.6A5.5 5.5 0 0 1 6.4 2.75a5.5 5.5 0 1 0 6.85 6.85Z"/></svg>',
     key: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="5.25" cy="10.75" r="2.75"/><path d="M7.2 8.8 13 3M10.75 5.25l1.75 1.75M9.25 6.75l1.25 1.25"/></svg>',
     finger:
       '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.1 5.2A4.6 4.6 0 0 1 12 5.9M3.2 8.6a5 5 0 0 1 .4-2.1M12.9 8.3c0 1.8-.3 3.4-1 4.9M5.3 12.8c.4-1.1.6-2.4.6-3.7a2.1 2.1 0 0 1 4.2 0c0 1.7-.3 3.4-.9 4.8M8 9.1c0 1.9-.4 3.7-1.2 5.2"/></svg>',
@@ -2260,7 +2264,7 @@ try {
   /* popovers: month and timer */
   let popM = null,
     dpM = null;
-  const popOn = () => ['pop', 'tpop', 'dpop', 'rpop', 'fpop'].some(id => $[id].classList.contains('on'));
+  const popOn = () => ['pop', 'tpop', 'dpop', 'rpop', 'fpop', 'kpop'].some(id => $[id].classList.contains('on'));
   function gridHTML(m0, sel) {
     const y = m0.getFullYear(),
       m = m0.getMonth(),
@@ -2377,6 +2381,10 @@ try {
     $.fpop.classList.remove('on');
     $.fbtn.setAttribute('aria-expanded', 'false');
     if (back && wasF) $.fbtn.focus({ preventScroll: true });
+    const wasK = $.kpop.classList.contains('on');
+    $.kpop.classList.remove('on');
+    $.kb.setAttribute('aria-expanded', 'false');
+    if (back && wasK) $.kb.focus({ preventScroll: true });
     const wasM = $.pop.classList.contains('on'),
       wasT = $.tpop.classList.contains('on'),
       wasD = $.dpop.classList.contains('on'),
@@ -2426,7 +2434,7 @@ try {
     // the lock's screen and dialog sit above the app: what happens there leaves the app as it is
     if (t && t.closest('#lock,#lockset')) return;
     if ($.srch.classList.contains('on') && t && !app.contains(t)) closeSearch(false);
-    if (popOn() && !(t && t.closest('#pop,#meta,#tpop,#tmb,#dpop,#dchip,#rpop,.rbtn,#inDay,#mbTimer,#fpop,#fx'))) closePops();
+    if (popOn() && !(t && t.closest('#pop,#meta,#tpop,#tmb,#dpop,#dchip,#rpop,.rbtn,#inDay,#mbTimer,#fpop,#fx,#kpop,#kb'))) closePops();
     if (t && t.closest('#fmt,#lb,#sug,#toast,.srch,#dpop,#rpop,#inbox,#more,#mbar,#scrim')) return;
     const keep = t && t.closest('.row.open');
     for (const li of $.list.querySelectorAll('.row.open')) if (li !== keep) setOpen(li, false);
@@ -4288,6 +4296,7 @@ try {
       kofi = f && f.querySelector('.kofi'),
       links = f ? [...f.querySelectorAll('nav a')].map(x => x.cloneNode(true).outerHTML).join('') : '';
     $.moreList.innerHTML =
+      (insHow() ? `<button type="button" class="sins" data-act="install">${IC.install}<span>Install One Day</span></button>` : '') +
       `<div class="sbk"><button type="button" class="sbk-b" data-act="import">${IC.up}<span>Import backup</span></button>` +
       `<button type="button" class="sbk-b" data-act="export">${IC.down}<span>${canTop ? 'Export backup' : 'Copy backup'}</span></button></div>` +
       (CAN_LOCK ? lockBtns() : '') +
@@ -4641,7 +4650,7 @@ try {
         closePops(true);
         return;
       }
-      if (t.closest('#pop,#tpop,#dpop,#rpop,#fpop')) return;
+      if (t.closest('#pop,#tpop,#dpop,#rpop,#fpop,#kpop')) return;
     }
     if (row && !t.closest('.more')) {
       if (e.altKey && (k === 'ArrowUp' || k === 'ArrowDown')) {
@@ -5421,6 +5430,135 @@ try {
   }
   placeTop();
   BIG.addEventListener('change', placeTop);
+
+  /* Installing One Day, offered while it is not installed. Chrome and Edge lend their own prompt (beforeinstallprompt),
+     which comes only while the app can be installed and is not; Safari has none, so it says where the browser keeps
+     it. On a large screen the offer sits in the middle of the time's line; its cross puts it off for good into a small
+     pill before the sun. Narrower, it waits behind one button with the sun and the lock. On a phone: first in More. */
+  const INSK = 'oneday.install',
+    INS = document.getElementById('ins'),
+    IPILL = document.getElementById('ipill'),
+    BAR = BSP && BSP.parentElement,
+    PHONE = W().matchMedia(BARQ),
+    APPQ = matchMedia(
+      '(display-mode: standalone), (display-mode: window-controls-overlay), (display-mode: fullscreen), (display-mode: minimal-ui)',
+    ),
+    UA = navigator.userAgent,
+    IOS = /iPhone|iPad|iPod/.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1),
+    MACSAF = !IOS && /Macintosh/.test(UA) && /Version\/[\d.]+.*Safari\//.test(UA) && !/Chrome|Chromium|Edg|OPR|Firefox/.test(UA),
+    // a page of its own on the web: not a file on the disk, not inside another page
+    WEB = canTop && /^https?:$/.test(location.protocol) && !window.claude;
+  let insEv = null,
+    insApp = APPQ.matches || navigator.standalone === true,
+    insLater = false;
+  try {
+    insLater = localStorage.getItem(INSK) === 'later';
+  } catch (e) {}
+  const insHow = () => (insApp || !WEB ? null : insEv ? 'prompt' : IOS ? 'ios' : MACSAF ? 'mac' : null);
+  function installUI() {
+    const how = insHow(),
+      big = BIG.matches,
+      grouped = !!how && !big && !PHONE.matches;
+    if (INS) INS.hidden = !how || !big || insLater;
+    if (IPILL) IPILL.hidden = !how || !big || !insLater;
+    if (TOPB) TOPB.classList.toggle('offer', !!INS && !INS.hidden);
+    if (BAR) BAR.classList.toggle('grouped', grouped);
+    $.kb.hidden = !grouped;
+    if (!grouped && $.kpop.classList.contains('on')) closePops();
+  }
+  async function install() {
+    const how = insHow();
+    if (how === 'prompt') {
+      // a prompt serves once: the offer goes until the browser lends a new one
+      const ev = insEv;
+      insEv = null;
+      installUI();
+      try {
+        await ev.prompt();
+        await ev.userChoice;
+      } catch (e) {}
+    } else if (how === 'ios') toast('Tap Share in your browser, then Add to Home Screen.', null, 6400);
+    else if (how === 'mac') toast('In Safari’s menu bar, choose File, then Add to Dock.', null, 6400);
+  }
+  window.addEventListener('beforeinstallprompt', e => {
+    // the offer is the app's to place, not a bar the browser pops up
+    e.preventDefault();
+    insEv = e;
+    installUI();
+  });
+  window.addEventListener('appinstalled', () => {
+    insEv = null;
+    insApp = true;
+    installUI();
+    toast('One Day is installed.');
+  });
+  APPQ.addEventListener('change', () => {
+    if (APPQ.matches) insApp = true;
+    installUI();
+  });
+  BIG.addEventListener('change', installUI);
+  PHONE.addEventListener('change', installUI);
+  if (INS) {
+    document.getElementById('insGo').onclick = install;
+    document.getElementById('insX').onclick = () => {
+      insLater = true;
+      try {
+        localStorage.setItem(INSK, 'later');
+      } catch (e) {}
+      hideTip(0);
+      installUI();
+      if (IPILL && !IPILL.hidden) {
+        an(IPILL, [{ transform: 'scale(.6)', opacity: 0 }, { transform: 'none', opacity: 1 }], { easing: POP.ease, duration: POP.dur });
+        IPILL.focus({ preventScroll: true });
+      }
+    };
+  }
+  if (IPILL) IPILL.onclick = install;
+  // narrower: install, the theme and the lock in one menu, under its button
+  function openKmenu() {
+    closePops();
+    const dark = themeNow() === 'dark',
+      its = [];
+    if (insHow()) its.push(['install', IC.install, 'Install One Day', ' red']);
+    its.push(['theme', dark ? IC.sun : IC.moon, dark ? 'Light mode' : 'Dark mode', '']);
+    if (CAN_LOCK && !locked) its.push(['lock', vault ? IC.lock : IC.unlock, vault ? 'Lock now' : 'Protect with a passphrase', '']);
+    $.kpop.innerHTML = its
+      .map(([k, i, l, c]) => `<button type="button" class="kit${c}" role="menuitem" data-k="${k}">${i}<span>${l}</span></button>`)
+      .join('');
+    const p = $.kpop.offsetParent.getBoundingClientRect(),
+      b = $.kb.getBoundingClientRect();
+    $.kpop.style.top = Math.round(b.bottom - p.top + 4) + 'px';
+    $.kpop.style.right = Math.round(p.right - b.right) + 'px';
+    $.kpop.classList.add('on');
+    $.kb.setAttribute('aria-expanded', 'true');
+    hideTip(0);
+    $.kpop.querySelector('.kit').focus({ preventScroll: true });
+  }
+  $.kb.onclick = () => ($.kpop.classList.contains('on') ? closePops() : openKmenu());
+  $.kpop.onclick = e => {
+    const b = e.target.closest('.kit');
+    if (!b) return;
+    closePops(true);
+    if (b.dataset.k === 'install') install();
+    else if (b.dataset.k === 'theme') toggleTheme();
+    else if (b.dataset.k === 'lock') lockTap();
+  };
+  $.kpop.addEventListener('keydown', e => {
+    const its = [...$.kpop.querySelectorAll('.kit')],
+      i = its.indexOf(D().activeElement),
+      n = { ArrowDown: (i + 1) % its.length, ArrowUp: (i - 1 + its.length) % its.length, Home: 0, End: its.length - 1 }[e.key];
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      closePops(true);
+    } else if (e.key === 'Tab') closePops();
+    else if (n !== undefined) {
+      e.preventDefault();
+      e.stopPropagation();
+      its[n].focus();
+    }
+  });
+  installUI();
   // how much room "Today" keeps in the bar while hidden (its words in the app's font)
   const todayRoom = () => $.todayb.parentElement.style.setProperty('--tw', $.todayb.offsetWidth + 6 + 'px');
   todayRoom();
@@ -5914,6 +6052,7 @@ try {
     else if (a === 'lockoff') openLockset('off', lockDone);
     else if (a === 'bioon') openLockset('bio', lockDone);
     else if (a === 'biooff') openLockset('biooff', lockDone);
+    else if (a === 'install') install();
   }
   if (locked) showLock();
 

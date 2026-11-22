@@ -26,6 +26,15 @@
     <div id="home">
       <div class="topbar" id="topbar">
         <div class="clock" id="clock" role="timer" aria-label="Time"><span class="cdg" id="cdg" aria-hidden="true"></span></div>
+        <div class="ins" id="ins" hidden>
+          <button class="ins-go" id="insGo" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.75" y="2.75" width="10.5" height="10.5" rx="3" /><path d="M8 5.5v5M5.5 8h5" /></svg><span>Install One Day</span></button
+          ><button class="ins-x" id="insX" type="button" data-tip="Not now" aria-label="Not now">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.75 4.75 6.5 6.5m0-6.5-6.5 6.5" /></svg>
+          </button>
+        </div>
+        <button class="ipill" id="ipill" type="button" data-tip="Install One Day" aria-label="Install One Day" hidden>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.75" y="2.75" width="10.5" height="10.5" rx="3" /><path d="M8 5.5v5M5.5 8h5" /></svg>
+        </button>
         <button class="lpill" id="lpill" type="button" data-tip="Protect with a passphrase" aria-label="Protect with a passphrase">
           <svg class="lk-open" viewBox="0 0 20 20" aria-hidden="true"><rect x="4.25" y="9" width="11.5" height="8.25" rx="2.25" /><path d="M6.75 9V6.75a3.25 3.25 0 0 1 6.3-1.1" /></svg><svg class="lk-shut" viewBox="0 0 20 20" aria-hidden="true"><rect x="4.25" y="9" width="11.5" height="8.25" rx="2.25" /><path d="M6.75 9V6.75a3.25 3.25 0 0 1 6.5 0V9" /></svg>
         </button>
@@ -113,7 +122,25 @@
             <button class="ib" id="lockb" type="button" data-tip="Protect with a passphrase" aria-label="Protect with a passphrase" hidden>
               <svg class="lk-open" viewBox="0 0 20 20" aria-hidden="true"><rect x="4.25" y="9" width="11.5" height="8.25" rx="2.25" /><path d="M6.75 9V6.75a3.25 3.25 0 0 1 6.3-1.1" /></svg><svg class="lk-shut" viewBox="0 0 20 20" aria-hidden="true"><rect x="4.25" y="9" width="11.5" height="8.25" rx="2.25" /><path d="M6.75 9V6.75a3.25 3.25 0 0 1 6.5 0V9" /></svg>
             </button>
+            <button
+              class="ib"
+              id="kb"
+              type="button"
+              data-tip="Install, theme and lock"
+              aria-label="Install, theme and lock"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="kpop"
+              hidden
+            >
+              <svg viewBox="0 0 20 20">
+                <circle cx="10" cy="4.75" r="1.4" fill="currentColor" stroke="none" />
+                <circle cx="10" cy="10" r="1.4" fill="currentColor" stroke="none" />
+                <circle cx="10" cy="15.25" r="1.4" fill="currentColor" stroke="none" />
+              </svg>
+            </button>
           </div>
+          <div class="pop kpop" id="kpop" role="menu" aria-label="Install, theme and lock"></div>
           <div class="date">
             <div class="num" id="num" aria-hidden="true"></div>
             <button
