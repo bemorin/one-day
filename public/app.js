@@ -2945,8 +2945,18 @@ try {
     searchFrom = ae && ae !== D().body ? ae : null;
     if (ae && ae.isContentEditable) ae.blur();
     $.sq.value = qv || '';
+    const phone = W().matchMedia(BARQ).matches,
+      y0 = phone && $.srch.classList.contains('out') ? presentY($.srch) : null;
+    $.srch.getAnimations().forEach(a => a.cancel());
+    unpinDrawer();
+    $.srch.classList.remove('out');
     $.srch.inert = false;
     $.srch.classList.add('on');
+    if (phone)
+      an($.srch, [{ transform: y0 != null ? `translateY(${y0}px)` : 'translateY(calc(100% + 24px))' }, { transform: 'none' }], {
+        easing: SP.ease,
+        duration: SP.dur,
+      });
     $.mbSearch.setAttribute('aria-expanded', 'true');
     syncScrim();
     renderSearch();
@@ -2970,8 +2980,41 @@ try {
       ),
     );
   }
-  function closeSearch(restore = true) {
+  // On a phone, search leaves like More: from where it is (a drag hands over its distance), on the same spring.
+  // Its place and size are held while it goes, so the keyboard folding away meanwhile cannot move it.
+  function presentY(el) {
+    const t = getComputedStyle(el).transform;
+    return t && t !== 'none' ? new DOMMatrixReadOnly(t).m42 : 0;
+  }
+  function unpinDrawer() {
+    const st = $.srch.style;
+    st.top = st.bottom = st.height = '';
+  }
+  function closeSearch(restore = true, from) {
     if (!$.srch.classList.contains('on')) return;
+    if (W().matchMedia(BARQ).matches) {
+      const y = from != null ? from : presentY($.srch),
+        r = $.srch.getBoundingClientRect(),
+        top = r.top - y;
+      $.srch.getAnimations().forEach(a => a.cancel());
+      $.srch.style.top = top + 'px';
+      $.srch.style.bottom = 'auto';
+      $.srch.style.height = r.height + 'px';
+      $.srch.classList.add('out');
+      then(
+        an($.srch, [{ transform: `translateY(${y}px)` }, { transform: `translateY(${Math.ceil(W().innerHeight - top + 24)}px)` }], {
+          easing: SNAP.ease,
+          duration: SNAP.dur,
+          fill: 'forwards',
+        }),
+        () => {
+          if ($.srch.classList.contains('on')) return;
+          $.srch.classList.remove('out');
+          unpinDrawer();
+          $.srch.getAnimations().forEach(a => a.cancel());
+        },
+      );
+    }
     $.srch.classList.remove('on');
     $.srch.inert = true;
     $.mbSearch.setAttribute('aria-expanded', 'false');
@@ -4344,8 +4387,8 @@ try {
   dragToClose(
     $.srch,
     () => $.srch.classList.contains('on') && W().matchMedia(BARQ).matches,
-    () => closeSearch(),
-    true,
+    dy => closeSearch(true, dy),
+    false,
     e => !e.target.closest('.sres'),
   );
   $.scrim.onclick = () => {
@@ -4413,6 +4456,61 @@ try {
     vv.addEventListener('scroll', kb);
   }
   window.addEventListener('hashchange', readIncoming);
+
+  /* A readout of the window's measures, to find why an installed app's bottom bar can sit under Android's own
+     buttons: five quick taps on the day's big number show it, five more hide it. It reads, it changes nothing. */
+  let vpTaps = [],
+    vpEl = null,
+    vpT = null;
+  $.num.addEventListener('pointerup', () => {
+    const now = Date.now();
+    vpTaps = vpTaps.filter(t => now - t < 1600);
+    vpTaps.push(now);
+    if (vpTaps.length < 5) return;
+    vpTaps = [];
+    if (vpEl) {
+      vpEl.remove();
+      vpEl = null;
+      clearInterval(vpT);
+      return;
+    }
+    vpEl = document.createElement('pre');
+    vpEl.id = 'vpinfo';
+    document.body.append(vpEl);
+    vpRead();
+    vpT = setInterval(vpRead, 500);
+  });
+  function vpProbe(v) {
+    const d = document.createElement('div');
+    d.style.position = 'fixed';
+    d.style.visibility = 'hidden';
+    d.style.top = '0';
+    d.style.width = '1px';
+    d.style.height = v;
+    document.body.append(d);
+    const h = d.getBoundingClientRect().height;
+    d.remove();
+    return Math.round(h * 10) / 10;
+  }
+  function vpRead() {
+    if (!vpEl) return;
+    const vv = window.visualViewport,
+      ua = navigator.userAgent,
+      box = el => {
+        const b = el.getBoundingClientRect();
+        return `${Math.round(b.top)}-${Math.round(b.bottom)}`;
+      };
+    vpEl.textContent = [
+      `${matchMedia('(display-mode: standalone)').matches ? 'installed' : 'browser'} · Chrome ${(ua.match(/Chrome\/(\d+)/) || [])[1] || '?'} · Android ${(ua.match(/Android ([\d.]+)/) || [])[1] || '?'}`,
+      `inner ${innerWidth}x${innerHeight} · outer ${outerWidth}x${outerHeight} · dpr ${devicePixelRatio}`,
+      `visual ${vv ? `${Math.round(vv.width)}x${Math.round(vv.height)} at ${Math.round(vv.offsetTop)}` : '?'} · client ${document.documentElement.clientHeight}`,
+      `screen ${screen.width}x${screen.height} · avail ${screen.availWidth}x${screen.availHeight}`,
+      `dvh ${vpProbe('100dvh')} · svh ${vpProbe('100svh')} · lvh ${vpProbe('100lvh')}`,
+      `safe top ${vpProbe('env(safe-area-inset-top, 0px)')} · bottom ${vpProbe('env(safe-area-inset-bottom, 0px)')} · max ${vpProbe('env(safe-area-max-inset-bottom, 0px)')}`,
+      `app ${box(app)} · bar ${$.mbar.getClientRects().length ? box($.mbar) : '-'} · kb ${getComputedStyle(document.documentElement).getPropertyValue('--kb').trim() || '0'}`,
+      `${(document.querySelector('meta[name="viewport"]') || {}).content || ''}`,
+    ].join('\n');
+  }
 
   /* toast */
   let toastTm = null,

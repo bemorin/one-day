@@ -1070,6 +1070,26 @@ test.describe('send a task', () => {
   });
 });
 
+test('on a large screen with a long day, the card takes what is left: the same room above the time and below the footer', async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 760 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript(k => {
+    const tasks = Array.from({ length: 30 }, (_, i) => ({ id: 'l' + i, text: 'A long day, task ' + (i + 1), done: false }));
+    localStorage.setItem('oneday.v1', JSON.stringify({ days: { [k]: { u: 1, tasks } }, rules: {} }));
+  }, today());
+  await page.goto('/');
+  await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
+  await page.waitForTimeout(800);
+  const m = await page.evaluate(() => {
+    const first = document.querySelector('#topbar').getBoundingClientRect(),
+      foot = [...document.querySelectorAll('#foot > *')].map(n => n.getBoundingClientRect().bottom);
+    return { above: first.top, below: innerHeight - Math.max(...foot), scrolls: document.getElementById('sc').scrollHeight > document.getElementById('sc').clientHeight };
+  });
+  expect(m.scrolls).toBe(true);
+  expect(m.below).toBeGreaterThan(8);
+  expect(Math.abs(m.above - m.below)).toBeLessThan(3);
+});
+
 test('on a large screen the card rests in a frame of glass; not on a phone', async ({ page, browser }) => {
   await open(page);
   expect(await page.locator('#app').evaluate(n => getComputedStyle(n, '::before').backgroundImage)).toContain('gradient');
@@ -1198,6 +1218,43 @@ test.describe('on a touch screen', () => {
     expect(Math.abs(r.y - s.y)).toBeLessThan(1);
     expect(Math.abs(r.width + s.width + 8 - f.width)).toBeLessThan(1.5);
     expect(await cb.nth(0).evaluate(n => [getComputedStyle(n).fontSize, getComputedStyle(n).boxShadow !== 'none'])).toEqual(['13.5px', true]);
+  });
+
+  test('search leaves like More: from where it is, its place held while the keyboard folds away', async ({ page }) => {
+    await open(page, { motion: 'no-preference' });
+    await page.locator('#mbSearch').tap();
+    await expect(page.locator('#srch')).toHaveClass(/\bon\b/);
+    // the keyboard is up: the drawer ends above it
+    await page.evaluate(() => document.documentElement.style.setProperty('--kb', '320px'));
+    await page.waitForTimeout(700);
+    const before = await page.locator('#srch').evaluate(n => {
+      const r = n.getBoundingClientRect();
+      return { top: Math.round(r.top), height: Math.round(r.height) };
+    });
+    // closing folds the keyboard away at the same moment: the drawer keeps its place and size as it goes
+    const during = await page.evaluate(async () => {
+      document.getElementById('mbSearch').click();
+      document.documentElement.style.setProperty('--kb', '0px');
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const n = document.getElementById('srch'),
+        t = new DOMMatrixReadOnly(getComputedStyle(n).transform);
+      return { top: Math.round(n.getBoundingClientRect().top - t.m42), height: Math.round(n.getBoundingClientRect().height), out: n.classList.contains('out') };
+    });
+    expect(during).toEqual({ ...before, out: true });
+    // once gone, it is hidden and its place is free again
+    await expect(page.locator('#srch')).not.toHaveClass(/\bout\b/);
+    await expect(page.locator('#srch')).toBeHidden();
+    expect(await page.locator('#srch').evaluate(n => n.style.top)).toBe('');
+  });
+
+  test('five taps on the day\'s big number show a readout of the window, five more hide it', async ({ page }) => {
+    await open(page);
+    for (let i = 0; i < 5; i++) await page.locator('#num').tap();
+    await expect(page.locator('#vpinfo')).toBeVisible();
+    await expect(page.locator('#vpinfo')).toContainText('inner ');
+    await expect(page.locator('#vpinfo')).toContainText('dvh ');
+    for (let i = 0; i < 5; i++) await page.locator('#num').tap();
+    await expect(page.locator('#vpinfo')).toHaveCount(0);
   });
 
   test('an open panel lights its button in the bar, which stays above it and switches panels', async ({ page }) => {

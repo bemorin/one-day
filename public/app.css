@@ -2785,6 +2785,21 @@ mark {
 .sgrab {
   display: none;
 }
+#vpinfo {
+  position: fixed;
+  z-index: 999;
+  top: calc(env(safe-area-inset-top) + 6px);
+  left: 6px;
+  right: 6px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgb(0 0 0 / 0.84);
+  color: #fff;
+  font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  pointer-events: none;
+}
 #moreList {
   display: flex;
   flex-direction: column;
@@ -3117,15 +3132,16 @@ mark {
       0 -16px 44px -16px var(--shadow);
     opacity: 1;
     transform: translateY(calc(100% + 24px));
-    transition:
-      transform calc(var(--sn-d) * 0.8) var(--snap),
-      visibility 0s calc(var(--sn-d) * 0.8);
+    transition: none;
   }
-  .srch.on {
+  /* open, or on its way out (the spring moves it, from script) */
+  .srch.on,
+  .srch.out {
     transform: none;
-    transition:
-      transform var(--sp-d) var(--spring),
-      visibility 0s;
+    visibility: visible;
+  }
+  .srch.out {
+    pointer-events: none;
   }
   .sgrab {
     display: block;
@@ -3687,19 +3703,28 @@ mark {
   :root {
     --page: light-dark(#f5f5f7, #000);
     --bg: light-dark(#fff, #141414);
-    --top: clamp(14px, 4.5vh, 56px);
+    --top: clamp(12px, 3vh, 36px);
   }
+  /* the page: the time and the pills, the card, the footer; the card takes what the others leave, never more
+     than its tasks need, with the same room above the pills and below the footer */
   #home {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding-top: var(--top);
+    height: 100dvh;
+    padding: var(--top) 0;
+  }
+  #home > * {
+    flex: none;
+  }
+  #home > #app {
+    flex: 0 1 auto;
+    min-height: 0;
   }
   #app {
     width: min(640px, calc(100% - 48px));
     max-width: none;
     height: auto;
-    max-height: calc(100dvh - var(--top) - 76px - 50px);
     margin: 0;
     background: var(--bg);
     border-radius: var(--r);

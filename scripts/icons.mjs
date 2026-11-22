@@ -40,8 +40,8 @@ function mark(k = 1) {
     w = (ONE_RIGHT - ONE_LEFT) * s,
     x = 256 - w / 2 - ONE_LEFT * s;
   return `<g transform="translate(256 256) scale(${k}) translate(-256 -256)">
-  <rect x="112" y="96" width="288" height="34" rx="3" fill="#fff" fill-opacity=".32"/>
-  <rect x="112" y="96" width="124" height="34" rx="3" fill="#fff"/>
+  <rect x="112" y="96" width="288" height="34" rx="17" fill="#fff" fill-opacity=".32"/>
+  <rect x="112" y="96" width="124" height="34" rx="17" fill="#fff"/>
   <path fill="#fff" transform="translate(${x.toFixed(2)} 424) scale(${s.toFixed(5)} ${(-s).toFixed(5)})" d="${ONE}"/>
 </g>`;
 }
