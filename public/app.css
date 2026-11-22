@@ -2522,42 +2522,52 @@ input::placeholder {
   padding: 12px var(--pad) 28px;
 }
 /* Scrollbars in the app's style: a slim pill without arrows, clear of the rounded corners, and in the
-   list it stops above the composer. Firefox gets the standard thin scrollbar. */
+   list it stops above the composer; the same in the list of incoming tasks. Firefox gets the standard thin
+   scrollbar. */
 .sc::-webkit-scrollbar,
 .sres::-webkit-scrollbar,
-.ftags::-webkit-scrollbar {
+.ftags::-webkit-scrollbar,
+.inlist::-webkit-scrollbar {
   width: 10px;
 }
 .sc::-webkit-scrollbar-button,
 .sres::-webkit-scrollbar-button,
-.ftags::-webkit-scrollbar-button {
+.ftags::-webkit-scrollbar-button,
+.inlist::-webkit-scrollbar-button {
   display: none;
 }
 .sc::-webkit-scrollbar-track,
 .sres::-webkit-scrollbar-track,
-.ftags::-webkit-scrollbar-track {
+.ftags::-webkit-scrollbar-track,
+.inlist::-webkit-scrollbar-track {
   margin: 12px 0;
   background: transparent;
+}
+.inlist::-webkit-scrollbar-track {
+  margin: 2px 0;
 }
 .sc::-webkit-scrollbar-track {
   margin-bottom: 74px;
 }
 .sc::-webkit-scrollbar-thumb,
 .sres::-webkit-scrollbar-thumb,
-.ftags::-webkit-scrollbar-thumb {
+.ftags::-webkit-scrollbar-thumb,
+.inlist::-webkit-scrollbar-thumb {
   border: 3px solid transparent;
   border-radius: 8px;
   background: color-mix(in srgb, var(--ink) 22%, transparent) padding-box;
 }
 .sc::-webkit-scrollbar-thumb:hover,
 .sres::-webkit-scrollbar-thumb:hover,
-.ftags::-webkit-scrollbar-thumb:hover {
+.ftags::-webkit-scrollbar-thumb:hover,
+.inlist::-webkit-scrollbar-thumb:hover {
   background-color: color-mix(in srgb, var(--ink) 40%, transparent);
 }
 @supports not selector(::-webkit-scrollbar) {
   .sc,
   .sres,
-  .ftags {
+  .ftags,
+  .inlist {
     scrollbar-width: thin;
     scrollbar-color: color-mix(in srgb, var(--ink) 22%, transparent) transparent;
   }
