@@ -4864,9 +4864,10 @@ try {
     toast('This browser’s storage is full: your last changes aren’t saved');
   }
   // A tab still running an older One Day, or one that had not heard of the lock yet, may have written the tasks in
-  // clear. Once unlocked, that copy is merged in task by task: a task the vault lacks is added, one both have keeps
-  // the version from the day changed last, and no task of the vault is ever dropped. Sealed, and only then is that
-  // copy removed, if it is still the one merged. Returns the copy merged, or null.
+  // clear. Once unlocked, that copy is merged in task by task: a task the vault lacks is added (once), one both have
+  // keeps the vault's version, since the copy in clear comes from a tab that is behind, and no task of the vault is
+  // ever dropped. Sealed, and only then is that copy removed, if it is still the one merged. Returns the copy
+  // merged, or null.
   function mergePlain() {
     let s = null;
     try {
@@ -4887,11 +4888,11 @@ try {
           S.days[k] = b;
           continue;
         }
-        const newer = b.u > (a.u || 0),
-          at = new Map(a.tasks.map((t, i) => [t.id, i]));
+        const have = new Set(a.tasks.map(t => t.id));
         for (const t of b.tasks) {
-          if (!at.has(t.id)) a.tasks.push(t);
-          else if (newer) a.tasks[at.get(t.id)] = t;
+          if (have.has(t.id)) continue;
+          a.tasks.push(t);
+          have.add(t.id);
         }
         a.u = Math.max(a.u || 0, b.u);
       }
@@ -5487,7 +5488,8 @@ try {
         v = { v: 1, kid, uid, kdf: { iter: ITER, salt: toB64(salt) }, pass: await sealWith(kek, raw), data: await sealWith(dek, plain()) };
       if (made) v.bio = await bioSeal(made, raw);
       // what another tab wrote in clear meanwhile goes in too
-      if (mergePlain() != null) v.data = await sealWith(dek, plain());
+      const merged = mergePlain();
+      if (merged != null) v.data = await sealWith(dek, plain());
       // read it all back before the plain copy goes
       const back = await unseal(kek, v.pass);
       if (back.length !== 32 || back.some((x, i) => x !== raw[i])) throw new Error('lock check');
@@ -5500,12 +5502,23 @@ try {
         return { err: 'One Day was just protected in another tab. Nothing was changed here.' };
       }
       localStorage.setItem(VK, JSON.stringify(v));
-      try {
-        localStorage.removeItem(LS);
-      } catch (e) {}
       vault = v;
       DEK = dek;
       KID = kid;
+      // the copy in clear goes once what it held is sealed; one written since is merged and sealed first
+      let now = null;
+      try {
+        now = localStorage.getItem(LS);
+        if (now != null && now === merged) localStorage.removeItem(LS);
+        else if (now != null) {
+          const again = mergePlain();
+          if (again != null) dropPlain(again);
+        }
+      } catch (e) {}
+      if (merged != null || now != null) {
+        repaint();
+        renderChip();
+      }
       lockUI();
       return {
         toast: bioFailed

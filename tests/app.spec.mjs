@@ -1664,14 +1664,30 @@ test.describe('the lock', () => {
         ([text, k]) =>
           localStorage.setItem(
             'oneday.v1',
-            JSON.stringify({ days: { [k]: { u: Date.now() + 60e3, tasks: [{ id: 'z' + text.length, text, done: false }] } }, rules: {} }),
+            JSON.stringify({
+              days: {
+                [k]: {
+                  u: Date.now() + 60e3,
+                  // the stale tab's own copy of a task the vault has, and a task of its own
+                  tasks: [
+                    { id: 'b2', text: 'Plan the trip, as the old tab had it', done: true },
+                    { id: 'z' + text.length, text, done: false },
+                    { id: 'z' + text.length, text, done: false },
+                  ],
+                },
+              },
+              rules: {},
+            }),
           ),
         [text, today()],
       );
     // unlocked: merged at once, task by task (the day's other tasks stay), sealed, and the copy in clear is removed
     await write('Buy stamps');
     await expect(row(page, 'Buy stamps')).toBeVisible();
+    await expect(row(page, 'Buy stamps')).toHaveCount(1);
+    // a task both have keeps the vault's version
     await expect(row(page, 'Plan the trip')).toBeVisible();
+    await expect(row(page, 'as the old tab had it')).toHaveCount(0);
     await expect(row(page, 'Write the report')).toBeVisible();
     await expect.poll(async () => (await stored(page)).plain).toBeNull();
     expect((await stored(page)).vault).not.toContain('Buy stamps');
