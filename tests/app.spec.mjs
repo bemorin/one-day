@@ -1061,13 +1061,48 @@ test.describe('in a narrow window with a mouse', () => {
 test.describe('on a touch screen', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test('search ends above the bottom bar, its links live in More', async ({ page }) => {
+  test('search is a drawer like More: the day stays above it; a tap on the day or a drag down goes back', async ({ page }) => {
     await open(page);
     await page.locator('#mbSearch').tap();
     await expect(page.locator('#srch')).toHaveClass(/\bon\b/);
-    const [s, bar] = await Promise.all([page.locator('#srch').boundingBox(), page.locator('#mbar').boundingBox()]);
-    expect(s.y + s.height).toBeLessThanOrEqual(bar.y + 1);
+    await expect(page.locator('#srch .sgrab')).toBeVisible();
+    await expect(page.locator('#scrim')).toBeVisible();
+    await expect(page.locator('#sq')).toBeFocused();
+    // it rises from the bottom; the top of the day shows above it
+    await expect.poll(() => page.locator('#srch').evaluate(n => Math.round(n.getBoundingClientRect().top))).toBe(70);
+    expect(await page.locator('#srch').evaluate(n => Math.round(innerHeight - n.getBoundingClientRect().bottom))).toBe(0);
     await expect(page.locator('#slist .about')).toBeHidden();
+    // a tap on the day closes it
+    await page.locator('#scrim').tap({ position: { x: 60, y: 20 } });
+    await expect(page.locator('#srch')).not.toHaveClass(/\bon\b/);
+    await expect(page.locator('#scrim')).toBeHidden();
+    // so does a drag down from its bar, which presses nothing on the way
+    await page.locator('#mbSearch').tap();
+    await expect(page.locator('#srch')).toHaveClass(/\bon\b/);
+    await expect.poll(() => page.locator('#srch').evaluate(n => Math.round(n.getBoundingClientRect().top))).toBe(70);
+    const b = await page.locator('#sx').boundingBox();
+    await page.evaluate(([x, y]) => {
+      const el = document.getElementById('sx'),
+        ev = (type, cy) =>
+          el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 7, pointerType: 'touch', clientX: x, clientY: cy }));
+      ev('pointerdown', y);
+      for (let i = 1; i <= 8; i++) ev('pointermove', y + i * 16);
+      ev('pointerup', y + 128);
+    }, [b.x + b.width / 2, b.y + b.height / 2]);
+    await expect(page.locator('#srch')).not.toHaveClass(/\bon\b/);
+    // a short drag springs back and keeps it open
+    await page.locator('#mbSearch').tap();
+    await expect.poll(() => page.locator('#srch').evaluate(n => Math.round(n.getBoundingClientRect().top))).toBe(70);
+    await page.evaluate(([x, y]) => {
+      const el = document.getElementById('sq'),
+        ev = (type, cy) =>
+          el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 8, pointerType: 'touch', clientX: x, clientY: cy }));
+      ev('pointerdown', y);
+      for (let i = 1; i <= 3; i++) ev('pointermove', y + i * 12);
+      ev('pointerup', y + 36);
+    }, [b.x - 120, b.y + b.height / 2]);
+    await expect(page.locator('#srch')).toHaveClass(/\bon\b/);
+    await expect.poll(() => page.locator('#srch').evaluate(n => Math.round(n.getBoundingClientRect().top))).toBe(70);
   });
 
   test('the timer sheet sits over a scrim; a tap on it closes both', async ({ page }) => {

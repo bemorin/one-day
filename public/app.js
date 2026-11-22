@@ -2879,14 +2879,16 @@ try {
     $.sq.value = qv || '';
     $.srch.inert = false;
     $.srch.classList.add('on');
+    syncScrim();
     renderSearch();
     $.sq.focus({ preventScroll: true });
     const n = $.sq.value.length;
     $.sq.setSelectionRange(n, n);
-    an(q('.sbar'), [
-      { opacity: 0, transform: 'translateY(-12px)' },
-      { opacity: 1, transform: 'none' },
-    ]);
+    if (!W().matchMedia(BARQ).matches)
+      an(q('.sbar'), [
+        { opacity: 0, transform: 'translateY(-12px)' },
+        { opacity: 1, transform: 'none' },
+      ]);
     an(q('.sbar>i'), [{ transform: 'scaleX(0)' }, { transform: 'none' }], { duration: SP.dur * 1.3 });
     [...$.slist.children].forEach((c, i) =>
       an(
@@ -2903,6 +2905,7 @@ try {
     if (!$.srch.classList.contains('on')) return;
     $.srch.classList.remove('on');
     $.srch.inert = true;
+    syncScrim();
     hideTip(0);
     const f = searchFrom;
     searchFrom = null;
@@ -3985,7 +3988,8 @@ try {
   function bounce(b) {
     an(b.querySelector('svg'), [{ transform: 'scale(.78)' }, { transform: 'none' }], { easing: POP.ease, duration: POP.dur });
   }
-  // The scrim shows behind the composer sheet, More and the timer sheet; it lets touches through as it fades.
+  // The scrim shows behind the composer sheet, More, the timer sheet and search on a phone; it lets touches through as
+  // it fades.
   const BARQ = '(max-width: 719px) and (hover: none)';
   let moreOpen = false;
   function syncScrim() {
@@ -3993,7 +3997,7 @@ try {
       want =
         moreOpen ||
         app.classList.contains('composing') ||
-        ($.tpop.classList.contains('on') && W().matchMedia(BARQ).matches);
+        (($.tpop.classList.contains('on') || $.srch.classList.contains('on')) && W().matchMedia(BARQ).matches);
     if (want) {
       el.getAnimations().forEach(x => x.cancel());
       delete el.dataset.out;
@@ -4079,12 +4083,12 @@ try {
     if (a.dataset.act === 'export') exportData();
     else $.impf.click();
   };
-  // Drag a sheet down to close it, from anywhere on it. A drag never presses what it started on.
-  function dragToClose(el, isOpen, close, cssBack) {
+  // Drag a sheet down to close it, from anywhere on it that ok() allows. A drag never presses what it started on.
+  function dragToClose(el, isOpen, close, cssBack, ok = () => true) {
     let s = null,
       swallow = 0;
     el.addEventListener('pointerdown', e => {
-      if (!isOpen() || (e.pointerType === 'mouse' && e.button)) return;
+      if (!isOpen() || (e.pointerType === 'mouse' && e.button) || !ok(e)) return;
       s = { x: e.clientX, y: e.clientY, id: e.pointerId, on: false };
     });
     el.addEventListener('pointermove', e => {
@@ -4148,10 +4152,19 @@ try {
       ),
     true,
   );
+  // search on a phone: from its handle or its bar, not from its results, which scroll
+  dragToClose(
+    $.srch,
+    () => $.srch.classList.contains('on') && W().matchMedia(BARQ).matches,
+    () => closeSearch(),
+    true,
+    e => !e.target.closest('.sres'),
+  );
   $.scrim.onclick = () => {
     closeMore();
     compose(false);
     closePops();
+    closeSearch();
   };
   $.mbSearch.onclick = () => {
     bounce($.mbSearch);

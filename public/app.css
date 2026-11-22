@@ -2575,6 +2575,9 @@ mark {
   background: var(--line2);
   opacity: 0.6;
 }
+.sgrab {
+  display: none;
+}
 .sbk {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -2833,8 +2836,43 @@ mark {
   #slist .about {
     display: none;
   }
+  /* search is a drawer like More: the top row of the day stays above it, dimmed; a tap there, a drag down from
+     its top or the × goes back. It ends above the keyboard; its results scroll inside it. */
   .srch {
-    bottom: calc(66px + env(safe-area-inset-bottom));
+    position: fixed;
+    z-index: 46;
+    top: calc(env(safe-area-inset-top) + 70px);
+    bottom: var(--kb, 0px);
+    border-radius: 24px 24px 0 0;
+    box-shadow:
+      0 0 0 1px var(--line),
+      0 -16px 44px -16px var(--shadow);
+    opacity: 1;
+    transform: translateY(calc(100% + 24px));
+    transition:
+      transform calc(var(--sn-d) * 0.8) var(--snap),
+      visibility 0s calc(var(--sn-d) * 0.8);
+  }
+  .srch.on {
+    transform: none;
+    transition:
+      transform var(--sp-d) var(--spring),
+      visibility 0s;
+  }
+  .sgrab {
+    display: block;
+    flex: none;
+    margin-bottom: 0;
+  }
+  .sgrab,
+  .sbar {
+    touch-action: none;
+  }
+  .sbar {
+    margin-top: 0;
+  }
+  .sres {
+    padding-bottom: calc(28px + env(safe-area-inset-bottom));
   }
   #tpop .tgrab {
     display: block;
@@ -3170,12 +3208,14 @@ mark {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
-  /* Popovers appear at once, and so does what is inside them: a transition of their inherited visibility,
-     however short, would keep the button they focus from taking the focus. */
+  /* Popovers and search appear at once, and so does what is inside them: a transition of their visibility,
+     however short, would keep the button or field they focus from taking the focus. */
   .pop,
   .pop *,
   .dpop,
-  .dpop * {
+  .dpop *,
+  .srch,
+  .srch * {
     transition: none !important;
   }
 }
