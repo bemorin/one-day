@@ -604,6 +604,9 @@ test('the footer: the croissant sits midway between dogood.day and the links', a
   const left = k.x - (p.x + p.width),
     right = n.x - (k.x + k.width);
   expect(Math.abs(left - right)).toBeLessThan(2);
+  // what lights up on hover sits five pixels inside its pill, all round
+  expect(await page.locator('#foot .promo').evaluate(n => getComputedStyle(n, '::before').inset)).toBe('5px');
+  expect(await page.locator('#foot nav').evaluate(n => getComputedStyle(n).padding)).toBe('5px');
   await expect(page.locator('#foot nav a', { hasText: 'Privacy' })).toBeVisible();
   await expect(page.locator('#foot nav a', { hasText: /^Legal$/ })).toBeVisible();
 });

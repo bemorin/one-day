@@ -2948,7 +2948,7 @@ mark {
   position: relative;
   isolation: isolate;
   margin: 0;
-  padding: 9px 15px;
+  padding: 11px 17px;
   border-radius: 999px;
   background: var(--glass);
   box-shadow: var(--pill);
@@ -2961,7 +2961,7 @@ mark {
 #foot .kofi::before {
   content: '';
   position: absolute;
-  inset: 3px;
+  inset: 5px;
   z-index: -1;
   border-radius: inherit;
   background: var(--lit);
@@ -2977,7 +2977,7 @@ mark {
 }
 #foot nav {
   gap: 0;
-  padding: 3px;
+  padding: 5px;
   border-radius: 999px;
   background: var(--glass);
   box-shadow: var(--pill);
