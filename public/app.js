@@ -299,8 +299,11 @@ try {
       v.kdf.iter <= 5e6 &&
       okBlob(v.pass) &&
       okBlob(v.data) &&
-      (!v.bio || (okBlob(v.bio) && typeof v.bio.id === 'string' && typeof v.bio.salt === 'string'));
-  let vault = null;
+      (!v.bio || (okBlob(v.bio) && typeof v.bio.id === 'string' && typeof v.bio.salt === 'string')) &&
+      (v.kid == null || typeof v.kid === 'string') &&
+      (v.uid == null || typeof v.uid === 'string');
+  let vault = null,
+    lockReady = false; // the lock's code below has started
   try {
     vault = JSON.parse(localStorage.getItem(VK));
   } catch (e) {}
@@ -365,6 +368,8 @@ try {
       sealSoon();
       return;
     }
+    // another tab may have just turned the lock on: the tasks are never written in clear next to it
+    if (lockReady && localStorage.getItem(VK) && adoptVault()) return;
     try {
       localStorage.setItem(LS, JSON.stringify(S));
     } catch (e) {}
@@ -3040,8 +3045,9 @@ try {
     let o = { app: 'one-day', version: 2, exported: at, days: S.days, rules: S.rules };
     if (vault) {
       await flush();
-      if (!vault || locked) return;
-      o = { app: 'one-day', version: 2, exported: at, vault: { v: 1, kdf: vault.kdf, pass: vault.pass, data: vault.data } };
+      const v = storedVault();
+      if (!v || locked) return;
+      o = { app: 'one-day', version: 2, exported: at, vault: { v: 1, kdf: v.kdf, pass: v.pass, data: v.data } };
     }
     const data = JSON.stringify(o, null, 1),
       what = o.vault ? 'Encrypted backup' : 'Backup';
@@ -4532,7 +4538,7 @@ try {
       case 'l':
       case 'L':
         if (!vault) return;
-        lockNow();
+        lockNow(true);
         break;
       case 'Escape':
         if (FX && t === D().body) setFilter(null);
@@ -4639,6 +4645,7 @@ try {
         settle();
         home.prepend(app);
         pip = null;
+        away();
         document.body.classList.remove('floating');
         setFloatUI(false);
         repaint();
@@ -4722,9 +4729,11 @@ try {
     TE = new TextEncoder(),
     TD = new TextDecoder();
   let DEK = null,
-    RAW = null,
+    KID = '', // the id of the key this tab holds, to see when another tab changes it
     sealing = null,
     sealAgain = false,
+    sealOk = true,
+    fullAt = 0,
     introLater = false,
     LSM = null,
     bioOK = false;
@@ -4775,15 +4784,22 @@ try {
     new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(b.iv) }, key, fromB64(b.ct)));
   const plain = () => TE.encode(JSON.stringify({ days: S.days, rules: S.rules }));
   // The passphrase opens the key, or nothing: a wrong one fails the AES-GCM check.
-  async function byPass(pass, v) {
+  async function passOpen(pass, v) {
     try {
-      return await unseal(await passKey(pass, fromB64(v.kdf.salt), v.kdf.iter), v.pass);
+      const kek = await passKey(pass, fromB64(v.kdf.salt), v.kdf.iter);
+      return { kek, raw: await unseal(kek, v.pass) };
     } catch (e) {
       return null;
     }
   }
+  async function byPass(pass, v) {
+    const o = await passOpen(pass, v);
+    return o ? o.raw : null;
+  }
 
-  // Every change is sealed again. Writes are chained, so the latest state always lands last.
+  // Every change is sealed again. Writes are chained, so the latest state always lands last. A seal writes only
+  // the tasks, over the vault as it is stored now, and only with the key stored there: if another tab turned the
+  // lock off or changed the key, this tab writes nothing.
   function sealSoon() {
     if (sealing) {
       sealAgain = true;
@@ -4795,17 +4811,96 @@ try {
           sealAgain = false;
           if (locked || !vault || !DEK) break;
           const data = await sealWith(DEK, plain());
-          if (!vault) break;
-          vault = { ...vault, data };
+          if (locked || !vault) break;
+          const cur = storedVault();
+          if (!cur || (cur.kid || '') !== KID) {
+            sealOk = false;
+            later(() => obsolete(cur), 0);
+            break;
+          }
+          vault = { ...cur, data };
           localStorage.setItem(VK, JSON.stringify(vault));
+          sealOk = true;
         } while (sealAgain);
-      } catch (e) {}
+      } catch (e) {
+        sealOk = false;
+        if (e && e.name === 'QuotaExceededError') full();
+      }
       sealing = null;
     })();
     return sealing;
   }
   async function flush() {
     while (sealing) await sealing;
+  }
+  // the vault as it is stored now: another tab may have changed it
+  function storedVault() {
+    let v = null;
+    try {
+      v = JSON.parse(localStorage.getItem(VK));
+    } catch (e) {}
+    return okVault(v) ? v : null;
+  }
+  // another tab turned the lock on while this one held the tasks in clear: this one locks too
+  function adoptVault() {
+    const v = storedVault();
+    if (!v) return false;
+    vault = v;
+    if (!locked) lockHere();
+    return true;
+  }
+  // the key this tab holds is no longer the stored one (or the lock is gone): unlock again, or start over
+  function obsolete(cur) {
+    if (!cur) location.reload();
+    else if (!locked) {
+      vault = cur;
+      lockHere();
+    }
+  }
+  function full() {
+    if (Date.now() - fullAt < 60e3) return;
+    fullAt = Date.now();
+    toast('This browser’s storage is full: your last changes aren’t saved');
+  }
+  // A tab still running an older One Day, or one that had not heard of the lock yet, may have written the tasks in
+  // clear. Once unlocked, that copy is merged in (the newer of each day wins), sealed, and only then removed.
+  function mergePlain() {
+    let s = null;
+    try {
+      s = localStorage.getItem(LS);
+    } catch (e) {}
+    if (s == null) return false;
+    let p = null;
+    try {
+      p = JSON.parse(s);
+    } catch (e) {}
+    if (p && p.days && typeof p.days === 'object') {
+      const days = cleanDays(p.days),
+        rules = cleanRules(p.rules);
+      for (const k of Object.keys(days)) if (!S.days[k] || days[k].u > (S.days[k].u || 0)) S.days[k] = days[k];
+      for (const id of Object.keys(rules)) if (!S.rules[id]) S.rules[id] = rules[id];
+      IDX = null;
+      TAGC = null;
+    }
+    return true;
+  }
+  async function dropPlain() {
+    sealSoon();
+    await flush();
+    if (!sealOk || locked || !vault) return;
+    try {
+      localStorage.removeItem(LS);
+    } catch (e) {}
+  }
+  // a passkey no longer used: the device's passkey manager may forget it too
+  function forgetPasskey(id) {
+    try {
+      if (window.PublicKeyCredential && PublicKeyCredential.signalUnknownCredential)
+        PublicKeyCredential.signalUnknownCredential({
+          rpId: location.hostname,
+          credentialId: id.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+        }).catch(() => {});
+    } catch (e) {}
   }
 
   // A passkey with the PRF extension gives the same secret each time it is used: that secret seals the key too.
@@ -4822,30 +4917,43 @@ try {
     const r = a && a.getClientExtensionResults().prf;
     return r && r.results && r.results.first ? new Uint8Array(r.results.first) : null;
   }
-  async function bioWrap(raw) {
+  // The passkey belongs to this device's own authenticator (fingerprint, face or PIN), not to a key that can be
+  // plugged in, and keeps one user id per vault, so setting it up again replaces it instead of adding one.
+  async function bioMake(uid) {
     const salt = rnd(32),
       c = await navigator.credentials.create({
         publicKey: {
           rp: { name: 'One Day' },
-          user: { id: rnd(16), name: 'One Day lock', displayName: 'One Day lock' },
+          user: { id: fromB64(uid), name: 'One Day lock', displayName: 'One Day lock' },
           challenge: rnd(32),
           pubKeyCredParams: [
             { type: 'public-key', alg: -7 },
             { type: 'public-key', alg: -257 },
           ],
-          authenticatorSelection: { userVerification: 'required', residentKey: 'preferred' },
+          authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' },
           timeout: 60000,
           extensions: { prf: { eval: { first: salt } } },
         },
       });
     const id = new Uint8Array(c.rawId),
       ext = c.getClientExtensionResults().prf;
-    if (!ext || ext.enabled === false) return null;
+    if (!ext || ext.enabled === false) {
+      forgetPasskey(toB64(id));
+      return null;
+    }
     // some authenticators only give the secret when the passkey is used, not when it is made
     let secret = ext.results && ext.results.first ? new Uint8Array(ext.results.first) : null;
     if (!secret) secret = await bioSecret(id, salt);
-    if (!secret) return null;
-    return { id: toB64(id), salt: toB64(salt), ...(await sealWith(await prfKey(secret, salt), raw)) };
+    if (!secret) {
+      forgetPasskey(toB64(id));
+      return null;
+    }
+    return { id, salt, secret };
+  }
+  async function bioSeal(m, raw) {
+    const b = { id: toB64(m.id), salt: toB64(m.salt), ...(await sealWith(await prfKey(m.secret, m.salt), raw)) };
+    m.secret.fill(0);
+    return b;
   }
 
   // A message comes or goes without a jump: the card's height follows on a spring, from wherever it is.
@@ -4956,21 +5064,28 @@ try {
     });
   }
   async function opened(raw) {
-    const dek = await dataKey(raw),
+    let dek, j;
+    try {
+      dek = await dataKey(raw);
       j = JSON.parse(TD.decode(await unseal(dek, vault.data)));
+    } finally {
+      raw.fill(0);
+    }
     S = { days: cleanDays(j && j.days), rules: cleanRules(j && j.rules) };
     DEK = dek;
-    RAW = raw;
+    KID = vault.kid || '';
     locked = false;
     UN.length = 0;
     RE.length = 0;
     IDX = null;
     TAGC = null;
     cur = lastToday = todayKey();
+    const merged = mergePlain();
     hideLock();
     ensure(cur);
     repaint();
     renderChip();
+    if (merged) dropPlain();
     if (introLater) {
       introLater = false;
       intro();
@@ -5012,40 +5127,53 @@ try {
   };
   L.lockForgot.onclick = () => openLockset('reset');
 
-  // Locking keeps what was being typed, then forgets the key and every task until the next unlock.
-  async function lockNow() {
+  // Locking shows the lock screen at once, seals what was being typed behind it, then forgets the key and every
+  // task until the next unlock. Lock now (the L key, the lock, the menu) locks every tab; five minutes away, only
+  // the tab that was away.
+  const BC = 'BroadcastChannel' in window ? new BroadcastChannel('one-day-lock') : null;
+  if (BC) BC.onmessage = e => e.data === 'lock' && lockNow();
+  async function lockNow(all) {
     if (!vault || locked) return;
+    if (all && BC) BC.postMessage('lock');
     const ae = D().activeElement;
     if (ae && ae !== D().body && ae.blur) ae.blur();
+    showLock();
     sealSoon();
     await flush();
-    if (vault && !locked) lockHere();
+    if (vault && !locked) lockHere(true);
   }
-  function lockHere() {
+  function lockHere(shown) {
     if (pip) pip.close();
     locked = true;
     DEK = null;
-    if (RAW) RAW.fill(0);
-    RAW = null;
+    KID = '';
+    // a settings dialog open now must not go on with what the lock wipes
+    closeLockset(null);
     closePops();
     closeSearch(false);
     closeInbox();
     closeMore();
     compose(false);
     hideSug();
+    $.sug.textContent = '';
     $.toast.classList.remove('on');
     $.input.value = '';
     $.sq.value = '';
     UN.length = 0;
     RE.length = 0;
+    noteSnap = null;
     S = { days: {}, rules: {} };
     IDX = null;
     TAGC = null;
+    FX = null;
+    renderFilter();
+    $.ftags.textContent = '';
+    $.inTitle.textContent = '';
     $.slist.textContent = '';
     repaint();
-    showLock();
+    if (!shown) showLock();
   }
-  $.lockb.onclick = () => lockNow();
+  $.lockb.onclick = () => lockNow(true);
   /* above the card: the lock, as one icon that tells its state (open: lock with a passphrase; shut: lock now) */
   const LP = document.getElementById('lpill');
   function lockUI() {
@@ -5063,7 +5191,7 @@ try {
   if (LP)
     LP.onclick = () => {
       if (locked) return;
-      if (vault) lockNow();
+      if (vault) lockNow(true);
       else openLockset('on', lockDone);
     };
   lockUI();
@@ -5082,31 +5210,42 @@ try {
     clockTick(1);
     setInterval(() => clockTick(1), 60e3);
   }, 60e3 - (Date.now() % 60e3) + 30);
-  // away for five minutes: locked (not while the app floats on top)
+  // Away for five minutes: locked (not while the app floats on top, and again once it stops floating). While away,
+  // the tasks are hidden, so the picture the system keeps for its app switcher shows none.
   let awayAt = 0,
     awayT = null;
-  document.addEventListener('visibilitychange', () => {
+  function away() {
     clearTimeout(awayT);
+    home.classList.toggle('veil', document.hidden && !!vault && !locked && !pip);
     if (!vault || locked || pip) return;
     if (document.hidden) {
       awayAt = Date.now();
       awayT = setTimeout(lockNow, AWAY);
     } else if (awayAt && Date.now() - awayAt >= AWAY) lockNow();
-  });
-  // another tab turned the lock on, changed the passphrase or turned the lock off
+  }
+  document.addEventListener('visibilitychange', away);
+  // another tab turned the lock on or off, changed the key, or wrote the tasks in clear
   window.addEventListener('storage', e => {
+    if (e.key === LS) {
+      if (e.newValue != null && vault && !locked && DEK && mergePlain()) {
+        repaint();
+        renderChip();
+        dropPlain();
+      }
+      return;
+    }
     if (e.key !== VK && e.key !== null) return;
-    let v = null;
-    try {
-      v = JSON.parse(localStorage.getItem(VK));
-    } catch (err) {}
-    if (!okVault(v)) v = null;
-    if (v && vault) vault = locked ? v : { ...vault, kdf: v.kdf, pass: v.pass, bio: v.bio };
-    else if (v && !locked) {
+    const v = storedVault();
+    if (v && vault) {
+      const same = (v.kid || '') === KID;
+      vault = v;
+      if (!locked && !same) lockHere();
+    } else if (v && !locked) {
       vault = v;
       lockHere();
     } else if (!v && vault) location.reload();
   });
+  lockReady = true;
 
   /* the lock's settings: turn on, change, turn off, open an encrypted backup, start over */
   const LST = {
@@ -5117,6 +5256,8 @@ try {
     ],
     change: ['Change the passphrase', 'Your tasks stay encrypted. Backups made before keep the passphrase they were made with.', 'Change'],
     off: ['Turn off protection', 'Your tasks will be stored in this browser without encryption again.', 'Turn off'],
+    bio: ['Use fingerprint or face', 'Enter your passphrase, then confirm with your fingerprint, face or device PIN.', 'Set up'],
+    biooff: ['Stop using fingerprint or face', 'Enter your passphrase. From now on, only it unlocks One Day.', 'Stop using'],
     ask: ['Encrypted backup', 'Enter the passphrase this backup was made with.', 'Open'],
     reset: [
       'Forgot the passphrase?',
@@ -5132,7 +5273,7 @@ try {
     compose(false);
     const [t, sub, go] = LST[mode],
       ae = D().activeElement,
-      old = mode === 'change' || mode === 'off' || mode === 'ask';
+      old = mode !== 'on' && mode !== 'reset';
     LSM = { mode, done, check, from: ae && ae !== D().body ? ae : null };
     L.lsT.textContent = t;
     L.lsSub.textContent = sub;
@@ -5142,7 +5283,7 @@ try {
     L.lsOld.placeholder = mode === 'ask' ? 'Passphrase' : 'Current passphrase';
     L.lsOld.setAttribute('aria-label', L.lsOld.placeholder);
     L.lsPass.hidden = L.lsPass2.hidden = !(mode === 'on' || mode === 'change');
-    L.lsPass.placeholder = mode === 'change' ? 'New passphrase, 8 characters or more' : 'Passphrase, 8 characters or more';
+    L.lsPass.placeholder = mode === 'change' ? 'New passphrase, 12 characters or more' : 'Passphrase, 12 characters or more';
     L.lsBioL.hidden = !(mode === 'on' && bioOK);
     L.lsWarn.hidden = mode !== 'on';
     L.lsOkL.hidden = !(mode === 'on' || mode === 'reset');
@@ -5237,34 +5378,55 @@ try {
   L.lockset.addEventListener('click', e => {
     if (e.target === L.lockset) closeLockset(null);
   });
+  // What a setting writes, it writes over the vault as stored, after a last check that this tab is still unlocked
+  // with the stored key: a lock, or another tab, in the meantime and nothing is written.
+  const still = cur => !locked && !!vault && !!cur && (cur.kid || '') === KID,
+    BUSY = { err: 'One Day was locked or changed meanwhile. Nothing was changed.' };
+  // a new key for the tasks, sealed by the passphrase's key, and the tasks sealed by it
+  async function newKey(kek) {
+    const raw = rnd(32),
+      dek = await dataKey(raw),
+      pass = await sealWith(kek, raw);
+    raw.fill(0);
+    return { dek, pass, kid: toB64(rnd(12)) };
+  }
   const LOCKDO = {
     async on(old, pass) {
-      const raw = rnd(32);
+      const raw = rnd(32),
+        uid = toB64(rnd(16));
       // the passkey first, while the click still counts as one
-      let bio = null,
+      let made = null,
         bioFailed = false;
       if (L.lsBio.checked && !L.lsBioL.hidden) {
         try {
-          bio = await bioWrap(raw);
+          made = await bioMake(uid);
         } catch (e) {}
-        bioFailed = !bio;
+        bioFailed = !made;
       }
       const salt = rnd(16),
         dek = await dataKey(raw),
         kek = await passKey(pass, salt, ITER),
-        v = { v: 1, kdf: { iter: ITER, salt: toB64(salt) }, pass: await sealWith(kek, raw), data: await sealWith(dek, plain()) };
-      if (bio) v.bio = bio;
+        kid = toB64(rnd(12)),
+        v = { v: 1, kid, uid, kdf: { iter: ITER, salt: toB64(salt) }, pass: await sealWith(kek, raw), data: await sealWith(dek, plain()) };
+      if (made) v.bio = await bioSeal(made, raw);
       // read it all back before the plain copy goes
       const back = await unseal(kek, v.pass);
       if (back.length !== 32 || back.some((x, i) => x !== raw[i])) throw new Error('lock check');
+      raw.fill(0);
+      back.fill(0);
       JSON.parse(TD.decode(await unseal(dek, v.data)));
+      // another tab may have turned the lock on meanwhile: its vault stays
+      if (locked || vault || localStorage.getItem(VK)) {
+        if (v.bio) forgetPasskey(v.bio.id);
+        return { err: 'One Day was just protected in another tab. Nothing was changed here.' };
+      }
       localStorage.setItem(VK, JSON.stringify(v));
       try {
         localStorage.removeItem(LS);
       } catch (e) {}
       vault = v;
       DEK = dek;
-      RAW = raw;
+      KID = kid;
       lockUI();
       return {
         toast: bioFailed
@@ -5272,28 +5434,100 @@ try {
           : 'One Day is protected. Your tasks are encrypted.',
       };
     },
+    // A new passphrase brings a new key for the tasks: an old copy of the vault and the old passphrase open
+    // nothing written from now on. Fingerprint or face, which opened the old key, has to be set up again.
     async change(old, pass) {
-      const raw = await byPass(old, vault);
-      if (!raw) return { err: 'That isn’t the current passphrase', el: 'old' };
+      const was = await byPass(old, vault);
+      if (!was) return { err: 'That isn’t the current passphrase', el: 'old' };
+      was.fill(0);
       const salt = rnd(16),
-        pw = await sealWith(await passKey(pass, salt, ITER), raw);
+        k = await newKey(await passKey(pass, salt, ITER));
       await flush();
-      vault = { ...vault, kdf: { iter: ITER, salt: toB64(salt) }, pass: pw };
+      const data = await sealWith(k.dek, plain()),
+        cur = storedVault();
+      if (!still(cur)) return BUSY;
+      const { bio, ...rest } = cur;
+      vault = { ...rest, kid: k.kid, kdf: { iter: ITER, salt: toB64(salt) }, pass: k.pass, data };
       localStorage.setItem(VK, JSON.stringify(vault));
-      return { toast: 'Passphrase changed' };
+      DEK = k.dek;
+      KID = k.kid;
+      if (bio) forgetPasskey(bio.id);
+      return { toast: bio ? 'Passphrase changed. Set up fingerprint or face again if you want it.' : 'Passphrase changed' };
     },
+    // Off: the tasks in clear are the ones in the vault, opened with the passphrase, not whatever this tab holds.
     async off(old) {
       const raw = await byPass(old, vault);
       if (!raw) return { err: 'That isn’t the current passphrase', el: 'old' };
       await flush();
-      localStorage.setItem(LS, JSON.stringify(S));
+      const cur = storedVault();
+      let j;
+      try {
+        j = JSON.parse(TD.decode(await unseal(await dataKey(raw), cur.data)));
+      } finally {
+        raw.fill(0);
+      }
+      const now = storedVault();
+      if (!still(now) || now.data.ct !== cur.data.ct) return BUSY;
+      const data = { days: cleanDays(j && j.days), rules: cleanRules(j && j.rules) };
+      localStorage.setItem(LS, JSON.stringify(data));
       localStorage.removeItem(VK);
+      if (now.bio) forgetPasskey(now.bio.id);
+      S = data;
+      IDX = null;
+      TAGC = null;
       vault = null;
       DEK = null;
-      if (RAW) RAW.fill(0);
-      RAW = null;
+      KID = '';
       lockUI();
+      repaint();
+      renderChip();
       return { toast: 'Protection is off. Your tasks are no longer encrypted.' };
+    },
+    // Fingerprint or face: the passkey first, while the click still counts as one; then the passphrase says
+    // whether it may open the key.
+    async bio(old) {
+      const uid = vault.uid || toB64(rnd(16));
+      let made = null;
+      try {
+        made = await bioMake(uid);
+      } catch (e) {}
+      if (!made) return { err: 'Fingerprint or face couldn’t be set up here' };
+      const raw = await byPass(old, vault);
+      if (!raw) {
+        made.secret.fill(0);
+        forgetPasskey(toB64(made.id));
+        return { err: 'That isn’t the current passphrase', el: 'old' };
+      }
+      const b = await bioSeal(made, raw);
+      raw.fill(0);
+      await flush();
+      const cur = storedVault();
+      if (!still(cur)) {
+        forgetPasskey(b.id);
+        return BUSY;
+      }
+      if (cur.bio) forgetPasskey(cur.bio.id);
+      vault = { ...cur, uid, bio: b };
+      localStorage.setItem(VK, JSON.stringify(vault));
+      return { toast: 'Fingerprint, face or device PIN can now unlock One Day' };
+    },
+    // Stopping it brings a new key for the tasks: the passkey and an old copy of the vault open nothing new.
+    async biooff(old) {
+      const o = await passOpen(old, vault);
+      if (!o) return { err: 'That isn’t the current passphrase', el: 'old' };
+      o.raw.fill(0);
+      const k = await newKey(o.kek);
+      await flush();
+      const data = await sealWith(k.dek, plain()),
+        cur = storedVault();
+      if (!still(cur)) return BUSY;
+      const { bio, ...rest } = cur;
+      vault = { ...rest, kid: k.kid, pass: k.pass, data };
+      localStorage.setItem(VK, JSON.stringify(vault));
+      DEK = k.dek;
+      KID = k.kid;
+      if (bio) forgetPasskey(bio.id);
+      return { toast: 'Only your passphrase unlocks One Day now' };
     },
     async reset() {
       localStorage.removeItem(VK);
@@ -5314,13 +5548,18 @@ try {
       no = (msg, el, at) => wrong(L.lsForm, L.lsErr, el, msg, at);
     if (!L.lsOld.hidden && !old) return no('Enter the passphrase', L.lsOld, L.lsOld);
     if (!L.lsPass.hidden) {
-      if (p1.length < 8) return no('Use 8 characters or more', L.lsPass, L.lsPass);
+      if (p1.length < 12) return no('Use 12 characters or more', L.lsPass, L.lsPass);
       if (p1 !== p2) return no('The two passphrases are not the same', L.lsPass2, L.lsPass2);
     }
     if (!L.lsOkL.hidden && !L.lsOk.checked)
       return no(m.mode === 'reset' ? 'Tick the box to erase them' : 'Tick “I understand” first', L.lsOk, L.lsOkL);
     say(L.lsForm, L.lsErr, '');
-    busy(L.lsGo, { on: 'Protecting…', change: 'Changing…', off: 'Turning off…', ask: 'Opening…', reset: 'Erasing…' }[m.mode]);
+    busy(
+      L.lsGo,
+      { on: 'Protecting…', change: 'Changing…', off: 'Turning off…', ask: 'Opening…', reset: 'Erasing…', bio: 'Setting up…', biooff: 'Stopping…' }[
+        m.mode
+      ],
+    );
     let res;
     try {
       res = await (m.mode === 'ask' ? m.check(old) : LOCKDO[m.mode](old, p1));
@@ -5365,25 +5604,6 @@ try {
       if (!ok) res(null);
     });
   }
-  async function bioOn() {
-    if (!vault || locked || !RAW) return;
-    let b = null;
-    try {
-      b = await bioWrap(RAW);
-    } catch (e) {}
-    if (!b) return toast('Fingerprint or face couldn’t be set up here');
-    await flush();
-    vault = { ...vault, bio: b };
-    localStorage.setItem(VK, JSON.stringify(vault));
-    lockDone({ toast: 'Fingerprint or face can now unlock One Day' });
-  }
-  function bioOff() {
-    if (!vault || !vault.bio) return;
-    const { bio, ...rest } = vault;
-    vault = rest;
-    localStorage.setItem(VK, JSON.stringify(vault));
-    lockDone({ toast: 'Only your passphrase unlocks One Day now' });
-  }
   function lockActs() {
     if (!CAN_LOCK) return [];
     if (!vault) return [['lock', IC.lock, 'Protect with a passphrase']];
@@ -5421,11 +5641,11 @@ try {
     if (a === 'export') exportData();
     else if (a === 'import') $.impf.click();
     else if (a === 'lock') openLockset('on', lockDone);
-    else if (a === 'locknow') lockNow();
+    else if (a === 'locknow') lockNow(true);
     else if (a === 'lockchange') openLockset('change', lockDone);
     else if (a === 'lockoff') openLockset('off', lockDone);
-    else if (a === 'bioon') bioOn();
-    else if (a === 'biooff') bioOff();
+    else if (a === 'bioon') openLockset('bio', lockDone);
+    else if (a === 'biooff') openLockset('biooff', lockDone);
   }
   if (locked) showLock();
 

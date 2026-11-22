@@ -2654,7 +2654,10 @@ mark {
   position: relative;
   display: flex;
   flex-direction: column;
-  margin: 6px 2px 4px;
+}
+/* away with the lock on: nothing of the tasks in the picture the system keeps of the app */
+#home.veil {
+  visibility: hidden;
 }
 .slk .sbk-b {
   padding: 0 16px;

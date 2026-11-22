@@ -1515,11 +1515,54 @@ test.describe('the lock', () => {
     await page.locator('#lockBio').click();
     await expect(page.locator('#lock')).toBeHidden({ timeout: 20000 });
     await expect(row(page, 'Plan the trip')).toBeVisible();
+
+    // stopping it asks for the passphrase and brings a new key
+    const k0 = JSON.parse((await stored(page)).vault).kid;
+    await page.keyboard.press('/');
+    await page.locator('#slist [data-act="biooff"]').click();
+    await expect(page.locator('#lsT')).toHaveText('Stop using fingerprint or face');
+    await page.locator('#lsOld').fill('not the passphrase');
+    await page.locator('#lsGo').click();
+    await expect(page.locator('#lsErr')).toHaveText('That isn’t the current passphrase');
+    await page.locator('#lsOld').fill(PASS);
+    await page.locator('#lsGo').click();
+    await expect(page.locator('#lockset')).toBeHidden({ timeout: 20000 });
+    const off = JSON.parse((await stored(page)).vault);
+    expect(off.bio).toBeUndefined();
+    expect(off.kid).not.toBe(k0);
+
+    // setting it up again asks for the passphrase too (search is still open behind)
+    await page.locator('#slist [data-act="bioon"]').click();
+    await expect(page.locator('#lsT')).toHaveText('Use fingerprint or face');
+    await expect(page.locator('#lsPass')).toBeHidden();
+    await page.locator('#lsOld').fill('not the passphrase');
+    await page.locator('#lsGo').click();
+    await expect(page.locator('#lsErr')).toHaveText('That isn’t the current passphrase');
+    expect(JSON.parse((await stored(page)).vault).bio).toBeUndefined();
+    await page.locator('#lsOld').fill(PASS);
+    await page.locator('#lsGo').click();
+    await expect(page.locator('#lockset')).toBeHidden({ timeout: 20000 });
+    await expect(page.locator('#toast')).toContainText('can now unlock One Day');
+    expect(JSON.parse((await stored(page)).vault).bio).toBeTruthy();
+    await page.reload();
+    await page.locator('#lockBio').click();
+    await expect(page.locator('#lock')).toBeHidden({ timeout: 20000 });
+    await expect(row(page, 'Plan the trip')).toBeVisible();
   });
 
   test('away for five minutes: locked on return', async ({ page }) => {
     await openLock(page);
     await turnOn(page);
+    // while away, nothing of the tasks is left for the app switcher's picture
+    const hidden = h =>
+      page.evaluate(h => {
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => h });
+        document.dispatchEvent(new Event('visibilitychange'));
+      }, h);
+    await hidden(true);
+    await expect(page.locator('#home')).toHaveClass(/\bveil\b/);
+    await hidden(false);
+    await expect(page.locator('#home')).not.toHaveClass(/\bveil\b/);
     const away = ms =>
       page.evaluate(ms => {
         const now = Date.now();
@@ -1558,7 +1601,7 @@ test.describe('the lock', () => {
     // too short: that field turns red and the message says why; typing again clears both
     await page.locator('#lsPass').fill('short');
     await page.locator('#lsGo').click();
-    await expect(page.locator('#lsErr')).toHaveText('Use 8 characters or more');
+    await expect(page.locator('#lsErr')).toHaveText('Use 12 characters or more');
     await expect(page.locator('#lsPass')).toHaveAttribute('aria-invalid', 'true');
     await page.locator('#lsPass').pressSequentially('a longer one');
     await expect(page.locator('#lsErr')).toHaveText('');
@@ -1574,6 +1617,118 @@ test.describe('the lock', () => {
     await page.locator('#lsCancel').click();
     await expect(page.locator('#lockset')).toBeHidden();
     expect((await stored(page)).vault).toBeNull();
+  });
+
+  test('Lock now locks every tab; a settings dialog open in one closes and nothing is lost', async ({ page, context }) => {
+    await openLock(page);
+    await turnOn(page);
+    await page.keyboard.press('Escape');
+    const other = await context.newPage();
+    await other.emulateMedia({ reducedMotion: 'reduce' });
+    await other.goto('/');
+    await expect(other.locator('#lock')).toBeVisible();
+    await unlock(other);
+    // the first tab is about to turn protection off when the second one locks
+    await page.keyboard.press('/');
+    await page.locator('#slist [data-act="lockoff"]').click();
+    await expect(page.locator('#lockset')).toBeVisible();
+    await page.locator('#lsOld').fill(PASS);
+    await other.locator('body').press('l');
+    await expect(other.locator('#lock')).toBeVisible();
+    await expect(page.locator('#lock')).toBeVisible();
+    await expect(page.locator('#lockset')).toBeHidden();
+    const s = await stored(page);
+    expect(s.vault).not.toBeNull();
+    expect(s.plain).toBeNull();
+    await unlock(page);
+    await expect(row(page, 'Plan the trip')).toBeVisible();
+  });
+
+  test('tasks an older tab writes in clear are merged into the vault, then the clear copy goes', async ({ page, context }) => {
+    await openLock(page);
+    await turnOn(page);
+    await page.keyboard.press('Escape');
+    const other = await context.newPage();
+    await other.goto('/');
+    const write = text =>
+      other.evaluate(
+        ([text, k]) =>
+          localStorage.setItem(
+            'oneday.v1',
+            JSON.stringify({ days: { [k]: { u: Date.now() + 60e3, tasks: [{ id: 'z' + text.length, text, done: false }] } }, rules: {} }),
+          ),
+        [text, today()],
+      );
+    // unlocked: merged at once, sealed, and the copy in clear is removed
+    await write('Buy stamps');
+    await expect(row(page, 'Buy stamps')).toBeVisible();
+    await expect.poll(async () => (await stored(page)).plain).toBeNull();
+    expect((await stored(page)).vault).not.toContain('Buy stamps');
+    // locked: it waits for the passphrase, then the same
+    await page.locator('body').press('l');
+    await expect(page.locator('#lock')).toBeVisible();
+    await write('Call the vet');
+    await unlock(page);
+    await expect(row(page, 'Call the vet')).toBeVisible();
+    await expect.poll(async () => (await stored(page)).plain).toBeNull();
+    expect((await stored(page)).vault).not.toContain('Call the vet');
+  });
+
+  test('a new passphrase brings a new key: an old copy and the old passphrase open nothing written since', async ({ page }) => {
+    await openLock(page);
+    await turnOn(page);
+    const before = JSON.parse((await stored(page)).vault);
+    await page.locator('#slist [data-act="lockchange"]').click();
+    await page.locator('#lsOld').fill(PASS);
+    await page.locator('#lsPass').fill('a brand new phrase');
+    await page.locator('#lsPass2').fill('a brand new phrase');
+    await page.locator('#lsGo').click();
+    await expect(page.locator('#lockset')).toBeHidden({ timeout: 20000 });
+    const mid = JSON.parse((await stored(page)).vault);
+    expect(mid.kid).toBeTruthy();
+    expect(mid.kid).not.toBe(before.kid);
+    await page.keyboard.press('Escape');
+    await page.locator('#input').fill('Renew the passport');
+    await page.locator('#input').press('Enter');
+    await expect.poll(async () => JSON.parse((await stored(page)).vault).data.ct).not.toBe(mid.data.ct);
+    const now = JSON.parse((await stored(page)).vault);
+    const opens = await page.evaluate(
+      async ([old, now, pass]) => {
+        const b = s => Uint8Array.from(atob(s), c => c.charCodeAt(0)),
+          base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']),
+          kek = await crypto.subtle.deriveKey(
+            { name: 'PBKDF2', hash: 'SHA-256', salt: b(old.kdf.salt), iterations: old.kdf.iter },
+            base,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['decrypt'],
+          ),
+          raw = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b(old.pass.iv) }, kek, b(old.pass.ct)),
+          dek = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']);
+        try {
+          await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b(now.data.iv) }, dek, b(now.data.ct));
+          return true;
+        } catch (e) {
+          return false;
+        }
+      },
+      [before, now, PASS],
+    );
+    expect(opens).toBe(false);
+  });
+
+  test('locking leaves no tag behind: the filter, the field and its placeholder are cleared', async ({ page }) => {
+    await openLock(page);
+    await turnOn(page);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('f');
+    await page.locator('#ftags .ftag', { hasText: 'work' }).click();
+    await expect(page.locator('#fname')).toHaveText('#work');
+    await page.locator('body').press('l');
+    await expect(page.locator('#lock')).toBeVisible();
+    await expect(page.locator('#fname')).toHaveText('');
+    await expect(page.locator('#input')).toHaveAttribute('placeholder', 'Add a task');
+    expect(await page.evaluate(() => document.documentElement.outerHTML.includes('#work'))).toBe(false);
   });
 
   test('forgot the passphrase: erase and start over', async ({ page }) => {

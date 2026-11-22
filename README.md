@@ -25,7 +25,7 @@ One Day is a single-page web app with no framework, no runtime dependencies, no 
 - **Timer.** A countdown in two moods: _Calm_ (minutes, with a line that fills each minute) or _Live_ (rolling minutes and seconds).
 - **Keep on top.** Pop the app into a small window that stays above everything else (Chrome and Edge on desktop).
 - **Leftovers.** Unfinished tasks from earlier days can be brought to today in one click.
-- **A lock, if you want one.** Search → _Protect with a passphrase_ (More on a phone) encrypts your tasks in the browser. One Day then asks for the passphrase when it opens, after five minutes away, or as soon as you press <kbd>L</kbd>. Where the device has it, fingerprint or face unlocks it too.
+- **A lock, if you want one.** Search → _Protect with a passphrase_ (More on a phone) encrypts your tasks in the browser. One Day then asks for the passphrase when it opens, after five minutes away, or as soon as you press <kbd>L</kbd>. Where the device has it, fingerprint, face or the device PIN unlocks it too (setting it up asks for the passphrase).
 - **On a phone**, a bottom bar puts search, the timer, a big add button, sending the day and the rest under your thumb. The add button opens the composer as a sheet above the keyboard, and search opens as a drawer over the day.
 - **Light and dark**, following your system, or switched in one click (the sun and moon at the top right). **Works offline** once installed, and installs as an app.
 
@@ -60,7 +60,7 @@ On a phone: tap a task to open it, hold then drag to reorder, swipe sideways to 
 - **Sent tasks travel in the link itself**, after the `#`, never through a server. Anyone who has the link can read the task, as with any message.
 - **Works offline, even from a cold start**, once you have opened it online one time. Install it (or add it to your Home Screen) so the browser keeps its storage: Safari can clear the data of sites you have not opened for a week.
 - **Backups are yours.** Search → _Export backup_ downloads a JSON file (encrypted when the lock is on). _Import backup_ merges one back without overwriting existing tasks.
-- **The lock is optional, and only yours.** With a passphrase, your tasks are kept encrypted in the browser and backups are encrypted too. Nobody can open them without it, not even the maker of One Day, so a forgotten passphrase cannot be recovered: the only way out is to erase the tasks and start again.
+- **The lock is optional, and only yours.** With a passphrase, your tasks are kept encrypted in the browser and backups are encrypted too. Nobody can open them without it, not even the maker of One Day, so a forgotten passphrase cannot be recovered: the only way out is to erase the tasks and start again. Changing the passphrase changes the key that encrypts them, so an old copy and the old passphrase open nothing written since. If your browser saves the passphrase, it can fill it in for anyone using that browser. Tasks saved before you turned the lock on can stay in the browser’s own files for a while, until it clears them.
 - **Erasing everything:** clear this site's data in your browser settings.
 
 The hosting provider sees ordinary request logs (IP address, browser), as for any website. If you publish your own copy, link your legal notice and privacy policy from the footer in `public/index.html`.
