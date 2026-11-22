@@ -603,9 +603,25 @@ test('a tag takes a colour in two taps from the filter, wears it everywhere, and
   await expect(page.locator('#fpop')).toHaveClass(/\bon\b/);
   const dot = page.locator('#ftags .fdot[data-tag="work"]');
   await expect(dot).toHaveAttribute('aria-label', 'Colour of #work: none');
+  // its dot opens the colours, and closes them again
+  await dot.click();
+  await expect(page.locator('#ftags .fsw')).toHaveCount(1);
+  await expect(dot).toHaveAttribute('aria-expanded', 'true');
+  await dot.click();
+  await expect(page.locator('#ftags .fsw')).toHaveCount(0);
+  await expect(dot).toHaveAttribute('aria-expanded', 'false');
   await dot.click();
   const sw = page.locator('#ftags .fsw');
   await expect(sw.locator('button')).toHaveCount(9);
+  // the ring of the one worn fits in the row, at either end
+  for (const k of ['red', '']) {
+    const fits = await sw.locator(`[data-sw="${k}"]`).evaluate(b => {
+      const r = b.getBoundingClientRect(),
+        p = b.parentElement.getBoundingClientRect();
+      return r.left - 1 >= p.left && r.right + 1 <= p.right;
+    });
+    expect(fits).toBe(true);
+  }
   await expect(sw.locator('[aria-pressed="true"]')).toHaveAttribute('aria-label', 'No colour');
   await sw.locator('[data-sw="blue"]').click();
   await expect(page.locator('#ftags .fsw')).toHaveCount(0);

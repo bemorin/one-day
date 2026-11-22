@@ -268,8 +268,8 @@ try {
     return x;
   }
   // a tag's colour: one of eight, kept by tag name with the tasks
-  const TCOL = ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink'],
-    TCOLN = { red: 'Red', orange: 'Orange', yellow: 'Yellow', green: 'Green', teal: 'Teal', blue: 'Blue', purple: 'Purple', pink: 'Pink' },
+  const TCOL = ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'brown'],
+    TCOLN = { red: 'Red', orange: 'Orange', yellow: 'Yellow', green: 'Green', teal: 'Teal', blue: 'Blue', purple: 'Purple', brown: 'Brown' },
     TAGNAME = /^[\p{L}\p{N}][\p{L}\p{N}_\-\/]*$/u;
   const cleanTags = o => {
     const out = {};
@@ -3453,9 +3453,14 @@ try {
   const dotLabel = g => `Colour of #${g}: ${tcol(g) ? TCOLN[tcol(g)] : 'none'}`;
   function swatches(dot, keys) {
     const g = dot.dataset.tag,
-      open = $.ftags.querySelector('.fsw');
+      open = $.ftags.querySelector('.fsw:not(.out)'),
+      same = !!open && open.dataset.tag === g;
     if (open) foldSwatches(open);
-    if (open && open.dataset.tag === g) return;
+    // its own dot again: the colours fold away
+    if (same) {
+      if (keys) dot.focus({ preventScroll: true });
+      return;
+    }
     const c = tcol(g),
       sw = D().createElement('div');
     sw.className = 'fsw';

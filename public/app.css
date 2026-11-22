@@ -702,7 +702,7 @@ header {
   color: inherit;
   opacity: 0.7;
 }
-/* Tag colours: Apple's eight, a little brighter in the dark. A tag wears a tint of its colour, its words in a
+/* Tag colours: eight of Apple's, a little brighter in the dark, none too close to another. A tag wears a tint of its colour, its words in a
    deeper shade of it (a lighter one in the dark), so they stay as readable as the grey ones. */
 [data-c='red'] {
   --c: light-dark(#ff3b30, #ff453a);
@@ -725,8 +725,8 @@ header {
 [data-c='purple'] {
   --c: light-dark(#af52de, #bf5af2);
 }
-[data-c='pink'] {
-  --c: light-dark(#ff2d55, #ff375f);
+[data-c='brown'] {
+  --c: light-dark(#a2845e, #ac8e68);
 }
 .tag[data-c] {
   color: light-dark(color-mix(in oklab, var(--c) 50%, #000), color-mix(in oklab, var(--c) 62%, #fff));
@@ -784,11 +784,12 @@ button.fdot:hover::before,
 .fdot:focus-visible {
   outline-offset: -4px;
 }
-/* the colours, under the tag, across the row: eight and none, the one worn ringed, each a 24-pixel target */
+/* the colours, under the tag, across the row: eight and none, the one worn ringed, each a 24-pixel target; room
+   around them for the ring and the hover, so neither is cut at the ends */
 .fsw {
   display: flex;
   justify-content: space-between;
-  padding: 2px 0 8px;
+  padding: 3px 3px 8px;
   overflow: hidden;
 }
 .fsw button {
