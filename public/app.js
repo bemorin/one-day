@@ -540,6 +540,7 @@ try {
     };
     d && !RM.matches ? swap($.meta, set, d) : set();
     $.todayb.classList.toggle('on', !isT);
+    $.todayb.parentElement.classList.toggle('today', isT);
     $.todayb.tabIndex = isT ? -1 : 0;
     $.todayb.setAttribute('aria-hidden', isT);
     $.dnum.textContent = dt.getDate() + ' ';
@@ -5173,28 +5174,53 @@ try {
     repaint();
     if (!shown) showLock();
   }
-  $.lockb.onclick = () => lockNow(true);
-  /* above the card: the lock, as one icon that tells its state (open: lock with a passphrase; shut: lock now) */
+  /* The lock, as one icon that tells its state (open: protect with a passphrase; shut: lock now): a pill above the
+     card on a large screen, a button in the card's bar otherwise (in More on a phone). */
   const LP = document.getElementById('lpill');
   function lockUI() {
-    $.lockb.hidden = !vault || locked;
-    if (!LP) return;
-    LP.hidden = !CAN_LOCK;
-    const on = !!vault;
-    LP.classList.toggle('on', on);
-    const t = on ? 'Lock now' : 'Protect with a passphrase';
-    LP.dataset.tip = t;
-    LP.setAttribute('aria-label', t);
-    if (on) LP.dataset.key = 'L';
-    else delete LP.dataset.key;
+    const on = !!vault,
+      t = on ? 'Lock now' : 'Protect with a passphrase';
+    for (const b of [LP, $.lockb]) {
+      if (!b) continue;
+      b.hidden = !CAN_LOCK || (b === $.lockb && locked);
+      b.classList.toggle('on', on);
+      b.dataset.tip = t;
+      b.setAttribute('aria-label', t);
+      if (on) b.dataset.key = 'L';
+      else delete b.dataset.key;
+    }
   }
-  if (LP)
-    LP.onclick = () => {
-      if (locked) return;
-      if (vault) lockNow(true);
-      else openLockset('on', lockDone);
-    };
+  const lockTap = () => {
+    if (locked) return;
+    if (vault) lockNow(true);
+    else openLockset('on', lockDone);
+  };
+  $.lockb.onclick = lockTap;
+  if (LP) LP.onclick = lockTap;
   lockUI();
+  // On a large screen the time and the sun sit above the card, the sun beside the lock. Narrower, they go in the
+  // card's bar: the time in the middle of the room between the chevrons and the buttons, the sun before the lock.
+  const BIG = window.matchMedia('(min-width: 720px) and (min-height: 560px)'),
+    TOPB = document.getElementById('topbar'),
+    CLOCK = document.getElementById('clock'),
+    BSP = q('.bar .sp');
+  function placeTop() {
+    if (!TOPB || !CLOCK || !BSP) return;
+    if (BIG.matches) {
+      TOPB.prepend(CLOCK);
+      if (LP) LP.before($.theme);
+      else TOPB.append($.theme);
+    } else {
+      BSP.append(CLOCK);
+      $.lockb.before($.theme);
+    }
+  }
+  placeTop();
+  BIG.addEventListener('change', placeTop);
+  // how much room "Today" keeps in the bar while hidden (its words in the app's font)
+  const todayRoom = () => $.todayb.parentElement.style.setProperty('--tw', $.todayb.offsetWidth + 6 + 'px');
+  todayRoom();
+  if (document.fonts) document.fonts.ready.then(todayRoom);
   /* and the time, its digits rolling like the timer's */
   const CLK = document.getElementById('cdg'),
     CLF = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });

@@ -213,6 +213,53 @@ header {
 }
 .sp {
   flex: 1;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+/* the time, in plain words: above the card on a large screen, in the middle of the bar otherwise */
+.clock {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  padding: 0 4px;
+  font-size: 14px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  color: light-dark(#3d4555, #a3adbf);
+}
+.cdg {
+  display: flex;
+}
+.cdg .dg {
+  padding: 0.05em 0.04em 0;
+  margin: 0 -0.04em;
+}
+.cdg .dg .out {
+  left: 0.04em;
+}
+/* the lock's two faces */
+#lockb .lk-shut,
+#lockb.on .lk-open {
+  display: none;
+}
+#lockb.on .lk-shut {
+  display: block;
+}
+/* In the bar, the time sits in the middle of the room between the chevrons and the buttons. "Today" keeps its place
+   while it is hidden, so on today the time moves back by half of it; when it shows, the time glides over. */
+.sp .clock {
+  transition: transform var(--sn-d) var(--snap);
+}
+.bar.today .sp .clock {
+  transform: translateX(calc(var(--tw, 0px) / -2));
+}
+/* a phone shows the time at the top of its screen already */
+@media (max-width: 719px) and (hover: none) {
+  .bar .clock {
+    display: none;
+  }
 }
 .ib {
   width: 40px;
@@ -3378,7 +3425,7 @@ mark {
   content: ' \2197';
   font-size: 0.9em;
 }
-/* Under the card, three pills of glass. A link lights up inside its pill, three pixels in from the edge,
+/* Under the card, three pills of glass. A link lights up inside its pill, five pixels in from the edge,
    like the selected part of a segmented control. */
 #home {
   --glass: linear-gradient(
@@ -3576,63 +3623,45 @@ mark {
   #foot {
     padding-top: 27px;
   }
-  /* above the card, the time on the left and the lock on the right; the lock leaves the card's header */
+  /* Above the card: the time on the left, on the line where the pills end; the sun and the lock on the right,
+     two pills of glass the height of the footer's, lit five pixels in like them. They leave the card's bar. */
   .topbar {
     display: flex;
-    justify-content: space-between;
     align-items: flex-end;
+    gap: 8px;
     width: min(640px, calc(100% - 48px));
     margin: 0 0 16px;
     padding: 0 calc(var(--pad) - 4px);
     transition: opacity 0.5s ease 0.3s;
   }
+  .topbar .clock {
+    margin-right: auto;
+    padding-bottom: 1px;
+  }
   #lockb {
     display: none !important;
   }
-  .clock,
-  .lpill {
-    display: inline-flex;
-    align-items: center;
-    height: 34px;
-  }
-  .lpill {
+  .lpill,
+  .topbar #theme {
+    position: relative;
+    isolation: isolate;
+    display: inline-grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
     border-radius: 999px;
     background: var(--glass);
     box-shadow: var(--pill);
-  }
-  /* the time: plain words, on the card's left edge, sitting on the line where the lock's pill ends */
-  .clock {
-    height: auto;
-    line-height: 1;
-    padding: 0 4px;
-    font-size: 14px;
-    font-weight: 650;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.01em;
-    color: light-dark(#3d4555, #a3adbf);
-  }
-  .cdg {
-    display: flex;
-  }
-  .cdg .dg {
-    padding: 0.05em 0.04em 0;
-    margin: 0 -0.04em;
-  }
-  .cdg .dg .out {
-    left: 0.04em;
-  }
-  .lpill {
-    position: relative;
-    isolation: isolate;
-    justify-content: center;
-    width: 34px;
     color: light-dark(#3d4555, #c9c9ce);
-    transition: color 0.2s;
+    transition:
+      color 0.2s,
+      transform 0.25s var(--pop);
   }
-  .lpill::before {
+  .lpill::before,
+  .topbar #theme::before {
     content: '';
     position: absolute;
-    inset: 3px;
+    inset: 5px;
     z-index: -1;
     border-radius: inherit;
     background: var(--lit);
@@ -3642,11 +3671,18 @@ mark {
     opacity: 0;
     transition: opacity 0.2s;
   }
-  .lpill:hover {
+  .lpill:hover,
+  .topbar #theme:hover {
     color: var(--ink);
+    background: var(--glass);
   }
-  .lpill:hover::before {
+  .lpill:hover::before,
+  .topbar #theme:hover::before {
     opacity: 1;
+  }
+  .lpill:active,
+  .topbar #theme:active {
+    transform: scale(0.94);
   }
   .lpill svg {
     width: 18px;
@@ -3655,6 +3691,10 @@ mark {
     stroke: currentColor;
     stroke-width: 1.6;
     stroke-linecap: round;
+  }
+  .topbar #theme svg {
+    width: 19px;
+    height: 19px;
   }
   .lpill .lk-shut,
   .lpill.on .lk-open {

@@ -1390,7 +1390,7 @@ test.describe('the lock', () => {
     await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
   });
 
-  test('above the card: the time on the left, the lock on the right', async ({ page }) => {
+  test('above the card: the time on the left, the sun and the lock on the right', async ({ page }) => {
     await openLock(page);
     await expect(page.locator('#clock')).toHaveAttribute('aria-label', /^Time: /);
     const shown = await page.locator('#clock').getAttribute('aria-label');
@@ -1401,6 +1401,15 @@ test.describe('the lock', () => {
       return [hm.format(now), hm.format(now - 60e3)];
     });
     expect(ok).toContain(shown.replace('Time: ', ''));
+    // the sun left of the lock, two separate pills of the same size, both above the card
+    await expect(page.locator('#topbar #theme')).toBeVisible();
+    await expect(page.locator('#topbar #clock')).toBeVisible();
+    const [c, t, l] = await Promise.all(['#clock', '#theme', '#lpill'].map(x => page.locator(x).boundingBox()));
+    expect(c.x).toBeLessThan(t.x);
+    expect(t.x + t.width).toBeLessThan(l.x);
+    expect([t.width, t.height]).toEqual([l.width, l.height]);
+    expect(Math.round(l.height)).toBe(40);
+    await expect(page.locator('.bar #theme')).toHaveCount(0);
     await expect(page.locator('#lpill')).toHaveAttribute('aria-label', 'Protect with a passphrase');
     await page.locator('#lpill').click();
     await expect(page.locator('#lockset')).toBeVisible();
@@ -1746,6 +1755,24 @@ test.describe('the lock', () => {
     expect((await stored(page)).vault).toBeNull();
   });
 
+  test.describe('in a narrower window', () => {
+    test.use({ viewport: { width: 640, height: 800 } });
+    test('the time sits in the middle of the bar; the sun and the lock come after the floating window', async ({ page }) => {
+      await openLock(page);
+      await expect(page.locator('.bar .sp #clock')).toBeVisible();
+      // exactly between the chevrons and the first button on the right
+      const [n, c, b] = await Promise.all(['#next', '#clock', '#sb'].map(x => page.locator(x).boundingBox()));
+      expect(Math.abs(c.x + c.width / 2 - (n.x + n.width + b.x) / 2)).toBeLessThan(2);
+      const order = await page.evaluate(() =>
+        [...document.querySelector('.bar').children].filter(e => e.getClientRects().length).map(e => e.id || e.className),
+      );
+      expect(order.slice(-3)).toEqual(['float', 'theme', 'lockb']);
+      await expect(page.locator('#lockb')).toHaveAttribute('aria-label', 'Protect with a passphrase');
+      await page.locator('#lockb').click();
+      await expect(page.locator('#lsT')).toHaveText('Protect One Day');
+    });
+  });
+
   test.describe('on a phone', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
     test('the lock lives in More; the top right keeps the theme alone', async ({ page }) => {
@@ -1769,6 +1796,7 @@ test.describe('the lock', () => {
       await page.locator('#lsGo').tap();
       await expect(page.locator('#lockset')).toBeHidden({ timeout: 20000 });
       await expect(page.locator('#lockb')).toBeHidden();
+      await expect(page.locator('#clock')).toBeHidden();
       await page.locator('#mbMore').tap();
       await expect(page.locator('#more [data-act="lockoff"]')).toBeVisible();
       // protected: one group of centred buttons, lock now first, turning it off last
