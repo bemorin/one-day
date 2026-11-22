@@ -1130,6 +1130,23 @@ test.describe('on a touch screen', () => {
     await expect(page.locator('#mbSearch')).toHaveAttribute('aria-expanded', 'false');
   });
 
+  test('an open card: Repeat and Send are two buttons, half the width each, their words the same size', async ({ page }) => {
+    await open(page);
+    await row(page, 'Plan the trip').locator('.ex').tap();
+    const cb = row(page, 'Plan the trip').locator('.cfoot .cb');
+    await expect(cb).toHaveCount(2);
+    await expect(cb.first()).toBeVisible();
+    const [r, s, f] = await Promise.all([
+      cb.nth(0).boundingBox(),
+      cb.nth(1).boundingBox(),
+      row(page, 'Plan the trip').locator('.cfoot').boundingBox(),
+    ]);
+    expect(Math.abs(r.width - s.width)).toBeLessThan(1);
+    expect(Math.abs(r.y - s.y)).toBeLessThan(1);
+    expect(Math.abs(r.width + s.width + 8 - f.width)).toBeLessThan(1.5);
+    expect(await cb.nth(0).evaluate(n => [getComputedStyle(n).fontSize, getComputedStyle(n).boxShadow !== 'none'])).toEqual(['13.5px', true]);
+  });
+
   test('an open panel lights its button in the bar, which stays above it and switches panels', async ({ page }) => {
     await open(page);
     const lit = id =>
