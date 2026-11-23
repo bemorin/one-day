@@ -345,7 +345,7 @@ kbd {
 .tocd .chs > li:has(a[aria-current]) .n {
   color: var(--red);
 }
-/* the link at the end of a title: shown on hover or focus (faintly, always, on a touch screen); a click copies it */
+/* the link at the end of a title, always there in grey, darker while the title is under the pointer; a click copies it */
 .hl {
   display: inline-grid;
   place-items: center;
@@ -356,30 +356,19 @@ kbd {
   vertical-align: middle;
   color: var(--mute);
   text-decoration: none;
-  opacity: 0;
   transition:
-    opacity 0.15s,
     background-color 0.15s,
     color 0.15s;
 }
-h2:hover .hl,
-h3:hover .hl,
-h4:hover .hl,
-.hl:focus-visible,
-.hl.done {
-  opacity: 1;
+:is(h2, h3, h4):hover .hl,
+.hl:focus-visible {
+  color: var(--ink);
 }
 .hl:hover {
-  color: var(--ink);
   background: var(--hover);
 }
-.hl.done {
+:is(h2, h3, h4) .hl.done {
   color: var(--red);
-}
-@media (hover: none) {
-  .hl {
-    opacity: 0.5;
-  }
 }
 /* the paragraph to paste into an assistant, and its Copy button */
 .prompt {
@@ -910,6 +899,7 @@ td kbd {
   .skip,
   .acts,
   .toc,
+  .hl,
   #contact .links {
     display: none;
   }

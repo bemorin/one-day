@@ -123,8 +123,8 @@ document.addEventListener('DOMContentLoaded', () => {
       copied(ok, pbtn, 'Copy the paragraph', 'The paragraph is in your clipboard.');
     });
 
-  // Every chapter, section and question ends with a link (shown on hover or focus, and faintly on a touch screen):
-  // a click copies the address of that place in the guide.
+  // Every chapter, section and question ends with a link, always shown: a click copies the address of that place
+  // in the guide.
   const LINK =
       '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.6 9.4a2.75 2.75 0 0 0 3.9 0l2.1-2.1a2.76 2.76 0 0 0-3.9-3.9l-.7.7"/><path d="M9.4 6.6a2.75 2.75 0 0 0-3.9 0L3.4 8.7a2.76 2.76 0 0 0 3.9 3.9l.7-.7"/></svg>',
     TICK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3.75 8.4 2.6 2.6 5.9-6.2"/></svg>';

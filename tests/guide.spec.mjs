@@ -255,18 +255,23 @@ test('Copy page as Markdown: the whole guide, in the clipboard only', async ({ p
   await expect(page.locator('#copy')).toHaveText('Copy page as Markdown', { timeout: 6000 });
 });
 
-test('every title ends with a link that copies the address of its place in the guide; the Markdown copy leaves them out', async ({ page, context }) => {
+test('every title ends with a link, always shown, that copies the address of its place in the guide; the Markdown copy leaves them out', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await guide(page);
   const h = page.locator('#assistants > h3');
-  await h.hover();
   const a = h.locator('a.hl');
   await expect(a).toHaveAttribute('aria-label', 'Copy the link to With an AI assistant');
-  expect(await a.evaluate(n => getComputedStyle(n).opacity)).toBe('1');
+  // there without the pointer on the title, in grey; darker while the title is under the pointer; red once copied
+  const look = () => a.evaluate(n => [getComputedStyle(n).opacity, getComputedStyle(n).color]);
+  await expect(a).toBeVisible();
+  expect(await look()).toEqual(['1', 'rgb(110, 110, 110)']);
+  await h.hover();
+  await expect.poll(look).toEqual(['1', 'rgb(0, 0, 0)']);
   await a.click();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/\/guide\/#assistants$/);
   expect(await page.evaluate(() => location.hash)).toBe('#assistants');
   await expect(page.locator('#copied')).toHaveText('The link is in your clipboard.');
+  await expect.poll(look).toEqual(['1', 'rgb(228, 0, 43)']);
   // chapters and questions have theirs too
   await expect(page.locator('#basics .ch h2 a.hl')).toHaveAttribute('href', '#basics');
   await expect(page.locator('h4#moving a.hl')).toHaveAttribute('href', '#moving');
