@@ -6476,7 +6476,8 @@ try {
       true,
     );
   }
-  dragToClose($.more, () => moreOpen, closeMore);
+  // its scrollbar, when it has one, scrolls: a drag there does not pull the drawer down
+  dragToClose($.more, () => moreOpen, closeMore, false, e => !(e.target === $.more && e.offsetX >= $.more.clientWidth));
   dragToClose(
     $.tpop,
     () => $.tpop.classList.contains('on') && W().matchMedia(BARQ).matches,
