@@ -2091,12 +2091,16 @@ test.describe('installing One Day', () => {
     await page.waitForTimeout(300);
     // What the eye sees, from a picture of the button: the capital I's ink, from its top to the baseline, against the
     // button's middle. (Archivo sets its capitals a pixel high in a line: the words come down one pixel.)
-    const left = await page.evaluate(
-      () => document.querySelector('#insGo span').getBoundingClientRect().left - document.getElementById('insGo').getBoundingClientRect().left,
-    );
+    // the page's top margin is a whole number of pixels, so what sits above the card is on the pixel grid
+    expect(await page.evaluate(() => getComputedStyle(document.getElementById('home')).paddingTop)).toMatch(/^\d+px$/);
+    const { left, svgL, svgR } = await page.evaluate(() => {
+      const go = document.getElementById('insGo').getBoundingClientRect(),
+        sv = document.querySelector('#insGo svg').getBoundingClientRect();
+      return { left: document.querySelector('#insGo span').getBoundingClientRect().left - go.left, svgL: sv.left - go.left, svgR: sv.right - go.left };
+    });
     const png = (await page.locator('#insGo').screenshot()).toString('base64');
     const m = await page.evaluate(
-      async ([b64, left]) => {
+      async ([b64, left, svgL, svgR]) => {
         const img = new Image();
         img.src = 'data:image/png;base64,' + b64;
         await img.decode();
@@ -2107,20 +2111,30 @@ test.describe('installing One Day', () => {
         x.drawImage(img, 0, 0);
         const d = x.getImageData(0, 0, c.width, c.height).data;
         let t = 1e9,
-          b = -1;
+          b = -1,
+          rt = 1e9,
+          rb = -1;
         for (let j = 0; j < c.height; j++)
-          for (let i = Math.floor(left); i <= Math.ceil(left + 2.5); i++) {
-            const k = (j * c.width + i) * 4;
-            if (d[k] + d[k + 1] + d[k + 2] < 330) {
+          for (let i = 0; i < c.width; i++) {
+            const k = (j * c.width + i) * 4,
+              [R, G, B] = [d[k], d[k + 1], d[k + 2]];
+            if (i >= Math.floor(left) && i <= Math.ceil(left + 2.5) && R + G + B < 330) {
               t = Math.min(t, j);
               b = Math.max(b, j);
             }
+            // the red icon, inside its own box (the words' edges can be tinted red too)
+            if (i >= Math.floor(svgL) && i <= Math.ceil(svgR) && R > 170 && G < 90 && B < 110) {
+              rt = Math.min(rt, j);
+              rb = Math.max(rb, j);
+            }
           }
-        return { cap: (t + b + 1) / 2, box: c.height / 2 };
+        return { cap: (t + b + 1) / 2, icon: (rt + rb + 1) / 2, box: c.height / 2 };
       },
-      [png, left],
+      [png, left, svgL, svgR],
     );
     expect(Math.abs(m.cap - m.box)).toBeLessThanOrEqual(0.5);
+    // and the icon level with the words
+    expect(Math.abs(m.icon - m.cap)).toBeLessThanOrEqual(0.5);
   });
 
   test('its cross puts the offer off for good: a small pill before the sun, still one click from installing', async ({ page }) => {

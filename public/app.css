@@ -3794,6 +3794,13 @@ mark {
     --bg: light-dark(#fff, #141414);
     --top: clamp(12px, 3vh, 36px);
   }
+  /* in whole pixels: what sits above the card (the time, the offer, the pills) lands on the pixel grid, so the height
+     of the window cannot set its icons and words half a pixel apart */
+  @supports (top: round(1px, 1px)) {
+    :root {
+      --top: round(clamp(12px, 3vh, 36px), 1px);
+    }
+  }
   /* the page: the time and the pills, the card, the footer; the card takes what the others leave, never more
      than its tasks need, with the same room above the pills and below the footer */
   #home {
@@ -4017,6 +4024,11 @@ mark {
   .ins-x svg {
     width: 14px;
     height: 14px;
+  }
+  /* the words come down a pixel; the icon and the cross half of one, to sit level with them */
+  .ins-go svg,
+  .ins-x svg {
+    translate: 0 0.5px;
   }
   .ipill svg {
     width: 18px;
