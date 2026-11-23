@@ -15,7 +15,7 @@ try {
     home = document.getElementById('home'),
     q = s => app.querySelector(s),
     $ = {};
-  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inT inTitle inMeta inDay inDayL inNo inYes mbar mbSearch mbTimer mbTimerL mbAdd mbSend mbMore scrim more moreList theme sendd fx fbtn fname fclr fpop ftags fnone fqL fq spicks lockb kb kpop'
+  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inT inTitle inMeta inDay inDayL inNo inYes mbar mbSearch mbTimer mbTimerL mbAdd mbSend mbMore scrim more moreList theme sendd fx fbtn fname fclr fpop ftags fnone fqL fq spicks lockb kb kpop addGo'
     .split(' ')
     .forEach(id => ($[id] = q('#' + id)));
   const fill = q('.rule i'),
@@ -3696,6 +3696,20 @@ try {
     sugCheck($.input);
   });
   $.input.addEventListener('blur', hideSug);
+  // The plus adds what is typed, like Enter: a phone's keyboard hides its Enter behind a tick. Pressing it keeps the
+  // focus in the field, so the keyboard stays up and the composer stays open for the next task. Empty, it goes to the field.
+  const keepFocus = e => e.preventDefault();
+  $.addGo.addEventListener('pointerdown', keepFocus);
+  $.addGo.addEventListener('mousedown', keepFocus);
+  $.addGo.onclick = () => {
+    const v = $.input.value.replace(/\s+/g, ' ').trim();
+    if (D().activeElement !== $.input) $.input.focus({ preventScroll: true });
+    if (!v) return;
+    $.input.value = '';
+    $.add.classList.remove('typing');
+    hideSug();
+    addTask(v);
+  };
   // A pasted list (one item per line) becomes as many tasks; what was typed stays in the composer.
   $.input.addEventListener('paste', e => pasteList(e, items => addTasks(nestItems(items))));
   $.input.addEventListener('keydown', e => {

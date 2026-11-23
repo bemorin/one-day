@@ -2198,6 +2198,46 @@ test.describe('installing One Day', () => {
   });
 });
 
+test.describe("the composer's plus", () => {
+  test.describe('on a phone', () => {
+    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    test('it adds what is typed, keeps the field and the sheet open, and red says there is something to add', async ({ page }) => {
+      await open(page);
+      await page.locator('#mbAdd').tap();
+      await expect(page.locator('#app')).toHaveClass(/\bcomposing\b/);
+      // empty, it leaves the composer as it is
+      await page.locator('#addGo').tap();
+      await expect(page.locator('#app')).toHaveClass(/\bcomposing\b/);
+      await expect(page.locator('#input')).toBeFocused();
+      const bg = () => page.locator('#addGo').evaluate(n => getComputedStyle(n).backgroundColor);
+      const idle = await bg();
+      await page.keyboard.type('Post reel in the morning');
+      await expect(page.locator('#add')).toHaveClass(/\btyping\b/);
+      expect(await bg()).not.toBe(idle);
+      await page.locator('#addGo').tap();
+      await expect(row(page, 'Post reel in the morning')).toHaveCount(1);
+      // ready for the next one: the sheet open, the field empty and focused (the keyboard stays up)
+      await expect(page.locator('#app')).toHaveClass(/\bcomposing\b/);
+      await expect(page.locator('#input')).toHaveValue('');
+      await expect(page.locator('#input')).toBeFocused();
+      await expect(page.locator('#add')).not.toHaveClass(/\btyping\b/);
+      const box = await page.locator('#addGo').boundingBox();
+      expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(36);
+    });
+  });
+
+  test('on a computer, a click on it adds the task too', async ({ page }) => {
+    await open(page);
+    await page.locator('#input').click();
+    await page.keyboard.type('Write the newsletter');
+    await page.locator('#addGo').click();
+    await expect(row(page, 'Write the newsletter')).toHaveCount(1);
+    await expect(page.locator('#input')).toHaveValue('');
+    await expect(page.locator('#input')).toBeFocused();
+    await expect(page.locator('#addGo')).toHaveAttribute('aria-label', 'Add the task');
+  });
+});
+
 test.describe("the device's back", () => {
   // A stand-in for the browser's CloseWatcher: the device's back closes the newest one still open; with none, it
   // would leave the app.
