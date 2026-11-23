@@ -6337,6 +6337,12 @@ try {
   }
   function compose(on) {
     if (on === app.classList.contains('composing')) return;
+    // closed while the keyboard is still up: the bottom bar waits for it to go, instead of flashing above it
+    if (!on && TOUCH && kbUp()) {
+      app.classList.add('kbgoing');
+      clearTimeout(kbgoT);
+      kbgoT = setTimeout(() => app.classList.remove('kbgoing'), 900);
+    }
     app.classList.toggle('composing', on);
     if (on) guard('compose', () => compose(false));
     else unguard('compose');
@@ -6537,6 +6543,40 @@ try {
       place($.rpop, RP.from && RP.from.isConnected ? RP.from.getBoundingClientRect() : RP.anchor, RP.prefer);
   }
   window.addEventListener('resize', replacePops);
+  // Is a keyboard up? Android makes room for it by shrinking the page (resizes-content); iOS covers the page (--kb).
+  let fullH = innerHeight,
+    fullW = innerWidth,
+    kbWas = false,
+    kbgoT = null;
+  function kbUp() {
+    if (innerWidth !== fullW) {
+      fullW = innerWidth;
+      fullH = innerHeight;
+    }
+    fullH = Math.max(fullH, innerHeight);
+    const vv = window.visualViewport;
+    return fullH - innerHeight > 120 || (!!vv && innerHeight - vv.height - vv.offsetTop > 120);
+  }
+  window.addEventListener('resize', () => {
+    const up = kbUp();
+    if (!up && app.classList.contains('kbgoing')) {
+      clearTimeout(kbgoT);
+      app.classList.remove('kbgoing');
+    }
+    // The keyboard put away with the system's back, the field still focused: an empty composer goes with it, in one
+    // press. With words in it, it stays, its red plus one tap away (a second back closes it).
+    if (
+      kbWas &&
+      !up &&
+      TOUCH &&
+      app.classList.contains('composing') &&
+      D().activeElement === $.input &&
+      !$.input.value.trim() &&
+      !popOn()
+    )
+      compose(false);
+    kbWas = up;
+  });
   // iOS keeps the layout viewport when the keyboard opens: lift the composer sheet above it.
   if (window.visualViewport) {
     const vv = visualViewport,

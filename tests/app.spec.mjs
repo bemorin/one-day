@@ -2630,6 +2630,49 @@ test.describe("the composer's plus", () => {
     });
   });
 
+  test.describe('on a phone, with its keyboard', () => {
+    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    // the keyboard comes up: Android shrinks the page by its height; going away, it gives it back
+    const keyboard = (page, up) => page.setViewportSize({ width: 390, height: up ? 524 : 844 });
+    const bar = page => page.locator('#mbar').evaluate(n => getComputedStyle(n).visibility);
+
+    test('a tap on the scrim closes the composer; the bar waits for the keyboard to go, not above it', async ({ page }) => {
+      await open(page);
+      await page.locator('#mbAdd').tap();
+      await keyboard(page, true);
+      await page.waitForTimeout(150);
+      await page.locator('#scrim').tap({ position: { x: 60, y: 120 } });
+      await expect(page.locator('#app')).not.toHaveClass(/\bcomposing\b/);
+      expect(await bar(page)).toBe('hidden');
+      await keyboard(page, false);
+      await expect.poll(() => bar(page)).toBe('visible');
+    });
+
+    test('the keyboard put away with the back button takes an empty composer with it', async ({ page }) => {
+      await open(page);
+      await page.locator('#mbAdd').tap();
+      await keyboard(page, true);
+      await page.waitForTimeout(150);
+      // the system's back hides the keyboard; the field keeps the focus
+      await keyboard(page, false);
+      await expect(page.locator('#app')).not.toHaveClass(/\bcomposing\b/);
+      await expect.poll(() => bar(page)).toBe('visible');
+    });
+
+    test('with words typed, the composer stays when the keyboard goes, its red plus one tap away', async ({ page }) => {
+      await open(page);
+      await page.locator('#mbAdd').tap();
+      await keyboard(page, true);
+      await page.keyboard.type('Half a thought');
+      await keyboard(page, false);
+      await page.waitForTimeout(300);
+      await expect(page.locator('#app')).toHaveClass(/\bcomposing\b/);
+      await expect(page.locator('#input')).toHaveValue('Half a thought');
+      await page.locator('#addGo').tap();
+      await expect(row(page, 'Half a thought')).toHaveCount(1);
+    });
+  });
+
   test('on a computer, a click on it adds the task too', async ({ page }) => {
     await open(page);
     await page.locator('#input').click();

@@ -3285,7 +3285,8 @@ mark {
       0 0 0 1px var(--line),
       0 -16px 40px -16px var(--shadow);
   }
-  #app.composing .mbar {
+  #app.composing .mbar,
+  #app.kbgoing .mbar {
     visibility: hidden;
   }
   .tpop {
