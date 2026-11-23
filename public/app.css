@@ -4543,3 +4543,24 @@ mark {
     transition: none !important;
   }
 }
+
+/* Between One Day and its guide on the same page (on a phone, or the guide's way back to the day): the guide comes
+   up like a drawer and goes back down, the day underneath. Chrome, Edge and Safari animate it; elsewhere it changes. */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition {
+    navigation: auto;
+  }
+  /* back to the day: the guide goes down over it */
+  ::view-transition-old(root) {
+    z-index: 1;
+    animation: vt-down 0.34s cubic-bezier(0.4, 0, 1, 1) both;
+  }
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+@keyframes vt-down {
+  to {
+    transform: translateY(100%);
+  }
+}

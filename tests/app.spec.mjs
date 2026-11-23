@@ -1671,6 +1671,17 @@ test.describe('on a touch screen', () => {
     }
   });
 
+  test('handed back by the browser as it was left (back from the guide): nothing stays open, the bar at the bottom', async ({ page }) => {
+    await open(page);
+    await page.locator('#mbMore').tap();
+    await expect(page.locator('#more')).toBeVisible();
+    await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
+    await expect(page.locator('#more')).toBeHidden();
+    await expect(page.locator('#scrim')).toBeHidden();
+    const bar = await page.locator('#mbar').boundingBox();
+    expect(Math.round(bar.y + bar.height)).toBe(844);
+  });
+
   test('a tap on a tag opens its search, which stays open', async ({ page }) => {
     await open(page);
     await row(page, 'Write the report').locator('.tag').tap();

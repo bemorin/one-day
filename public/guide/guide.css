@@ -910,3 +910,22 @@ td kbd {
     break-inside: avoid;
   }
 }
+
+/* Opened from One Day on the same page (on a phone): it comes up over the day like a drawer (app.css has the way
+   back down). */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition {
+    navigation: auto;
+  }
+  ::view-transition-old(root) {
+    animation: none;
+  }
+  ::view-transition-new(root) {
+    animation: vt-up 0.44s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+@keyframes vt-up {
+  from {
+    transform: translateY(100%);
+  }
+}

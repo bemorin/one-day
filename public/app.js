@@ -6453,6 +6453,13 @@ try {
     syncScrim();
   }
   $.moreList.onclick = e => {
+    // the guide comes up over the day: the drawer is shut at once, so the day under it, and the day you come back
+    // to, have nothing left open
+    if (e.target.closest('a[href^="guide/"]')) {
+      closeMore();
+      for (const el of [$.more, $.scrim]) el.getAnimations().forEach(x => x.finish());
+      return;
+    }
     const a = e.target.closest('[data-act]');
     if (!a) return;
     closeMore();
@@ -6634,6 +6641,20 @@ try {
     vv.addEventListener('resize', kb);
     vv.addEventListener('scroll', kb);
   }
+  // Back from another page (the guide), the browser can hand the page back as it was left: nothing stays open, and
+  // the page measures itself again (the window may have changed size meanwhile).
+  window.addEventListener('pageshow', e => {
+    if (!e.persisted) return;
+    closeMore();
+    compose(false);
+    closePops();
+    closeSearch(false);
+    for (const el of [$.more, $.scrim]) el.getAnimations().forEach(x => x.finish());
+    fullH = innerHeight;
+    fullW = innerWidth;
+    window.dispatchEvent(new Event('resize'));
+    if (window.visualViewport) visualViewport.dispatchEvent(new Event('resize'));
+  });
   window.addEventListener('hashchange', readIncoming);
 
   /* toast */

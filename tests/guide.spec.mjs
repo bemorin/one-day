@@ -466,6 +466,10 @@ test.describe('the app links to the guide', () => {
       await page.goBack();
       await expect(page.locator('#app')).toBeVisible();
       expect(new URL(page.url()).pathname).toBe('/');
+      // the day as it should be: More shut, nothing dimmed, the bar at the bottom of the screen
+      await expect(page.locator('#more')).toBeHidden();
+      await expect(page.locator('#scrim')).toBeHidden();
+      await expect.poll(async () => Math.round((b => b.y + b.height)(await page.locator('#mbar').boundingBox()))).toBe(844);
     });
   });
   test('and the guide leads back to the app', async ({ page }) => {
