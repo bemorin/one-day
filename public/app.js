@@ -2072,6 +2072,7 @@ try {
       return;
     }
     if (!p.mode && ok && p.li) {
+      tapped = { at: performance.now(), tgt: p.tgt };
       const tg = p.tgt.closest('.tag');
       if (tg) {
         openSearch('#' + tg.dataset.tag + ' ');
@@ -2080,6 +2081,25 @@ try {
       tapRow(p.li, p.tgt, e.clientX, e.clientY);
     }
   }
+  /* A tap acts when the finger lifts (a task opens, a tag's search comes up), and that changes what lies under the
+     finger: the click that follows lands on whatever is there now. On a phone that was the move or delete button of
+     the task just opened, or the scrim behind search, which shut it again. That click is dropped, unless it falls
+     on what was tapped, or on a link (a link in a title still opens). */
+  let tapped = null;
+  app.addEventListener(
+    'click',
+    e => {
+      const t = tapped;
+      tapped = null;
+      if (!t || performance.now() - t.at > 700 || e.target.closest('a[href]')) return;
+      // a button the finger was not on (it appeared under it) is not pressed
+      const b = e.target.closest('button');
+      if (!(b && !b.contains(t.tgt)) && (t.tgt === e.target || t.tgt.contains(e.target) || e.target.contains(t.tgt))) return;
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    true,
+  );
   // A click on a task opens its card. A click on the title of an open task, or a double-click, edits the title.
   let lastTap = null;
   function tapRow(li, tgt, x, y) {
@@ -7601,6 +7621,9 @@ try {
   }
   placeTop();
   BIG.addEventListener('change', placeTop);
+  // On a phone the guide opens in this window, so the back button brings One Day back; a new tab or window there has
+  // no way back but closing. (The drawer and search copy the footer's links, this one included.)
+  if (TOUCH) document.querySelectorAll('a[href="guide/"]').forEach(a => a.removeAttribute('target'));
 
   /* Installing One Day, offered while it is not installed. Chrome and Edge lend their own prompt (beforeinstallprompt),
      which comes only while the app can be installed and is not; Safari has none, so it says where the browser keeps

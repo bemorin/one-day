@@ -981,6 +981,43 @@ test('keep on top: no button to come back inside the window, and a narrow one ke
   await expect(page.locator('#kb')).toBeHidden();
 });
 
+test('the full days count sits midway between the chevrons and the buttons, on today and on another day', async ({ page }) => {
+  await page.addInitScript(
+    ([t, y]) => {
+      if (localStorage.getItem('oneday.v1')) return;
+      localStorage.setItem(
+        'oneday.v1',
+        JSON.stringify({
+          days: {
+            [y]: { u: 1, tasks: [{ id: 'd1', text: 'Done yesterday', done: true, at: 1 }] },
+            [t]: { u: 1, tasks: [{ id: 'd2', text: 'Open today', done: false }] },
+          },
+          rules: {},
+        }),
+      );
+    },
+    [today(), key(plus(-1))],
+  );
+  await open(page);
+  // from the last thing showing on the left (the chevrons, or Today when it shows) to the first button on the right
+  const off = () =>
+    page.evaluate(() => {
+      const left = Math.max(
+        ...[...document.querySelectorAll('#prev, #next, #todayb')]
+          .filter(n => getComputedStyle(n).visibility !== 'hidden')
+          .map(n => n.getBoundingClientRect().right),
+      );
+      const right = document.getElementById('sb').getBoundingClientRect().left,
+        d = document.getElementById('dd').getBoundingClientRect();
+      return Math.abs((d.left + d.right) / 2 - (left + right) / 2);
+    });
+  await expect(page.locator('#dd')).toBeVisible();
+  await expect.poll(off).toBeLessThan(1.5);
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.locator('#todayb')).toBeVisible();
+  await expect.poll(off).toBeLessThan(1.5);
+});
+
 test.describe('repeating tasks', () => {
   test('repeat every 2 days from the composer', async ({ page }) => {
     await open(page);
@@ -1611,6 +1648,37 @@ test.describe('on Android', () => {
 
 test.describe('on a touch screen', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test('a tap where a closed task keeps its move and delete buttons opens it, and moves or deletes nothing', async ({ page }) => {
+    await open(page);
+    const r = row(page, 'Plan the trip');
+    // where the buttons stand once the task is open
+    await r.locator('.tx').tap();
+    await expect(r).toHaveClass(/\bopen\b/);
+    const spots = await Promise.all(['.rm', '.mv'].map(s => r.locator('.in .acts ' + s).boundingBox()));
+    await r.locator('.in .acts .ex').tap();
+    await expect(r).not.toHaveClass(/\bopen\b/);
+    for (const b of spots) {
+      // a fresh tap, not the second half of a double tap
+      await page.waitForTimeout(450);
+      await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
+      await expect(r).toHaveClass(/\bopen\b/);
+      await page.waitForTimeout(300);
+      await expect(r).toHaveCount(1);
+      await expect(page.locator('#toast')).not.toHaveClass(/\bon\b/);
+      await r.locator('.in .acts .ex').tap();
+      await expect(r).not.toHaveClass(/\bopen\b/);
+    }
+  });
+
+  test('a tap on a tag opens its search, which stays open', async ({ page }) => {
+    await open(page);
+    await row(page, 'Write the report').locator('.tag').tap();
+    await expect(page.locator('#srch')).toHaveClass(/\bon\b/);
+    await expect(page.locator('#sq')).toHaveValue('#work ');
+    await page.waitForTimeout(700);
+    await expect(page.locator('#srch')).toHaveClass(/\bon\b/);
+  });
 
   test('search is a drawer like More: the day stays above it; a tap on the day or a drag down goes back', async ({ page }) => {
     await open(page);
@@ -2889,11 +2957,12 @@ test.describe('full days', () => {
     await expect(page.locator('#ddn')).toHaveText('3');
     await expect(page.locator('#ddw')).toHaveText('full days');
     await expect(page.locator('#dd')).toBeVisible();
-    // in the middle of the bar, between the chevrons and the buttons; on a large screen, the middle of the card
-    const [n, d, s, a] = await Promise.all(['#next', '#dd', '#sb', '#app'].map(x => page.locator(x).boundingBox()));
+    // midway between the chevrons and the buttons (Today, hidden on today, keeps its room: the count moves back by
+    // half of it), on a large screen as on a narrow one
+    const [n, d, s] = await Promise.all(['#next', '#dd', '#sb'].map(x => page.locator(x).boundingBox()));
     expect(d.x).toBeGreaterThan(n.x + n.width);
     expect(d.x + d.width).toBeLessThan(s.x);
-    expect(Math.abs(d.x + d.width / 2 - (a.x + a.width / 2))).toBeLessThan(2);
+    expect(Math.abs(d.x + d.width / 2 - (n.x + n.width + s.x) / 2)).toBeLessThan(2);
     // what it counts, in words, under the pointer
     await page.locator('#dd').hover();
     await expect(page.locator('#tip')).toHaveText('Days with every task done');

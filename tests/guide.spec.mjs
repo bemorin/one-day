@@ -455,13 +455,17 @@ test.describe('the app links to the guide', () => {
   });
   test.describe('on a phone', () => {
     test.use(PHONE);
-    test('from More', async ({ page, context }) => {
+    test('from More, in the same window, so the back button returns to the app', async ({ page }) => {
       await app(page);
       await page.locator('#mbMore').tap();
       const link = page.locator('#more .slinks a', { hasText: 'Guide' });
       await expect(link).toBeVisible();
-      const [tab] = await Promise.all([context.waitForEvent('page'), link.tap()]);
-      await expect(tab.locator('h1')).toHaveText('How to use One Day');
+      await expect(link).not.toHaveAttribute('target', /.+/);
+      await link.tap();
+      await expect(page.locator('h1')).toHaveText('How to use One Day');
+      await page.goBack();
+      await expect(page.locator('#app')).toBeVisible();
+      expect(new URL(page.url()).pathname).toBe('/');
     });
   });
   test('and the guide leads back to the app', async ({ page }) => {

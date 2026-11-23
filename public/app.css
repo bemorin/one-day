@@ -468,11 +468,10 @@ header {
 .sp.wclock.alt .dd {
   visibility: visible;
 }
-/* narrower, the count sits in the middle of the room between the chevrons and the buttons, like the time */
-@media (max-width: 719px), (max-height: 559px) {
-  .bar.today .sp .dd {
-    transform: translateX(calc(var(--tw, 0px) / -2));
-  }
+/* the count sits in the middle of the room between the chevrons and the buttons, like the time: "Today" keeps its
+   place while it is hidden, so on today the count moves back by half of it */
+.bar.today .sp .dd {
+  transform: translateX(calc(var(--tw, 0px) / -2));
 }
 /* short of room: the tick and the number; shorter still, nothing */
 @container (max-width: 119.98px) {
