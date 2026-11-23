@@ -391,7 +391,7 @@ try {
     IDX = null,
     TAGC = null,
     FX = null; // the tag the day is filtered by, if any (see "filter by tag")
-  // the days done (see "days done"): the count on screen, and whether a day being sealed holds it for its moment
+  // the full days (see "full days"): the count on screen, and whether a day being sealed holds it for its moment
   let DDC = null,
     DDHOLD = 0,
     DDREADY = false,
@@ -976,8 +976,8 @@ try {
         duration: POP.dur,
         delay: 120,
       });
-    // a sealed day keeps its rows still while the ticks answer; the last one goes down after
-    resortSoon(seals && !RM.matches ? 1500 : t.done ? 560 : 260);
+    // a sealed day takes its new order while the check's scrim hides the list
+    resortSoon(seals && !RM.matches ? 1000 : t.done ? 560 : 260);
   }
   function removeTask(id, how) {
     const k = cur,
@@ -6945,6 +6945,9 @@ try {
     hideFmt();
     hideLb();
     hideSug();
+    // a day being sealed ends here: its animations belong to this page, and its count is told at once, without a roll
+    stopSeal();
+    if (DDREADY && doneDays() !== DDC) ddSet(doneDays(), 0);
     // The card's place in the page is kept while it floats, so it comes back there: under the time and the
     // pills, above the footer, whatever the page holds around it.
     const spot = document.createComment('app');
@@ -7006,8 +7009,7 @@ try {
   function settle() {
     stopSeal();
     if (app.getAnimations) for (const a of app.getAnimations({ subtree: true })) a.cancel();
-    app.querySelectorAll('.ghost,.exit,.dg .out,.dg .reel,.rule .sheen').forEach(n => n.remove());
-    app.querySelectorAll('.dg.spin').forEach(n => n.classList.remove('spin'));
+    app.querySelectorAll('.ghost,.exit,.dg .out,.sl,.rule .sheen').forEach(n => n.remove());
   }
   function repaint() {
     settle();
@@ -7646,7 +7648,7 @@ try {
     if (pip && (BAR.scrollWidth > BAR.clientWidth + 1 || midCramped())) BAR.classList.add('pipnarrow');
     syncKb();
   }
-  // What sits in the middle keeps its place too: when the time, or the days done (at least their tick and number), do
+  // What sits in the middle keeps its place too: when the time, or the full days (at least their tick and number), do
   // not fit there, the buttons on the right make room the same way.
   function midCramped() {
     if (!BSP) return false;
@@ -7775,7 +7777,7 @@ try {
     if (!CLK) return;
     const now = new Date(),
       s = CLF.format(now),
-      // every ten minutes, the days done take the time's place for a moment, instead of its digits rolling
+      // every ten minutes, the full days take the time's place for a moment, instead of its digits rolling
       peek = d && now.getMinutes() % 10 === 0 && ddCan();
     roll(CLK, s, peek ? 0 : d);
     CLK.parentElement.setAttribute('aria-label', 'Time: ' + s);
@@ -7787,7 +7789,7 @@ try {
     setInterval(() => clockTick(1), 60e3);
   }, 60e3 - (Date.now() % 60e3) + 30);
 
-  /* days done: the days that had tasks and saw every one of them ticked, today and before. They are counted from the
+  /* full days: the days that had tasks and saw every one of them ticked, today and before. They are counted from the
      tasks themselves, so nothing new is kept, and a day missed takes nothing away: the count never starts again. It
      sits in the middle of the bar. Where the time sits there (a narrower window), it takes the time's place for five
      seconds: on opening, when it counts one more, and every ten minutes. */
@@ -7819,7 +7821,7 @@ try {
   function ddSet(n, d) {
     const was = $.dd.hidden,
       prev = DDC,
-      words = n === 1 ? 'day done' : 'days done';
+      words = n === 1 ? 'full day' : 'full days';
     DDC = n;
     // said in the bar's order whatever shows there (the time, or not enough room)
     $.ddsr.textContent = n ? `${n} ${words}` : '';
@@ -7864,113 +7866,232 @@ try {
     ddT = later(() => ddSwap(false), 5000);
     if (after) was || RM.matches ? after() : later(after, 420);
   }
-  // one more, said in red for a moment
-  function ddHot() {
+  // one more, said in red for a moment (in black for a day before: red is today's)
+  function ddHot(red) {
     $.dd.classList.add('hot');
+    $.dd.classList.toggle('ink', !red);
     later(() => $.dd.classList.remove('hot'), 1400);
     an($.ddv.querySelector('.ddi'), [{ transform: 'scale(.4)' }, { transform: 'none' }], { easing: POP.ease, duration: POP.dur });
   }
 
-  /* a day sealed: its last task ticked. The rule, full, catches a light and swells; the ticks answer one after
-     another from the last one; the date turns a full round like a counter and lands on itself; then the days done
-     count one more. Once, when the last task is ticked: a reload, an undo or a redo only change the count. Without
-     motion, the count changes at once, in red for a moment. No sound. */
+  /* A day sealed: its last task ticked. That task's circle lifts off as a disc, grows into the middle of the day and
+     draws a big check, light bursting round it; under it the full days count one more. Then the check, the number and
+     its words fold into the count in the bar, each into its own place, and a light runs along the full rule. Once,
+     when the last task is ticked: a reload, an undo or a redo only change the count. Without motion, the check and the
+     count simply show for a moment, and the count in the bar changes at once, in red. No sound. */
   let dayShow = null;
   function stopSeal() {
     if (!dayShow) return;
-    dayShow.t.forEach(stop);
-    dayShow.a.forEach(a => a && a.cancel());
+    const s = dayShow;
     dayShow = null;
+    s.t.forEach(stop);
+    s.a.forEach(a => a && a.cancel());
+    if (s.el) s.el.remove();
+    $.dd.classList.remove('landing');
+    // the time it rolled away comes back
+    if (s.alt) ddSwap(false);
     DDHOLD = 0;
   }
+  const SL = {
+    lift: 60, // the disc leaves the ticked circle
+    fly: 640, // and grows into the middle, on a spring
+    land: 480, // when it is there, near enough: the check draws, the light bursts
+    fold: 1850, // the check and the count fold into the bar
+    folds: 620,
+  };
   function sealDay(li) {
     const rm = RM.matches,
-      s = (dayShow = { t: [], a: [] }),
+      red = cur === todayKey(),
+      prev = DDC || 0,
+      n = doneDays(),
+      words = n === 1 ? 'full day' : 'full days',
+      s = (dayShow = { t: [], a: [], el: null }),
       keep = a => (a && s.a.push(a), a),
-      end = (a, fn) => (a ? (a.onfinish = a.oncancel = fn) : fn());
-    if (!rm) {
-      const r = q('.rule'),
-        sh = D().createElement('span');
-      sh.className = 'sheen';
-      r.append(sh);
-      end(
-        keep(an(sh, [{ transform: 'translateX(-100%)' }, { transform: 'translateX(250%)' }], { delay: 360, duration: 950, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'backwards' })),
-        () => sh.remove(),
-      );
-      keep(an(r, [{ transform: 'none' }, { transform: 'scaleY(1.8)', offset: 0.3 }, { transform: 'none' }], { delay: 380, duration: 800, easing: 'cubic-bezier(.3,0,.2,1)' }));
-      wave(li, 90, keep, end);
-      spin(480, keep, end);
+      at = (fn, ms) => s.t.push(later(fn, ms));
+    $.ddlive.textContent = `${red ? 'Today' : WD.format(fromKey(cur))}, all done. ${n} ${words}.`;
+    later(() => ($.ddlive.textContent = ''), 7000);
+    // where it all goes, in the card's own coordinates: the middle of what lies under the bar
+    const A = app.getBoundingClientRect(),
+      bar = BAR.getBoundingClientRect(),
+      mb = $.mbar.getBoundingClientRect(),
+      top = bar.bottom - A.top,
+      bottom = (mb.height ? mb.top : Math.min(A.bottom, W().innerHeight)) - A.top,
+      w = A.width,
+      dia = Math.round(Math.max(64, Math.min(124, w * 0.3, (bottom - top) * 0.38))),
+      fs = Math.round(dia * 0.4),
+      tall = dia + 16 + fs + 6 + 20,
+      cx = w / 2,
+      cy = top + Math.max(dia / 2 + 8, (bottom - top - tall) / 2 + dia / 2);
+    const ov = D_('div', 'sl' + (red ? ' red' : '') + (rm ? ' still' : ''));
+    // its parts, placed through the style object: the page allows no style written in its markup
+    ov.innerHTML =
+      '<div class="sl-s"></div>' +
+      (rm ? '' : `<div class="sl-ring"></div><div class="sl-rays">${'<b><i></i></b>'.repeat(12)}</div>`) +
+      '<div class="sl-p sl-d"><div class="sl-y"><svg viewBox="0 0 100 100"><circle class="b" cx="50" cy="50" r="50"/>' +
+      '<circle class="r" cx="50" cy="50" r="50"/><path pathLength="1" d="M28.6 52.1 43.1 66.6 71.4 35.5"/></svg></div></div>' +
+      '<div class="sl-p sl-n"><div class="sl-y"><span class="sl-num"></span></div></div>' +
+      `<div class="sl-p sl-w"><div class="sl-y"><span>${words}</span></div></div>`;
+    const put = (sel, st) => {
+      const e = ov.querySelector(sel);
+      if (e) for (const k in st) e.style[k] = typeof st[k] === 'number' ? st[k] + 'px' : st[k];
+    };
+    put('.sl-s', { top, height: Math.max(0, bottom - top) });
+    for (const sel of ['.sl-ring', '.sl-d']) put(sel, { left: cx - dia / 2, top: cy - dia / 2, width: dia, height: dia });
+    put('.sl-rays', { left: cx, top: cy });
+    ov.querySelectorAll('.sl-rays b').forEach((b, i) => (b.style.transform = `rotate(${i * 30}deg)`));
+    put('.sl-n', { top: cy + dia / 2 + 16, fontSize: fs });
+    put('.sl-w', { top: cy + dia / 2 + 16 + fs + 6 });
+    ov.setAttribute('aria-hidden', 'true');
+    app.append(ov);
+    s.el = ov;
+    const part = c => ov.querySelector('.sl-' + c),
+      inner = c => part(c).firstElementChild,
+      num = ov.querySelector('.sl-num');
+    roll(num, String(prev && !rm ? prev : n), 0);
+    // without motion: the check and the count show together for a moment, and the bar's count changes at once
+    if (rm) {
+      ddSet(n, 0);
+      ddHot(red);
+      if (clockShows()) ddPeek();
+      const show = keep(an(ov, [{ opacity: 0 }, { opacity: 1 }], { duration: 160, fill: 'backwards' }));
+      at(() => {
+        const a = keep(an(ov, [{ opacity: 1 }, { opacity: 0 }], { duration: 160, fill: 'forwards' }));
+        then(a, () => stopSeal());
+      }, 1500);
+      return show;
     }
-    s.t.push(
-      later(
-        () => {
-          dayShow = null;
-          DDHOLD = Math.max(0, DDHOLD - 1);
-          const n = doneDays();
-          if (n === DDC) return;
-          const up = () => {
-            ddSet(n, 1);
-            ddHot();
-          };
-          if (!clockShows()) return up();
-          if (DDC) return ddPeek(up);
-          ddSet(n, 0);
-          ddPeek();
-          ddHot();
-        },
-        rm ? 0 : 1000,
+    // the scrim: the day steps back while the check is there
+    keep(an(part('s'), [{ opacity: 0 }, { opacity: 1 }], { delay: SL.lift, duration: 320, easing: 'ease-out', fill: 'backwards' }));
+    // the disc leaves the ticked circle: sideways on one curve, up and larger on a spring, so its path bends
+    const ck = li && li.querySelector('.in .ck'),
+      cb = ck ? ck.getBoundingClientRect() : null,
+      dx = cb ? cb.left + cb.width / 2 - A.left - cx : 0,
+      dy = cb ? cb.top + cb.height / 2 - A.top - cy : 40,
+      s0 = cb ? cb.width / dia : 0.2;
+    keep(an(part('d'), [{ transform: `translateX(${dx}px)` }, { transform: 'none' }], { delay: SL.lift, duration: SL.fly, easing: 'cubic-bezier(.2,.75,.25,1)', fill: 'backwards' }));
+    keep(an(inner('d'), [{ transform: `translateY(${dy}px) scale(${s0})` }, { transform: 'none' }], { delay: SL.lift, duration: SL.fly, easing: DROP.ease, fill: 'backwards' }));
+    if (red) keep(an(ov.querySelector('.sl-d .r'), [{ opacity: 0 }, { opacity: 1 }], { delay: SL.lift + 80, duration: 360, easing: 'ease-in-out', fill: 'both' }));
+    // the check draws as the disc arrives, and the disc answers it
+    keep(an(ov.querySelector('.sl-d path'), [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { delay: SL.land, duration: 300, easing: 'cubic-bezier(.65,0,.35,1)', fill: 'both' }));
+    keep(an(ov.querySelector('.sl-d svg'), [{ transform: 'none' }, { transform: 'scale(1.07)', offset: 0.4 }, { transform: 'none' }], { delay: SL.land + 220, duration: 420, easing: 'ease-in-out' }));
+    // the light bursts with it: a ring, and rays, the long ones first
+    keep(
+      an(
+        part('ring'),
+        [
+          { transform: 'scale(.92)', opacity: 0 },
+          { transform: 'none', opacity: 0.5, offset: 0.08 },
+          { transform: 'scale(1.85)', opacity: 0 },
+        ],
+        { delay: SL.land + 40, duration: 760, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'backwards' },
       ),
     );
-    const n = doneDays();
-    $.ddlive.textContent = `${cur === todayKey() ? 'Today' : WD.format(fromKey(cur))}, all done. ${n} ${n === 1 ? 'day' : 'days'} done.`;
-    later(() => ($.ddlive.textContent = ''), 7000);
-  }
-  // the ticks of the day answer the last one, the nearest first
-  function wave(li, delay, keep) {
-    const rows = [...$.list.children].filter(r => !r.classList.contains('exit')),
-      at = Math.max(0, rows.indexOf(li)),
-      vr = $.sc.getBoundingClientRect();
-    rows.forEach((r, i) => {
-      if (r === li || !r.classList.contains('done')) return;
-      const b = r.getBoundingClientRect();
-      if (b.bottom < vr.top || b.top > vr.bottom) return;
+    ov.querySelectorAll('.sl-rays i').forEach((r, i) => {
+      const long = i % 2 === 0,
+        L = dia * (long ? 0.3 : 0.2),
+        h = dia * (long ? 0.13 : 0.09);
+      r.style.height = h + 'px';
       keep(
-        an(r.querySelector('.in .ck'), [{ transform: 'none' }, { transform: 'scale(1.22)', offset: 0.35 }, { transform: 'none' }], {
-          delay: delay + Math.min(Math.abs(i - at), 12) * 60,
-          duration: 560,
-          easing: 'cubic-bezier(.3,0,.25,1)',
-        }),
+        an(
+          r,
+          [
+            { transform: `translateY(${-dia / 2 - 2 - h}px) scaleY(.4)`, opacity: 0 },
+            { transform: `translateY(${-dia / 2 - 3 - h}px) scaleY(.5)`, opacity: 1, offset: 0.06 },
+            { transform: `translateY(${-dia / 2 - 6 - h - L * 0.55}px) scaleY(1)`, opacity: 1, offset: 0.35 },
+            { transform: `translateY(${-dia / 2 - 8 - h - L}px) scaleY(.3)`, opacity: 0 },
+          ],
+          { delay: SL.land + 50 + (long ? 0 : 40), duration: 560, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'backwards' },
+        ),
       );
+    });
+    // under it, the count: it rises, then says one more
+    keep(an(inner('n'), [{ transform: 'translateY(14px)', opacity: 0 }, { transform: 'none', opacity: 1 }], { delay: SL.land + 200, fill: 'backwards' }));
+    keep(an(inner('w'), [{ transform: 'translateY(10px)', opacity: 0 }, { transform: 'none', opacity: 1 }], { delay: SL.land + 260, fill: 'backwards' }));
+    if (prev) at(() => roll(num, String(n), 1), SL.land + 560);
+    // then everything folds into the count in the bar, each part into its own place
+    at(() => fold(s, red), SL.fold);
+  }
+  function fold(s, red) {
+    const ov = s.el,
+      keep = a => (a && s.a.push(a), a);
+    if (!ov) return;
+    DDHOLD = Math.max(0, DDHOLD - 1);
+    // the count in the bar takes its new value out of sight, and where the time sits there, the time rolls away
+    $.dd.classList.add('landing');
+    const clock = clockShows();
+    ddSet(doneDays(), 0);
+    // a swap back the ten minutes' look had planned waits for the landing instead
+    if (clock) stop(ddT);
+    if (clock && !BSP.classList.contains('alt')) {
+      s.alt = true;
+      BSP.classList.add('alt');
+      keep(an(CLK, [{ transform: 'none', opacity: 1, visibility: 'visible' }, { transform: 'translateY(-140%)', opacity: 0, visibility: 'visible' }]));
+    }
+    // the day comes back as they land, not before: they never cross the date in full view
+    keep(an(ov.querySelector('.sl-s'), [{ opacity: 1 }, { opacity: 0 }], { delay: 340, duration: 320, easing: 'ease-in-out', fill: 'forwards' }));
+    const icon = $.dd.querySelector('.ddi'),
+      to = [
+        ['d', icon, 0, 0.906],
+        ['n', $.ddn, 50, 0],
+        ['w', $.ddw, 90, 0],
+      ];
+    let last = null;
+    for (const [c, el, delay, disc] of to) {
+      const p = ov.querySelector('.sl-' + c),
+        y = p.firstElementChild,
+        b = (c === 'd' ? y : y.firstElementChild || y).getBoundingClientRect(),
+        t = el ? el.getBoundingClientRect() : null;
+      // no room for the count in the bar: the part just goes, where it is
+      if (!t || !t.width || !b.width) {
+        last = keep(an(y, [{ transform: 'none', opacity: 1 }, { transform: 'scale(.6)', opacity: 0 }], { delay, duration: 360, easing: 'ease-in', fill: 'forwards' }));
+        continue;
+      }
+      const sc = disc ? (t.width * disc) / b.width : t.height / b.height,
+        dx = t.left + t.width / 2 - (b.left + b.width / 2),
+        dy = t.top + t.height / 2 - (b.top + b.height / 2);
+      keep(an(p, [{ transform: 'none' }, { transform: `translateX(${dx}px)` }], { delay, duration: SL.folds, easing: 'cubic-bezier(.45,0,.2,1)', fill: 'forwards' }));
+      last = keep(
+        an(
+          y,
+          [
+            { transform: 'none', opacity: 1 },
+            { transform: `translateY(${dy * 0.82}px) scale(${1 + (sc - 1) * 0.9})`, opacity: 1, offset: 0.82 },
+            { transform: `translateY(${dy}px) scale(${sc})`, opacity: 0 },
+          ],
+          { delay, duration: SL.folds, easing: 'cubic-bezier(.6,0,.3,1)', fill: 'forwards' },
+        ),
+      );
+    }
+    // they land: the count shows again, says it in red, and a light runs along the full rule
+    s.t.push(
+      later(() => {
+        $.dd.classList.remove('landing');
+        ddHot(red);
+        sheen();
+        if (clockShows()) {
+          stop(ddT);
+          ddT = later(() => ddSwap(false), 5000);
+        }
+      }, 90 + SL.folds * 0.86),
+    );
+    then(last, () => {
+      if (dayShow === s) dayShow = null;
+      ov.remove();
     });
   }
-  // the date turns once round, like a counter, the units twice as fast, and lands where it was
-  function spin(delay, keep, end) {
-    const dgs = [...$.num.children].filter(n => n.classList.contains('dg'));
-    dgs.forEach((dg, i) => {
-      const d = parseInt(dg.firstElementChild && dg.firstElementChild.textContent, 10);
-      if (isNaN(d)) return;
-      const k = dgs.length - 1 - i,
-        steps = k ? 10 : 20,
-        reel = D().createElement('span');
-      reel.className = 'reel';
-      reel.innerHTML = Array.from({ length: steps + 1 }, (_, j) => `<i>${(d + j) % 10}</i>`).join('');
-      dg.append(reel);
-      dg.classList.add('spin');
-      end(
-        keep(
-          an(reel, [{ transform: 'none' }, { transform: `translateY(${((-100 * steps) / (steps + 1)).toFixed(4)}%)` }], {
-            delay: delay + k * 120,
-            duration: 1300 + k * 120,
-            easing: SP.ease,
-            fill: 'backwards',
-          }),
-        ),
-        () => {
-          reel.remove();
-          dg.classList.remove('spin');
-        },
-      );
-    });
+  // a light runs along the full rule
+  function sheen() {
+    if (RM.matches) return;
+    const r = q('.rule'),
+      sh = D_('span', 'sheen');
+    r.append(sh);
+    then(an(sh, [{ transform: 'translateX(-100%)' }, { transform: 'translateX(250%)' }], { duration: 950, easing: 'cubic-bezier(.4,0,.2,1)' }), () => sh.remove());
+  }
+  // an element of the document the app is in, with its class
+  function D_(tag, cls) {
+    const e = D().createElement(tag);
+    e.className = cls;
+    return e;
   }
   PHONE.addEventListener('change', ddPlace);
   // back after ten minutes or more: like opening it
@@ -8672,7 +8793,7 @@ try {
     home.classList.add('shown');
     calm(2000);
     sheet.init();
-    // where the time sits in the bar, the days done take its place once the day has come in
+    // where the time sits in the bar, the full days take its place once the day has come in
     later(ddPeek, RM.matches ? 1200 : 2600);
     if (RM.matches) return;
     if (!$.dd.hidden && !BSP.classList.contains('wclock')) ddIn(260);

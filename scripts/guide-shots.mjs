@@ -44,7 +44,7 @@ const day = () => [
   { id: 'parcel', text: 'Pick up the parcel', done: false },
   { id: 'run', text: 'Morning run', done: true, at: 1 },
 ];
-// Days before whose tasks were all ticked: the bar counts them (days done), twelve of them.
+// Days before whose tasks were all ticked: the bar counts them (full days), twelve of them.
 const DONE = ['03-27', '03-30', '03-31', '04-01', '04-02', '04-03', '04-06', '04-07', '04-08', '04-09', '04-11', '04-12'];
 const data = ({ leftovers = false, done = false } = {}) => ({
   days: {
@@ -62,11 +62,15 @@ const data = ({ leftovers = false, done = false } = {}) => ({
       },
     }),
     // with done, every task of the day is ticked, the plants' repeat too (it falls on Tuesdays): the day is done, and
-    // counted
+    // counted; with done 'last', all but the parcel, which a shot then ticks
     [TODAY]: {
       u: 1,
       tasks: done
-        ? [...day(), { id: 'water-20260414', text: 'Water the plants #home', rule: 'water' }].map((t, i) => ({ ...t, done: true, at: i + 1 }))
+        ? [...day(), { id: 'water-20260414', text: 'Water the plants #home', rule: 'water' }].map((t, i) => ({
+            ...t,
+            done: done !== 'last' || t.id !== 'parcel',
+            ...((done !== 'last' || t.id !== 'parcel') && { at: i + 1 }),
+          }))
         : day(),
     },
     [NEXT]: {
@@ -127,6 +131,16 @@ const SHOTS = [
     data: { leftovers: true },
     from: '.date',
     keep: ['#carry', '#list .row:nth-child(2)'],
+  },
+  {
+    // the last task ticked: the check over the day and the count it adds to (held still, as without motion)
+    name: 'seal',
+    data: { done: 'last' },
+    act: async page => {
+      await row(page, 'Pick up the parcel').locator('.in .ck').click();
+      await page.locator('.sl').waitFor();
+    },
+    keep: ['#topbar', '#app'],
   },
   {
     name: 'done',
