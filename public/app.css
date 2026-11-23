@@ -2827,6 +2827,15 @@ mark {
 .bar.grouped #lockb {
   display: none;
 }
+/* in the floating window: its own close button brings the card back, so no button for that; and when the bar runs
+   out of room, the timer stays and the rest waits behind ⋮, in the drawer */
+#app.inpip #float,
+.bar.pipnarrow #sb,
+.bar.pipnarrow #sendd,
+.bar.pipnarrow #theme,
+.bar.pipnarrow #lockb {
+  display: none;
+}
 .pop.kpop {
   left: auto;
   width: min(250px, calc(100% - 2 * var(--pad)));

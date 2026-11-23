@@ -617,6 +617,7 @@ try {
 
   /* rows */
   const IC = {
+    search: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7.25" cy="7.25" r="4.5"/><path d="m10.6 10.6 3.15 3.15"/></svg>',
     tick: '<svg viewBox="0 0 12 12"><path d="M2.6 6.3 5 8.6l4.4-5"/></svg>',
     mv: '<svg viewBox="0 0 20 20"><path d="M4 10h11.5M11 5.5l4.5 4.5-4.5 4.5"/></svg>',
     rm: '<svg viewBox="0 0 20 20"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg>',
@@ -6377,8 +6378,16 @@ try {
     const f = document.getElementById('foot'),
       promo = f && f.querySelector('.promo'),
       kofi = f && f.querySelector('.kofi'),
-      links = f ? [...f.querySelectorAll('nav a')].map(x => x.cloneNode(true).outerHTML).join('') : '';
+      links = f ? [...f.querySelectorAll('nav a')].map(x => x.cloneNode(true).outerHTML).join('') : '',
+      // in a narrow floating window, what the bar let go of comes first
+      held = pipNarrow(),
+      dark = themeNow() === 'dark';
     $.moreList.innerHTML =
+      (held
+        ? `<div class="sbk"><button type="button" class="sbk-b" data-act="search">${IC.search}<span>Search</span></button>` +
+          `<button type="button" class="sbk-b" data-act="send">${IC.send}<span>Send this day</span></button></div>` +
+          `<div class="sbk"><button type="button" class="sbk-b" data-act="theme">${dark ? IC.sun : IC.moon}<span>${dark ? 'Light mode' : 'Dark mode'}</span></button></div>`
+        : '') +
       (insHow() ? `<button type="button" class="sins" data-act="install">${IC.install}<span>Install One Day</span></button>` : '') +
       `<div class="sbk"><button type="button" class="sbk-b" data-act="import">${IC.up}<span>Import backup</span></button>` +
       `<button type="button" class="sbk-b" data-act="export">${IC.down}<span>${canTop ? 'Export backup' : 'Copy backup'}</span></button></div>` +
@@ -6395,6 +6404,7 @@ try {
     guard('more', () => closeMore());
     syncScrim();
     $.mbMore.setAttribute('aria-expanded', 'true');
+    if (held) $.kb.setAttribute('aria-expanded', 'true');
     const first = $.moreList.querySelector('button');
     if (first) first.focus({ preventScroll: true });
   }
@@ -6402,8 +6412,11 @@ try {
     if (!moreOpen) return;
     moreOpen = false;
     unguard('more');
+    // back to the button that opened it, unless what was chosen takes the focus next
+    if (pipNarrow() && $.more.contains(D().activeElement)) $.kb.focus({ preventScroll: true });
     sheetOut($.more, from);
     $.mbMore.setAttribute('aria-expanded', 'false');
+    $.kb.setAttribute('aria-expanded', 'false');
     syncScrim();
   }
   $.moreList.onclick = e => {
@@ -6925,6 +6938,11 @@ try {
     pd.body.append(app);
     document.body.classList.add('floating');
     setFloatUI(true);
+    // in there, the window's own close button brings the card back; the bar keeps what fits as the window changes
+    app.classList.add('inpip');
+    const fitRo = new pip.ResizeObserver(() => pipFit());
+    [BAR, $.tmb, $.todayb].forEach(n => n && fitRo.observe(n));
+    pipFit();
     pip.addEventListener('keydown', onKey);
     bindDoc(pd);
     tmLoop();
@@ -6945,6 +6963,15 @@ try {
         stop(resortT);
         stop(noteT);
         settle();
+        fitRo.disconnect();
+        // the drawer stays in the floating window: shut at once, not on the page
+        if (moreOpen) {
+          closeMore();
+          $.more.getAnimations().forEach(x => x.finish());
+        }
+        app.classList.remove('inpip');
+        if (BAR) BAR.classList.remove('pipnarrow');
+        syncKb();
         if (spot.parentNode) spot.replaceWith(app);
         else {
           const top = home.querySelector('#topbar');
@@ -7586,8 +7613,29 @@ try {
     if (IPILL) IPILL.hidden = !how || !big || !insLater;
     if (TOPB) TOPB.classList.toggle('offer', !!INS && !INS.hidden);
     if (BAR) BAR.classList.toggle('grouped', grouped);
-    $.kb.hidden = !grouped;
+    syncKb();
     if (!grouped && $.kpop.classList.contains('on')) closePops();
+  }
+  /* In the floating window the bar keeps what fits. When the buttons on the right stop fitting, the timer stays and the
+     rest waits behind ⋮, in the drawer. It is measured with everything showing, so the answer never flickers. */
+  function pipNarrow() {
+    return !!BAR && BAR.classList.contains('pipnarrow');
+  }
+  function pipFit() {
+    if (!BAR) return;
+    BAR.classList.remove('pipnarrow');
+    if (pip && BAR.scrollWidth > BAR.clientWidth + 1) BAR.classList.add('pipnarrow');
+    syncKb();
+  }
+  // ⋮ is the drawer in a narrow floating window, and the install, theme and lock menu where those are grouped
+  function syncKb() {
+    const held = pipNarrow(),
+      label = held ? 'More' : 'Install, theme and lock';
+    $.kb.hidden = !held && !(BAR && BAR.classList.contains('grouped'));
+    $.kb.dataset.tip = label;
+    $.kb.setAttribute('aria-label', label);
+    $.kb.setAttribute('aria-haspopup', held ? 'dialog' : 'menu');
+    $.kb.setAttribute('aria-controls', held ? 'more' : 'kpop');
   }
   async function install() {
     const how = insHow();
@@ -7658,7 +7706,10 @@ try {
     hideTip(0);
     $.kpop.querySelector('.kit').focus({ preventScroll: true });
   }
-  $.kb.onclick = () => ($.kpop.classList.contains('on') ? closePops() : openKmenu());
+  $.kb.onclick = () => {
+    if (pipNarrow()) moreOpen ? closeMore() : openMore();
+    else $.kpop.classList.contains('on') ? closePops() : openKmenu();
+  };
   $.kpop.onclick = e => {
     const b = e.target.closest('.kit');
     if (!b) return;
@@ -8175,6 +8226,9 @@ try {
     else if (a === 'bioon') openLockset('bio', lockDone);
     else if (a === 'biooff') openLockset('biooff', lockDone);
     else if (a === 'install') install();
+    else if (a === 'search') openSearch();
+    else if (a === 'send') sendDay();
+    else if (a === 'theme') toggleTheme();
   }
   if (locked) showLock();
 

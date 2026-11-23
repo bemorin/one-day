@@ -926,6 +926,61 @@ test('keep on top: the floating window is styled and follows the page theme', as
   expect(top.y + top.height).toBeLessThanOrEqual(card.y + 1);
 });
 
+test('keep on top: no button to come back inside the window, and a narrow one keeps the timer, the rest behind ⋮', async ({ page }) => {
+  await open(page);
+  await page.locator('#float').click();
+  await expect
+    .poll(() => page.evaluate(() => !!documentPictureInPicture.window?.document.getElementById('app')))
+    .toBe(true);
+  const look = () =>
+    page.evaluate(() => {
+      const w = documentPictureInPicture.window,
+        d = w.document,
+        shown = id => !d.getElementById(id).hidden && w.getComputedStyle(d.getElementById(id)).display !== 'none';
+      return {
+        narrow: d.querySelector('.bar').classList.contains('pipnarrow'),
+        float: shown('float'),
+        sb: shown('sb'),
+        sendd: shown('sendd'),
+        tmb: shown('tmb'),
+        kb: shown('kb'),
+      };
+    });
+  // the window's own close button brings the card back: no button for that in it
+  expect(await look()).toEqual({ narrow: false, float: false, sb: true, sendd: true, tmb: true, kb: false });
+  // narrower than its buttons: the timer stays, and the rest waits behind ⋮
+  await page.evaluate(() => (documentPictureInPicture.window.document.getElementById('app').style.width = '250px'));
+  await expect.poll(look).toEqual({ narrow: true, float: false, sb: false, sendd: false, tmb: true, kb: true });
+  const opened = await page.evaluate(async () => {
+    const d = documentPictureInPicture.window.document,
+      kb = d.getElementById('kb');
+    kb.click();
+    await new Promise(r => setTimeout(r, 400));
+    return {
+      label: kb.getAttribute('aria-label'),
+      expanded: kb.getAttribute('aria-expanded'),
+      drawer: !d.getElementById('more').hidden,
+      items: [...d.querySelectorAll('#moreList .sbk-b')].slice(0, 3).map(b => b.textContent.trim()),
+    };
+  });
+  expect(opened).toEqual({ label: 'More', expanded: 'true', drawer: true, items: ['Search', 'Send this day', 'Dark mode'] });
+  // what is chosen there does what its button would have done
+  await page.evaluate(() => documentPictureInPicture.window.document.querySelector('#moreList [data-act="search"]').click());
+  await expect
+    .poll(() => page.evaluate(() => documentPictureInPicture.window.document.getElementById('srch').classList.contains('on')))
+    .toBe(true);
+  // back in the tab, the bar is whole again
+  await page.evaluate(() => {
+    documentPictureInPicture.window.document.getElementById('app').style.width = '';
+    documentPictureInPicture.window.close();
+  });
+  await expect(page.locator('#home > #app')).toBeVisible();
+  await expect(page.locator('.bar')).not.toHaveClass(/pipnarrow/);
+  await expect(page.locator('#float')).toBeVisible();
+  await expect(page.locator('#sb')).toBeVisible();
+  await expect(page.locator('#kb')).toBeHidden();
+});
+
 test.describe('repeating tasks', () => {
   test('repeat every 2 days from the composer', async ({ page }) => {
     await open(page);
