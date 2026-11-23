@@ -75,7 +75,15 @@
             <button class="todayb" id="todayb" type="button" data-tip="Back to today" data-key="D">
               Today
             </button>
-            <span class="sp"></span>
+            <span class="sp"
+              ><span class="sr-only" id="ddsr"></span
+              ><span class="dd" id="dd" data-tip="Days with every task done" hidden
+                ><span class="ddv" id="ddv" aria-hidden="true"
+                  ><svg class="ddi" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7.25" /><path d="m4.9 8.3 2.1 2.1 4.1-4.5" /></svg
+                  ><span class="ddn" id="ddn"></span><span class="ddw" id="ddw">days done</span></span
+                ></span
+              ></span
+            >
             <button class="ib" id="sb" type="button" data-tip="Search" data-key="/" aria-label="Search">
               <svg viewBox="0 0 20 20">
                 <circle cx="9" cy="9" r="5.5" />
@@ -475,6 +483,7 @@
         <div class="toast" id="toast" role="status" aria-live="polite">
           <span id="toastTxt"></span><button id="undo" type="button">Undo</button>
         </div>
+        <p class="sr-only" id="ddlive" role="status"></p>
         <div class="tip" id="tip" role="tooltip"></div>
         <div class="fmt" id="fmt" role="toolbar" aria-label="Text format">
           <button type="button" data-c="bold" data-tip="Bold" data-key="⌘B" aria-label="Bold">

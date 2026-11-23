@@ -2826,6 +2826,280 @@ test.describe("the device's back", () => {
   });
 });
 
+// Days done: the days, today and before, that had tasks and saw every one of them ticked. Three before today (one of
+// them yesterday), one before with a task left open, an empty one, one ahead done early, and today with one task left.
+const doneSeed = () => {
+  const k = n => key(plus(n));
+  return {
+    days: {
+      [k(-9)]: { u: 1, tasks: [{ id: 'd1', text: 'Done long ago', done: true, at: 1 }] },
+      [k(-5)]: {
+        u: 1,
+        tasks: [
+          { id: 'd2', text: 'Done too', done: true, at: 1 },
+          { id: 'd3', text: 'And this', done: true, at: 2 },
+        ],
+      },
+      [k(-3)]: {
+        u: 1,
+        tasks: [
+          { id: 'd4', text: 'Left open', done: false },
+          { id: 'd5', text: 'Done that day', done: true, at: 1 },
+        ],
+      },
+      [k(-2)]: { u: 1, tasks: [] },
+      [k(-1)]: { u: 1, tasks: [{ id: 'd6', text: 'Done yesterday', done: true, at: 1 }] },
+      [k(2)]: { u: 1, tasks: [{ id: 'd7', text: 'Ahead, done early', done: true, at: 1 }] },
+      [today()]: {
+        u: 1,
+        tasks: [
+          { id: 't1', text: 'Last one', done: false },
+          { id: 't2', text: 'Done this morning', done: true, at: 1 },
+        ],
+      },
+    },
+    rules: {},
+  };
+};
+async function openDone(page, { motion = 'reduce' } = {}) {
+  await page.emulateMedia({ reducedMotion: motion });
+  await page.addInitScript(data => {
+    if (!localStorage.getItem('oneday.v1')) localStorage.setItem('oneday.v1', JSON.stringify(data));
+  }, doneSeed());
+  await page.goto('/');
+  await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
+}
+const SHOW = '#num .reel, #num .spin, .rule .sheen';
+// the known day, with yesterday's tasks all ticked
+async function yesterdayDone(page) {
+  await page.evaluate(k => {
+    const v = JSON.parse(localStorage.getItem('oneday.v1'));
+    v.days[k] = { u: 1, tasks: [{ id: 'y1', text: 'Done yesterday', done: true, at: 1 }] };
+    localStorage.setItem('oneday.v1', JSON.stringify(v));
+  }, key(plus(-1)));
+  await page.reload();
+  await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
+  await expect(page.locator('#ddsr')).toHaveText('1 day done');
+}
+
+test.describe('days done', () => {
+  test('the days, today and before, whose tasks were all ticked: counted from the tasks, nothing new kept', async ({ page }) => {
+    await openDone(page);
+    await expect(page.locator('#ddsr')).toHaveText('3 days done');
+    await expect(page.locator('#ddn')).toHaveText('3');
+    await expect(page.locator('#ddw')).toHaveText('days done');
+    await expect(page.locator('#dd')).toBeVisible();
+    // in the middle of the bar, between the chevrons and the buttons; on a large screen, the middle of the card
+    const [n, d, s, a] = await Promise.all(['#next', '#dd', '#sb', '#app'].map(x => page.locator(x).boundingBox()));
+    expect(d.x).toBeGreaterThan(n.x + n.width);
+    expect(d.x + d.width).toBeLessThan(s.x);
+    expect(Math.abs(d.x + d.width / 2 - (a.x + a.width / 2))).toBeLessThan(2);
+    // what it counts, in words, under the pointer
+    await page.locator('#dd').hover();
+    await expect(page.locator('#tip')).toHaveText('Days with every task done');
+    // a day whose open tasks go elsewhere, or are deleted, is done too: counted quietly, without the show
+    await page.locator('#bring').click();
+    await expect(page.locator('#ddsr')).toHaveText('4 days done');
+    for (const t of ['Last one', 'Left open']) {
+      await row(page, t).hover();
+      await row(page, t).locator('.rm').click();
+      await expect(row(page, t)).toHaveCount(0);
+    }
+    await expect(page.locator('#rel')).toHaveText('Today, all done');
+    await expect(page.locator('#ddsr')).toHaveText('5 days done');
+    await expect(page.locator('#ddlive')).toHaveText('');
+    // nothing new is stored: the count comes from the tasks
+    expect(await page.evaluate(() => Object.keys(localStorage).sort())).toEqual(['oneday.v1']);
+  });
+
+  test('ticking the last task seals the day: the date turns once round, a light runs along the rule, the count says one more', async ({ page }) => {
+    await openDone(page, { motion: 'no-preference' });
+    await expect(page.locator('#ddsr')).toHaveText('3 days done');
+    await row(page, 'Last one').locator('.in .ck').click();
+    // each digit of the date on a reel, and the rule's light
+    await expect(page.locator('#num .reel').first()).toBeAttached();
+    await expect(page.locator('.rule .sheen')).toBeAttached();
+    await expect(page.locator('#ddlive')).toHaveText('Today, all done. 4 days done.');
+    // the count waits for its moment, then says one more, in red for a moment
+    await expect(page.locator('#ddsr')).toHaveText('4 days done');
+    await expect(page.locator('#dd')).toHaveClass(/\bhot\b/);
+    // nothing is left behind, and the date is where it was
+    await expect(page.locator(SHOW)).toHaveCount(0, { timeout: 4000 });
+    await expect(page.locator('#num')).toHaveText(String(new Date().getDate()));
+    await expect(page.locator('#dd')).not.toHaveClass(/\bhot\b/);
+    await expect(page.locator('#ddn')).toHaveText('4');
+    // undone, the day leaves the count; ticked again, it is sealed again; unticked, it leaves again
+    await page.keyboard.press('Control+z');
+    await expect(page.locator('#ddsr')).toHaveText('3 days done');
+    await expect(page.locator('#ddn')).toHaveText('3');
+    await row(page, 'Last one').locator('.in .ck').click();
+    await expect(page.locator('#num .reel').first()).toBeAttached();
+    await expect(page.locator('#ddsr')).toHaveText('4 days done');
+    await row(page, 'Last one').locator('.in .ck').click();
+    await expect(page.locator('#ddsr')).toHaveText('3 days done');
+    await expect(page.locator(SHOW)).toHaveCount(0, { timeout: 4000 });
+  });
+
+  test('unticked during the show, the day is not counted and the show stops', async ({ page }) => {
+    await openDone(page, { motion: 'no-preference' });
+    await row(page, 'Last one').locator('.in .ck').click();
+    await expect(page.locator('#num .reel').first()).toBeAttached();
+    await row(page, 'Last one').locator('.in .ck').click();
+    await expect(page.locator(SHOW)).toHaveCount(0);
+    await page.waitForTimeout(1300);
+    await expect(page.locator('#ddsr')).toHaveText('3 days done');
+    await expect(page.locator('#num')).toHaveText(String(new Date().getDate()));
+  });
+
+  test('a sealed day is not sealed again on reload; a day ahead neither counts nor is sealed', async ({ page }) => {
+    await openDone(page, { motion: 'no-preference' });
+    await row(page, 'Last one').locator('.in .ck').click();
+    await expect(page.locator('#ddsr')).toHaveText('4 days done');
+    await page.reload();
+    await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
+    await expect(page.locator('#ddsr')).toHaveText('4 days done');
+    await page.waitForTimeout(400);
+    await expect(page.locator(SHOW)).toHaveCount(0);
+    await expect(page.locator('#ddlive')).toHaveText('');
+    // tomorrow, its only task ticked
+    await page.keyboard.press('ArrowRight');
+    await expect(page.locator('#rel')).toHaveText(/^Tomorrow/);
+    await page.locator('#input').fill('Early start');
+    await page.locator('#input').press('Enter');
+    await row(page, 'Early start').locator('.in .ck').click();
+    await expect(page.locator('#rel')).toHaveText('Tomorrow, all done');
+    await page.waitForTimeout(400);
+    await expect(page.locator(SHOW)).toHaveCount(0);
+    await expect(page.locator('#ddsr')).toHaveText('4 days done');
+  });
+
+  test('a day before, sealed when its last task is ticked, counts too', async ({ page }) => {
+    await openDone(page);
+    for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowLeft');
+    await expect(page.locator('#rel')).toHaveText('3 days ago, 1 of 2 done');
+    await row(page, 'Left open').locator('.in .ck').click();
+    await expect(page.locator('#ddsr')).toHaveText('4 days done');
+    await expect(page.locator('#ddlive')).toContainText(', all done. 4 days done.');
+  });
+
+  test('without motion: no show; the count changes at once and says it in red for a moment', async ({ page }) => {
+    await openDone(page);
+    await row(page, 'Last one').locator('.in .ck').click();
+    await expect(page.locator('#ddsr')).toHaveText('4 days done');
+    await expect(page.locator('#dd')).toHaveClass(/\bhot\b/);
+    await expect(page.locator(SHOW)).toHaveCount(0);
+    await expect(page.locator('#ddlive')).toHaveText('Today, all done. 4 days done.');
+    await expect(page.locator('#dd')).not.toHaveClass(/\bhot\b/, { timeout: 3000 });
+  });
+
+  test('with no day done yet, the bar keeps its middle empty; the first one comes in', async ({ page }) => {
+    await open(page);
+    await expect(page.locator('#dd')).toBeHidden();
+    await row(page, 'Write the report').locator('.in .ck').click();
+    await row(page, 'Plan the trip').locator('.in .ck').click();
+    await expect(page.locator('#dd')).toBeVisible();
+    await expect(page.locator('#ddsr')).toHaveText('1 day done');
+    await expect(page.locator('#ddw')).toHaveText('day done');
+  });
+
+  test.describe('in a narrower window', () => {
+    test.use({ viewport: { width: 640, height: 800 } });
+    test('the count takes the time’s place for five seconds: on opening, every ten minutes, when it counts one more', async ({ page }) => {
+      await page.clock.install({ time: new Date(`${today()}T10:08:30`) });
+      await openDone(page);
+      const sp = page.locator('.bar .sp');
+      await expect(sp).toHaveClass(/\bwclock\b/);
+      await expect(page.locator('#dd')).toBeHidden();
+      // on opening, once the day has come in
+      await expect(sp).toHaveClass(/\balt\b/, { timeout: 5000 });
+      await expect(page.locator('#dd')).toBeVisible();
+      await expect(page.locator('#clock')).toBeHidden();
+      // just where the time is
+      const [c, d] = await Promise.all(['#clock', '#dd'].map(x => page.locator(x).boundingBox()));
+      expect(Math.abs(c.x + c.width / 2 - (d.x + d.width / 2))).toBeLessThan(2);
+      expect(Math.abs(c.y + c.height / 2 - (d.y + d.height / 2))).toBeLessThan(2);
+      await page.clock.runFor(5200);
+      await expect(sp).not.toHaveClass(/\balt\b/);
+      await expect(page.locator('#clock')).toBeVisible();
+      await expect(page.locator('#dd')).toBeHidden();
+      // at ten past ten
+      const toTen = await page.evaluate(() => {
+        const n = new Date();
+        return Math.max(0, (10 * 60 + 10) * 60e3 + 1000 - ((n.getHours() * 60 + n.getMinutes()) * 60e3 + n.getSeconds() * 1000 + n.getMilliseconds()));
+      });
+      await page.clock.runFor(toTen);
+      await expect(sp).toHaveClass(/\balt\b/);
+      await expect(page.locator('#clock')).toHaveAttribute('aria-label', /^Time: 10:10/);
+      await page.clock.runFor(5200);
+      await expect(sp).not.toHaveClass(/\balt\b/);
+      // the last task ticked: the count comes into the time's place and says one more
+      await row(page, 'Last one').locator('.in .ck').click();
+      await expect(sp).toHaveClass(/\balt\b/);
+      await expect(page.locator('#ddsr')).toHaveText('4 days done');
+      await expect(page.locator('#ddn')).toHaveText('4');
+      await page.clock.runFor(5200);
+      await expect(sp).not.toHaveClass(/\balt\b/);
+      await expect(page.locator('#clock')).toBeVisible();
+    });
+  });
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    test('the count stays in the bar, between the chevrons and the sun: the phone shows the time itself', async ({ page }) => {
+      await openDone(page, { motion: 'no-preference' });
+      await expect(page.locator('#clock')).toBeHidden();
+      await expect(page.locator('#dd')).toBeVisible();
+      await expect(page.locator('.bar .sp')).not.toHaveClass(/\bwclock\b/);
+      const [n, d, t] = await Promise.all(['#next', '#dd', '#theme'].map(x => page.locator(x).boundingBox()));
+      expect(d.x).toBeGreaterThan(n.x + n.width);
+      expect(d.x + d.width).toBeLessThan(t.x);
+      await row(page, 'Last one').locator('.in .ck').tap();
+      await expect(page.locator('#num .reel').first()).toBeAttached();
+      await expect(page.locator('#ddsr')).toHaveText('4 days done');
+      await expect(page.locator('#dd')).toBeVisible();
+      await expect(page.locator(SHOW)).toHaveCount(0, { timeout: 4000 });
+    });
+  });
+
+  test('keep on top: the count goes with the card, and a day sealed in the floating window comes back right', async ({ page }) => {
+    await openDone(page, { motion: 'no-preference' });
+    await page.locator('#float').click();
+    const pip = fn => page.evaluate(fn);
+    await expect.poll(() => pip(() => !!documentPictureInPicture.window?.document.getElementById('dd'))).toBe(true);
+    expect(await pip(() => documentPictureInPicture.window.document.getElementById('ddsr').textContent)).toBe('3 days done');
+    // a narrow window: the buttons on the right make room for the count, as when they run out of room; the timer stays
+    await pip(() => (documentPictureInPicture.window.document.getElementById('app').style.width = '380px'));
+    await expect
+      .poll(() =>
+        pip(() => {
+          const w = documentPictureInPicture.window,
+            d = w.document,
+            box = id => d.getElementById(id).getBoundingClientRect(),
+            [n, dd, t] = ['next', 'dd', 'tmb'].map(box);
+          return {
+            narrow: d.querySelector('.bar').classList.contains('pipnarrow'),
+            shown: w.getComputedStyle(d.getElementById('dd')).display !== 'none' && dd.width > 40,
+            between: dd.left >= n.right && dd.right <= t.left,
+          };
+        }),
+      )
+      .toEqual({ narrow: true, shown: true, between: true });
+    await pip(() => documentPictureInPicture.window.document.querySelector('#list .row:not(.done) .in .ck').click());
+    await expect.poll(() => pip(() => !!documentPictureInPicture.window.document.querySelector('#num .reel'))).toBe(true);
+    await expect.poll(() => pip(() => documentPictureInPicture.window.document.getElementById('ddsr').textContent)).toBe('4 days done');
+    await page.evaluate(() => {
+      documentPictureInPicture.window.document.getElementById('app').style.width = '';
+      documentPictureInPicture.window.close();
+    });
+    await expect(page.locator('#home > #app')).toBeVisible();
+    await expect(page.locator(SHOW)).toHaveCount(0);
+    await expect(page.locator('#ddsr')).toHaveText('4 days done');
+    await expect(page.locator('#ddn')).toHaveText('4');
+    await expect(page.locator('#dd')).toBeVisible();
+    await expect(page.locator('#num')).toHaveText(String(new Date().getDate()));
+  });
+});
+
 test.describe('accessibility (axe, WCAG 2.2 AA)', () => {
   const scan = page =>
     new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
@@ -2866,6 +3140,17 @@ test.describe('accessibility (axe, WCAG 2.2 AA)', () => {
       await page.keyboard.press('Escape');
       await page.locator('#lpill').click();
       await expect(page.locator('#lock')).toBeVisible();
+    },
+    'days done, a day sealed': async page => {
+      await yesterdayDone(page);
+      for (const t of ['Write the report', 'Plan the trip']) await row(page, t).locator('.in .ck').click();
+      await expect(page.locator('#ddsr')).toHaveText('2 days done');
+      await expect(page.locator('#dd')).toHaveClass(/\bhot\b/);
+    },
+    'days done in the time’s place, narrower': async page => {
+      await page.setViewportSize({ width: 640, height: 800 });
+      await yesterdayDone(page);
+      await expect(page.locator('.bar .sp')).toHaveClass(/\balt\b/, { timeout: 5000 });
     },
     'install offer': async page => offerInstall(page),
     'install, put off': async page => {

@@ -27,6 +27,7 @@ One Day is a single-page web app with no framework, no runtime dependencies, no 
 - **Timer.** A countdown in two moods: _Calm_ (minutes, with a line that fills each minute) or _Live_ (rolling minutes and seconds).
 - **Keep on top.** Pop the app into a small window that stays above everything else (Chrome and Edge on desktop).
 - **Leftovers.** Unfinished tasks from earlier days can be brought to today in one click.
+- **Days done.** Tick the last task of a day and the day is sealed: the full rule catches the light, the date turns once round like a counter, and the number in the middle of the bar, the days whose tasks were all ticked, goes up by one. It is counted from your tasks, so nothing new is stored, and a day you miss takes nothing away: there is no streak to break. Untick or undo, and the day leaves the count. In a narrower window, where the time sits in the bar, the count takes its place for five seconds now and then. With _Reduce motion_ on, the number just changes, in red for a moment, and a screen reader hears it.
 - **Tags.** Type `#something` in a task. The filter at the right of the date shows only the tasks with one tag, and the dot beside a tag gives it a colour, worn wherever it shows.
 - **A lock, if you want one.** Search → _Protect with a passphrase_ (More on a phone) encrypts your tasks in the browser. One Day then asks for the passphrase when it opens, after five minutes away, or as soon as you press <kbd>L</kbd>. Where the device has it, fingerprint, face or the device PIN unlocks it too (setting it up asks for the passphrase).
 - **On a phone**, a bottom bar puts search, the timer, a big add button, sending the day and the rest under your thumb. The add button opens the composer as a sheet above the keyboard, and search opens as a drawer over the day. The phone's back button closes what is open (a sheet, the drawer, a popover, an open task) before it leaves the app.
@@ -113,7 +114,7 @@ Found a problem? See [SECURITY.md](SECURITY.md).
 
 One Day targets **WCAG 2.2 AA**: everything works with a keyboard (including a keyboard alternative to dragging), controls have accessible names, focus is visible and returns where it came from, text meets 4.5:1 contrast, and all motion is turned off when _Reduce motion_ is on.
 
-The test suite runs [axe-core](https://github.com/dequelabs/axe-core) on the main view, an open card, search, the timer, the day picker, incoming tasks and the import dialog, in light and dark. Automated checks cover a subset of WCAG, so testing with VoiceOver or NVDA is still worthwhile.
+The test suite runs [axe-core](https://github.com/dequelabs/axe-core) on the main view, an open card, search, the timer, the day picker, incoming tasks, the import dialog and the days done (a day just sealed, and the count in the time's place), in light and dark. Automated checks cover a subset of WCAG, so testing with VoiceOver or NVDA is still worthwhile.
 
 ## Install it as an app
 

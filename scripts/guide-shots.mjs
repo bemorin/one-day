@@ -44,8 +44,13 @@ const day = () => [
   { id: 'parcel', text: 'Pick up the parcel', done: false },
   { id: 'run', text: 'Morning run', done: true, at: 1 },
 ];
-const data = ({ leftovers = false } = {}) => ({
+// Days before whose tasks were all ticked: the bar counts them (days done), twelve of them.
+const DONE = ['03-27', '03-30', '03-31', '04-01', '04-02', '04-03', '04-06', '04-07', '04-08', '04-09', '04-11', '04-12'];
+const data = ({ leftovers = false, done = false } = {}) => ({
   days: {
+    ...Object.fromEntries(
+      DONE.map((d, i) => [`2026-${d}`, { u: 1, tasks: [{ id: 'done' + i, text: 'Answer the post', done: true, at: 1 }] }]),
+    ),
     ...(leftovers && {
       [EARLIER]: { u: 1, tasks: [{ id: 'passport', text: 'Renew the passport #travel', done: false }] },
       [BEFORE]: {
@@ -56,7 +61,8 @@ const data = ({ leftovers = false } = {}) => ({
         ],
       },
     }),
-    [TODAY]: { u: 1, tasks: day() },
+    // with done, every task of the day is ticked: the day is done, and counted
+    [TODAY]: { u: 1, tasks: done ? day().map((t, i) => ({ ...t, done: true, at: i + 1 })) : day() },
     [NEXT]: {
       u: 1,
       tasks: [
@@ -115,6 +121,11 @@ const SHOTS = [
     data: { leftovers: true },
     from: '.date',
     keep: ['#carry', '#list .row:nth-child(2)'],
+  },
+  {
+    name: 'done',
+    data: { done: true },
+    keep: ['#topbar', '.date', '#list .row:nth-child(2)'],
   },
   {
     name: 'picker',

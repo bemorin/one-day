@@ -187,11 +187,22 @@ header {
   z-index: 5;
 }
 .rule {
+  position: relative;
   height: 5px;
   border-radius: 3px;
   background: var(--line);
   overflow: hidden;
   transform-origin: left;
+}
+/* a day sealed: a light runs along the full rule */
+.rule .sheen {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.75), transparent);
+  pointer-events: none;
 }
 /* the fill is a pill too: it slides in from the left, so its round end marks how far the day has come */
 .rule i {
@@ -213,11 +224,17 @@ header {
   height: 56px;
   margin: 0 -10px;
 }
+/* the middle of the bar: the days done, and the time when it sits there, one over the other. Its width says how much
+   of the count fits. */
 .sp {
   flex: 1;
-  display: flex;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   min-width: 0;
+  container-type: inline-size;
+}
+.sp > * {
+  grid-area: 1 / 1;
 }
 /* the time, in plain words: above the card on a large screen, in the middle of the bar otherwise */
 .clock {
@@ -256,6 +273,101 @@ header {
 }
 .bar.today .sp .clock {
   transform: translateX(calc(var(--tw, 0px) / -2));
+}
+/* Days done: the days that saw every task ticked. A tick like a done task's, the number set like the date, the words
+   like the time. Where the time sits in the bar, the count waits out of sight and rolls into its place for a moment
+   (.alt); each clips what rolls in and out of it. */
+.dd {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 6px;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  color: light-dark(#3d4555, #a3adbf);
+  transition:
+    color 0.9s,
+    transform var(--sn-d) var(--snap);
+}
+.ddv {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ddi {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+.ddi circle {
+  fill: currentColor;
+}
+.ddi path {
+  fill: none;
+  stroke: var(--bg);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ddn {
+  display: flex;
+  font-size: 14px;
+  font-weight: 800;
+  font-variation-settings: 'wdth' 112;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  transition: color 0.9s;
+}
+.ddn .dg {
+  padding: 0.05em 0.04em 0;
+  margin: 0 -0.04em;
+}
+.ddn .dg .out {
+  left: 0.04em;
+}
+/* one more: said in red for a moment */
+.dd.hot,
+.dd.hot .ddn {
+  color: var(--red);
+  transition-duration: 0.15s;
+}
+.sp .clock {
+  overflow: hidden;
+  padding-block: 4px;
+}
+.sp.wclock .dd,
+.sp.wclock.alt .clock {
+  visibility: hidden;
+}
+.sp.wclock.alt .dd {
+  visibility: visible;
+}
+/* narrower, the count sits in the middle of the room between the chevrons and the buttons, like the time */
+@media (max-width: 719px), (max-height: 559px) {
+  .bar.today .sp .dd {
+    transform: translateX(calc(var(--tw, 0px) / -2));
+  }
+}
+/* short of room: the tick and the number; shorter still, nothing */
+@container (max-width: 119.98px) {
+  .ddw {
+    display: none;
+  }
+}
+@container (max-width: 55px) {
+  .dd {
+    display: none;
+  }
+}
+/* measured with what fits in the least room: the tick and the number */
+.sp.fit .dd {
+  display: inline-flex !important;
+}
+.sp.fit .ddw {
+  display: none !important;
 }
 /* a phone shows the time at the top of its screen already */
 @media (max-width: 719px) and (hover: none) {
@@ -448,6 +560,15 @@ header {
   position: absolute;
   left: 0.09em;
   top: 0.05em;
+}
+/* a day sealed: each digit of the date turns once round on a reel, and lands where it was */
+.dg .reel {
+  position: absolute;
+  left: 0.09em;
+  top: 0.05em;
+}
+.dg.spin > i {
+  visibility: hidden;
 }
 .meta {
   display: flex;

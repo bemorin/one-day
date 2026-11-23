@@ -15,7 +15,7 @@ try {
     home = document.getElementById('home'),
     q = s => app.querySelector(s),
     $ = {};
-  'num dnum meta wd mo rel prev next todayb sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inT inTitle inMeta inList inDay inDayL inNo inYes mbar mbSearch mbTimer mbTimerL mbAdd mbSend mbMore scrim more moreList theme sendd fx fbtn fname fclr fpop ftags fnone fqL fq spicks lockb kb kpop addGo'
+  'num dnum meta wd mo rel prev next todayb dd ddv ddn ddw ddsr ddlive sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inT inTitle inMeta inList inDay inDayL inNo inYes mbar mbSearch mbTimer mbTimerL mbAdd mbSend mbMore scrim more moreList theme sendd fx fbtn fname fclr fpop ftags fnone fqL fq spicks lockb kb kpop addGo'
     .split(' ')
     .forEach(id => ($[id] = q('#' + id)));
   const fill = q('.rule i'),
@@ -391,6 +391,11 @@ try {
     IDX = null,
     TAGC = null,
     FX = null; // the tag the day is filtered by, if any (see "filter by tag")
+  // the days done (see "days done"): the count on screen, and whether a day being sealed holds it for its moment
+  let DDC = null,
+    DDHOLD = 0,
+    DDREADY = false,
+    ddT = null;
   const tasks = k => (S.days[k] ? S.days[k].tasks : []),
     day = k => S.days[k] || (S.days[k] = { u: 0, tasks: [] });
   const find = id => tasks(cur).find(t => t.id === id),
@@ -451,6 +456,7 @@ try {
   }
   const record = keys => pushUndo(snap(keys));
   function applySnap(e, into) {
+    stopSeal();
     const keys = Object.keys(e.days);
     into.push({ ...snap(keys), cur: e.cur });
     const was = S.rules,
@@ -595,6 +601,7 @@ try {
             ? `, ${dn} of ${n} done`
             : `, ${n} ${n > 1 ? 'tasks' : 'task'}`);
     fill.style.transform = `translateX(${((n ? dn / n : 0) - 1) * 100}%)`;
+    ddRender();
     return { n, dn };
   }
   function renderHeader(d) {
@@ -940,6 +947,7 @@ try {
   function toggle(id) {
     const t = find(id);
     if (!t) return;
+    stopSeal();
     record([cur]);
     t.done = !t.done;
     if (t.done) t.at = Date.now();
@@ -947,6 +955,9 @@ try {
     commit(cur);
     const li = rowOf(id);
     updateRow(li, t);
+    // the last task of a day that counts (today or before): the day is sealed, and its count waits for its moment
+    const seals = t.done && cur <= todayKey() && tasks(cur).every(x => x.done);
+    if (seals) DDHOLD++;
     const { n, dn } = status();
     if (t.done)
       an(li.querySelector('.in .ck'), [{ transform: 'scale(.8)' }, { transform: 'none' }], {
@@ -958,13 +969,15 @@ try {
         easing: SP.ease,
         duration: SP.dur * 1.4,
       });
-    if (t.done && n && dn === n)
+    if (seals) sealDay(li);
+    else if (t.done && n && dn === n)
       an($.num, [{ transform: 'translateY(-7px)' }, { transform: 'none' }], {
         easing: POP.ease,
         duration: POP.dur,
         delay: 120,
       });
-    resortSoon(t.done ? 560 : 260);
+    // a sealed day keeps its rows still while the ticks answer; the last one goes down after
+    resortSoon(seals && !RM.matches ? 1500 : t.done ? 560 : 260);
   }
   function removeTask(id, how) {
     const k = cur,
@@ -6991,12 +7004,16 @@ try {
   // Animations belong to the document they started in. When the floating window closes, any that ran
   // there stop applying, so the app is redrawn from its state instead of trusting what is on screen.
   function settle() {
+    stopSeal();
     if (app.getAnimations) for (const a of app.getAnimations({ subtree: true })) a.cancel();
-    app.querySelectorAll('.ghost,.exit,.dg .out').forEach(n => n.remove());
+    app.querySelectorAll('.ghost,.exit,.dg .out,.dg .reel,.rule .sheen').forEach(n => n.remove());
+    app.querySelectorAll('.dg.spin').forEach(n => n.classList.remove('spin'));
   }
   function repaint() {
     settle();
-    for (const el of [$.num, $.tv, $.tbig, $.tpv]) delete el.dataset.v;
+    for (const el of [$.num, $.tv, $.tbig, $.tpv, $.ddn]) delete el.dataset.v;
+    DDC = null;
+    ddPlace();
     $.list.textContent = '';
     renderHeader(0);
     renderList(true);
@@ -7578,6 +7595,7 @@ try {
       BSP.append(CLOCK);
       $.lockb.before($.theme);
     }
+    ddPlace();
   }
   placeTop();
   BIG.addEventListener('change', placeTop);
@@ -7625,8 +7643,19 @@ try {
   function pipFit() {
     if (!BAR) return;
     BAR.classList.remove('pipnarrow');
-    if (pip && BAR.scrollWidth > BAR.clientWidth + 1) BAR.classList.add('pipnarrow');
+    if (pip && (BAR.scrollWidth > BAR.clientWidth + 1 || midCramped())) BAR.classList.add('pipnarrow');
     syncKb();
+  }
+  // What sits in the middle keeps its place too: when the time, or the days done (at least their tick and number), do
+  // not fit there, the buttons on the right make room the same way.
+  function midCramped() {
+    if (!BSP) return false;
+    if (clockShows()) return CLOCK.scrollWidth > BSP.clientWidth;
+    if (!DDC) return false;
+    BSP.classList.add('fit');
+    const need = $.dd.offsetWidth;
+    BSP.classList.remove('fit');
+    return need > BSP.clientWidth;
   }
   // ⋮ is the drawer in a narrow floating window, and the install, theme and lock menu where those are grouped
   function syncKb() {
@@ -7745,15 +7774,213 @@ try {
   function clockTick(d) {
     if (!CLK) return;
     const now = new Date(),
-      s = CLF.format(now);
-    roll(CLK, s, d);
+      s = CLF.format(now),
+      // every ten minutes, the days done take the time's place for a moment, instead of its digits rolling
+      peek = d && now.getMinutes() % 10 === 0 && ddCan();
+    roll(CLK, s, peek ? 0 : d);
     CLK.parentElement.setAttribute('aria-label', 'Time: ' + s);
+    if (peek) ddPeek();
   }
   clockTick(0);
   later(() => {
     clockTick(1);
     setInterval(() => clockTick(1), 60e3);
   }, 60e3 - (Date.now() % 60e3) + 30);
+
+  /* days done: the days that had tasks and saw every one of them ticked, today and before. They are counted from the
+     tasks themselves, so nothing new is kept, and a day missed takes nothing away: the count never starts again. It
+     sits in the middle of the bar. Where the time sits there (a narrower window), it takes the time's place for five
+     seconds: on opening, when it counts one more, and every ten minutes. */
+  function doneDays() {
+    const tk = todayKey();
+    let n = 0;
+    for (const k in S.days) {
+      if (k > tk) continue;
+      const t = S.days[k].tasks;
+      if (t.length && t.every(x => x.done)) n++;
+    }
+    return n;
+  }
+  // the time is in the bar, and shows (a phone shows it at the top of its screen instead)
+  function clockShows() {
+    return !!(CLOCK && BSP && CLOCK.parentElement === BSP && W().getComputedStyle(CLOCK).display !== 'none');
+  }
+  function ddPlace() {
+    if (!BSP) return;
+    stop(ddT);
+    BSP.classList.remove('alt');
+    BSP.classList.toggle('wclock', clockShows());
+  }
+  function ddRender() {
+    if (!DDREADY || DDHOLD) return;
+    const n = doneDays();
+    if (n !== DDC) ddSet(n, DDC == null ? 0 : Math.sign(n - DDC));
+  }
+  function ddSet(n, d) {
+    const was = $.dd.hidden,
+      prev = DDC,
+      words = n === 1 ? 'day done' : 'days done';
+    DDC = n;
+    // said in the bar's order whatever shows there (the time, or not enough room)
+    $.ddsr.textContent = n ? `${n} ${words}` : '';
+    if ($.ddw.textContent !== words) $.ddw.textContent = words;
+    if (!n) {
+      $.dd.hidden = true;
+      if (pip) pipFit();
+      return ddPlace();
+    }
+    $.dd.hidden = false;
+    roll($.ddn, String(n), was ? 0 : d);
+    if (was && d && !BSP.classList.contains('wclock')) ddIn(0);
+    // in the floating window, a count that comes or grows may need the bar to make room
+    if (pip && (was || String(n).length !== String(prev).length)) pipFit();
+  }
+  function ddIn(delay) {
+    an($.ddv, [{ transform: 'translateY(140%)', opacity: 0 }, { transform: 'none', opacity: 1 }], { delay, fill: 'backwards' });
+  }
+  function ddCan() {
+    return !!DDC && clockShows() && !D().hidden;
+  }
+  // in the time's place, like a digit rolling in; the time rolls back five seconds later
+  function ddSwap(on) {
+    if (BSP.classList.contains('alt') === on) return;
+    BSP.classList.toggle('alt', on);
+    const inn = on ? $.ddv : CLK,
+      out = on ? CLK : $.ddv;
+    for (const el of [inn, out]) el.getAnimations().forEach(a => a.id === 'dd' && a.cancel());
+    const a = an(out, [
+        { transform: 'none', opacity: 1, visibility: 'visible' },
+        { transform: 'translateY(-140%)', opacity: 0, visibility: 'visible' },
+      ]),
+      b = an(inn, [{ transform: 'translateY(140%)', opacity: 0 }, { transform: 'none', opacity: 1 }]);
+    if (a) a.id = 'dd';
+    if (b) b.id = 'dd';
+  }
+  function ddPeek(after) {
+    if (!ddCan()) return after && after();
+    const was = BSP.classList.contains('alt');
+    ddSwap(true);
+    stop(ddT);
+    ddT = later(() => ddSwap(false), 5000);
+    if (after) was || RM.matches ? after() : later(after, 420);
+  }
+  // one more, said in red for a moment
+  function ddHot() {
+    $.dd.classList.add('hot');
+    later(() => $.dd.classList.remove('hot'), 1400);
+    an($.ddv.querySelector('.ddi'), [{ transform: 'scale(.4)' }, { transform: 'none' }], { easing: POP.ease, duration: POP.dur });
+  }
+
+  /* a day sealed: its last task ticked. The rule, full, catches a light and swells; the ticks answer one after
+     another from the last one; the date turns a full round like a counter and lands on itself; then the days done
+     count one more. Once, when the last task is ticked: a reload, an undo or a redo only change the count. Without
+     motion, the count changes at once, in red for a moment. No sound. */
+  let dayShow = null;
+  function stopSeal() {
+    if (!dayShow) return;
+    dayShow.t.forEach(stop);
+    dayShow.a.forEach(a => a && a.cancel());
+    dayShow = null;
+    DDHOLD = 0;
+  }
+  function sealDay(li) {
+    const rm = RM.matches,
+      s = (dayShow = { t: [], a: [] }),
+      keep = a => (a && s.a.push(a), a),
+      end = (a, fn) => (a ? (a.onfinish = a.oncancel = fn) : fn());
+    if (!rm) {
+      const r = q('.rule'),
+        sh = D().createElement('span');
+      sh.className = 'sheen';
+      r.append(sh);
+      end(
+        keep(an(sh, [{ transform: 'translateX(-100%)' }, { transform: 'translateX(250%)' }], { delay: 360, duration: 950, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'backwards' })),
+        () => sh.remove(),
+      );
+      keep(an(r, [{ transform: 'none' }, { transform: 'scaleY(1.8)', offset: 0.3 }, { transform: 'none' }], { delay: 380, duration: 800, easing: 'cubic-bezier(.3,0,.2,1)' }));
+      wave(li, 90, keep, end);
+      spin(480, keep, end);
+    }
+    s.t.push(
+      later(
+        () => {
+          dayShow = null;
+          DDHOLD = Math.max(0, DDHOLD - 1);
+          const n = doneDays();
+          if (n === DDC) return;
+          const up = () => {
+            ddSet(n, 1);
+            ddHot();
+          };
+          if (!clockShows()) return up();
+          if (DDC) return ddPeek(up);
+          ddSet(n, 0);
+          ddPeek();
+          ddHot();
+        },
+        rm ? 0 : 1000,
+      ),
+    );
+    const n = doneDays();
+    $.ddlive.textContent = `${cur === todayKey() ? 'Today' : WD.format(fromKey(cur))}, all done. ${n} ${n === 1 ? 'day' : 'days'} done.`;
+    later(() => ($.ddlive.textContent = ''), 7000);
+  }
+  // the ticks of the day answer the last one, the nearest first
+  function wave(li, delay, keep) {
+    const rows = [...$.list.children].filter(r => !r.classList.contains('exit')),
+      at = Math.max(0, rows.indexOf(li)),
+      vr = $.sc.getBoundingClientRect();
+    rows.forEach((r, i) => {
+      if (r === li || !r.classList.contains('done')) return;
+      const b = r.getBoundingClientRect();
+      if (b.bottom < vr.top || b.top > vr.bottom) return;
+      keep(
+        an(r.querySelector('.in .ck'), [{ transform: 'none' }, { transform: 'scale(1.22)', offset: 0.35 }, { transform: 'none' }], {
+          delay: delay + Math.min(Math.abs(i - at), 12) * 60,
+          duration: 560,
+          easing: 'cubic-bezier(.3,0,.25,1)',
+        }),
+      );
+    });
+  }
+  // the date turns once round, like a counter, the units twice as fast, and lands where it was
+  function spin(delay, keep, end) {
+    const dgs = [...$.num.children].filter(n => n.classList.contains('dg'));
+    dgs.forEach((dg, i) => {
+      const d = parseInt(dg.firstElementChild && dg.firstElementChild.textContent, 10);
+      if (isNaN(d)) return;
+      const k = dgs.length - 1 - i,
+        steps = k ? 10 : 20,
+        reel = D().createElement('span');
+      reel.className = 'reel';
+      reel.innerHTML = Array.from({ length: steps + 1 }, (_, j) => `<i>${(d + j) % 10}</i>`).join('');
+      dg.append(reel);
+      dg.classList.add('spin');
+      end(
+        keep(
+          an(reel, [{ transform: 'none' }, { transform: `translateY(${((-100 * steps) / (steps + 1)).toFixed(4)}%)` }], {
+            delay: delay + k * 120,
+            duration: 1300 + k * 120,
+            easing: SP.ease,
+            fill: 'backwards',
+          }),
+        ),
+        () => {
+          reel.remove();
+          dg.classList.remove('spin');
+        },
+      );
+    });
+  }
+  PHONE.addEventListener('change', ddPlace);
+  // back after ten minutes or more: like opening it
+  let ddAway = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) ddAway = Date.now();
+    else if (ddAway && Date.now() - ddAway >= 10 * 60e3) later(ddPeek, 900);
+  });
+  DDREADY = true;
+  ddPlace();
   // Away for five minutes: locked (not while the app floats on top, and again once it stops floating). While away,
   // the tasks are hidden, so the picture the system keeps for its app switcher shows none.
   let awayAt = 0,
@@ -8445,7 +8672,10 @@ try {
     home.classList.add('shown');
     calm(2000);
     sheet.init();
+    // where the time sits in the bar, the days done take its place once the day has come in
+    later(ddPeek, RM.matches ? 1200 : 2600);
     if (RM.matches) return;
+    if (!$.dd.hidden && !BSP.classList.contains('wclock')) ddIn(260);
     if (sheet.on) {
       an(app, [{ opacity: 0, transform: 'translateY(16px) scale(.985)' }, { opacity: 1, transform: 'none' }], {
         duration: SP.dur * 1.2,
