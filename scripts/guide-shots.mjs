@@ -61,8 +61,14 @@ const data = ({ leftovers = false, done = false } = {}) => ({
         ],
       },
     }),
-    // with done, every task of the day is ticked: the day is done, and counted
-    [TODAY]: { u: 1, tasks: done ? day().map((t, i) => ({ ...t, done: true, at: i + 1 })) : day() },
+    // with done, every task of the day is ticked, the plants' repeat too (it falls on Tuesdays): the day is done, and
+    // counted
+    [TODAY]: {
+      u: 1,
+      tasks: done
+        ? [...day(), { id: 'water-20260414', text: 'Water the plants #home', rule: 'water' }].map((t, i) => ({ ...t, done: true, at: i + 1 }))
+        : day(),
+    },
     [NEXT]: {
       u: 1,
       tasks: [
