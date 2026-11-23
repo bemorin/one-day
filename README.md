@@ -4,9 +4,9 @@ A calm, minimalist task list that shows **one day at a time**, floats above your
 
 **[Open One Day →](https://day.bemorin.com)** · [Read the guide](https://day.bemorin.com/guide/): every feature in plain words, with pictures, and answers to common questions.
 
-![One Day in motion: bringing yesterday's leftovers to today, adding a task, pasting a list, undo, opening a task, sending a task to tomorrow, the mouse wheel through the days, making a task repeat, sending it as a link, search, the timer, light and dark, then the same app on a phone](docs/demo.webp)
+![One Day in motion: bringing yesterday's leftovers to today, adding a task, pasting a list, undo, opening a task, sending a task to tomorrow, the mouse wheel through the days, making a task repeat, sending it as a link, giving tags colours and showing one tag, search, the timer, light and dark, locking with a passphrase, then the same app on a phone, its search rising as a drawer](docs/demo.webp)
 
-[Watch the demo in HD (MP4, 1080p)](https://github.com/bemorin/one-day/releases/download/v1.2.0/one-day-demo.mp4)
+[Watch the demo in HD (MP4, 1080p)](https://github.com/bemorin/one-day/releases/download/v1.3.0/one-day-demo.mp4)
 
 One Day is a single-page web app with no framework, no runtime dependencies, no account and no tracking. Open it, write down what today is for, tick things off, and move on to tomorrow.
 
