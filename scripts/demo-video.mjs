@@ -19,14 +19,34 @@ const today = key(new Date());
 const tomorrow = key(new Date(new Date().setDate(new Date().getDate() + 1)));
 const yesterday = key(new Date(new Date().setDate(new Date().getDate() - 1)));
 
+// Days before with every task ticked: the full days counted in the middle of the bar. A day is missed now and then,
+// as there is no streak to keep.
+const PAST = ['Morning run', 'Answer the emails', 'Laundry', 'Call the bank', 'Read for half an hour', 'Groceries', 'Clean the kitchen', 'Pay the rent', 'Yoga', 'Fix the bike light', 'Tidy the desk', 'Back up the photos', 'Stretch'];
+function fullDays(n, id) {
+  const days = {};
+  for (let ago = 2, i = 0; i < n; ago++) {
+    if (ago % 5 === 0) continue;
+    const d = new Date();
+    d.setDate(d.getDate() - ago);
+    d.setHours(18, 0, 0, 0);
+    days[key(d)] = {
+      u: 1,
+      tasks: [0, 1].map(j => ({ id: `${id}${i}-${j}`, text: PAST[(i * 2 + j) % PAST.length], done: true, at: d.getTime() + j * 36e5 })),
+    };
+    i++;
+  }
+  return days;
+}
+
 const seed = {
   days: {
+    ...fullDays(12, 'f'),
+    // only what was left: once brought to today, yesterday has no task and stays out of the count
     [yesterday]: {
       u: 1,
       tasks: [
         { id: 'y1', text: 'Reply to Sam', done: false },
         { id: 'y2', text: 'Renew the passport #travel', done: false },
-        { id: 'y3', text: 'Morning run', done: true, at: 1 },
       ],
     },
     [today]: {
@@ -51,6 +71,8 @@ const seed = {
 };
 const phoneSeed = {
   days: {
+    // a phone keeps its own tasks, and so its own count
+    ...fullDays(9, 'q'),
     [today]: {
       u: 1,
       tasks: [
@@ -289,21 +311,27 @@ function touchDots() {
 // Frames have their own timing: give each one its real duration (the last one `tail` seconds).
 // With `from` (seconds since 1970, like the frame timestamps), the clip starts on what was on screen then.
 // Returns the clip's length in seconds.
+// A busy machine can hand frames over out of their order: they are put back in the order of their timestamps (taken
+// as they came, every step back would be played twice over and the whole clip would run slow).
 async function frameList(dir, shots, tail, from = 0) {
-  const name = i => `file f${String(i).padStart(5, '0')}.jpg`;
+  const back = shots.filter((t, i) => i && t < shots[i - 1]).length;
+  if (back) console.warn(`${back} frames came out of order: put back in place`);
+  const order = shots.map((t, i) => i).sort((a, b) => shots[a] - shots[b] || a - b),
+    ts = order.map(i => shots[i]),
+    name = k => `file f${String(order[k]).padStart(5, '0')}.jpg`;
   let first = 0;
-  shots.forEach((t, i) => {
-    if (t <= from) first = i;
+  ts.forEach((t, k) => {
+    if (t <= from) first = k;
   });
-  const start = Math.max(shots[first], from),
+  const start = Math.max(ts[first], from),
     list = ['ffconcat version 1.0'];
-  for (let i = first; i < shots.length; i++) {
-    const d = i + 1 < shots.length ? Math.max(0.001, shots[i + 1] - (i === first ? start : shots[i])) : tail;
-    list.push(name(i), `duration ${d.toFixed(4)}`);
+  for (let k = first; k < ts.length; k++) {
+    const d = k + 1 < ts.length ? Math.max(0.001, ts[k + 1] - (k === first ? start : ts[k])) : tail;
+    list.push(name(k), `duration ${d.toFixed(4)}`);
   }
-  list.push(name(shots.length - 1));
+  list.push(name(ts.length - 1));
   await writeFile(join(dir, 'frames.txt'), list.join('\n') + '\n');
-  return shots[shots.length - 1] - start + tail;
+  return ts[ts.length - 1] - start + tail;
 }
 
 // The phone part: a phone-sized touch browser in dark mode, with its own tasks.
@@ -400,10 +428,10 @@ async function recordPhone(browser) {
   await sleep(700);
   // what follows is typed into the search field, never into the day (where T would open the timer)
   if (!(await page.evaluate(() => document.activeElement && document.activeElement.id === 'sq'))) await page.locator('#sq').focus();
-  for (const ch of '#travel') {
-    await page.keyboard.type(ch);
-    await sleep(60 + Math.random() * 30);
-  }
+  // a # lists the tags: a moment for them to show (typed on, they would flash), then the tag picked from them
+  await page.keyboard.type('#');
+  await sleep(1000);
+  await tap(page.locator('#spicks [data-pick="travel"]'));
   await sleep(1300);
   const g = await page.locator('#srch .sgrab').boundingBox();
   await drag(g.x + g.width / 2, g.y + g.height / 2, g.y + 330, 240);
@@ -526,6 +554,28 @@ async function main() {
       await sleep(28 + Math.random() * 26);
     }
   }
+  // A task with a tag: the # opens the list of tags, so the typing stops a moment for it to show (typed on, it would
+  // flash), then a tag already there is picked from it (its first letter, then Tab); a new one is typed on.
+  async function typeTask(text) {
+    const at = text.lastIndexOf('#');
+    if (at < 0) return type(text);
+    const tag = text.slice(at + 1);
+    await type(text.slice(0, at + 1));
+    await sleep(1000);
+    // where the tag is in the list (a button reads "#work2": the tag, then how many tasks have it), and the one chosen
+    const where = () =>
+      page.evaluate(g => {
+        const bs = [...document.querySelectorAll('#sug.on button')];
+        return { i: bs.findIndex(b => b.textContent.replace(/\d+$/, '') === '#' + g), sel: bs.findIndex(b => b.classList.contains('sel')) };
+      }, tag);
+    if ((await where()).i < 0) return type(tag);
+    await type(tag[0]);
+    await sleep(380);
+    const w = await where();
+    if (w.i < 0) return type(tag.slice(1));
+    for (let k = w.sel; k < w.i; k++) await page.keyboard.press('ArrowDown');
+    await press('Tab', ['Tab'], '#' + tag);
+  }
   const cap = (t, s) => page.evaluate(([a, b]) => window.__cap(a, b), [t, s]);
   const row = text => page.locator('#list .row', { hasText: text }).first();
 
@@ -535,7 +585,7 @@ async function main() {
   await page.mouse.move(mx, my);
   await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 92, maxWidth: 1920, maxHeight: 1080, everyNthFrame: 1 });
   const PHONE_IN = 800;
-  const DESK = 96000;
+  const DESK = 111000;
   const TOTAL = DESK + PHONE_IN + phone.dur + 450;
   await page.evaluate(ms => window.__bar(ms), TOTAL);
   const t0 = Date.now();
@@ -556,7 +606,7 @@ async function main() {
   await sleep(420);
   await press('n', ['N'], 'New task');
   await sleep(260);
-  await type('Pick up the cake for Sunday #home');
+  await typeTask('Pick up the cake for Sunday #home');
   await sleep(250);
   await press('Enter', ['Enter'], 'Add');
   await sleep(600);
@@ -601,7 +651,7 @@ async function main() {
   await sleep(520);
   await click('#dq [data-d="tomorrow"]', 'Tomorrow');
   await sleep(300);
-  await type('Send the invoices #work');
+  await typeTask('Send the invoices #work');
   await sleep(200);
   await press('Enter', ['Enter'], 'Add');
   await sleep(960);
@@ -636,7 +686,7 @@ async function main() {
   await sleep(590);
   await click('#rdone', 'Done');
   await sleep(220);
-  await type('Water the plants #home');
+  await typeTask('Water the plants #home');
   await press('Enter', ['Enter'], 'Add');
   await sleep(1180);
 
@@ -679,7 +729,10 @@ async function main() {
   await sleep(370);
   await press('Control+k', ['Ctrl', 'K'], 'Search');
   await sleep(370);
-  await type('#work');
+  // a # lists the tags: a moment for them to show (typed on, they would flash), then the tag picked from them
+  await type('#');
+  await sleep(1000);
+  await click('#spicks [data-pick="work"]', '#work');
   await sleep(1180);
   await press('Control+k', ['Ctrl', 'K'], 'Close');
   await sleep(590);
@@ -696,7 +749,73 @@ async function main() {
   await click([1120, 600], null);
   await sleep(520);
 
-  // 13. Light and dark, in one click, crossfaded
+  // 13. Full days: the rest of today ticked down the list, and the last tick seals the day: its circle rises into a big
+  // check over the day, the count under it goes up by one, then it all folds into the count in the middle of the bar.
+  await cap('Full days', 'Tick the last task of a day: one more full day.');
+  await page.evaluate(() => document.getElementById('sc').scrollTo({ top: 0, behavior: 'smooth' }));
+  await sleep(420);
+  // The app sorts ticked tasks down 560 ms after the last tick, so the ticks come quicker than that, from circles
+  // measured beforehand, and nothing scrolls meanwhile. First the tasks at the top, till what is left fits above the
+  // field to add a task (a repeating task has a second line); then the ticked ones sink, the rest come up, and they
+  // are ticked one after another: the last one stays low in the list, and its check rises from there.
+  const plan = () =>
+    page.evaluate(() => {
+      const rows = [...document.querySelectorAll('#list .row:not(.done)')],
+        room = document.getElementById('add').getBoundingClientRect().top - document.getElementById('list').getBoundingClientRect().top,
+        h = rows.map(r => r.getBoundingClientRect().height);
+      let first = 0;
+      while (first < rows.length - 1 && h.slice(first).reduce((a, b) => a + b, 0) > room) first++;
+      const spots = rows.map(r => {
+        const b = r.querySelector('.in .ck').getBoundingClientRect();
+        return [b.x + b.width / 2, b.y + b.height / 2];
+      });
+      return { first, spots };
+    });
+  // the circle under the cursor is still an open task's (if the list moved after all, the next open one is followed)
+  const openAt = xy =>
+    page.evaluate(([x, y]) => {
+      const ck = document.elementFromPoint(x, y)?.closest('.ck'),
+        row = ck && ck.closest('.row');
+      return !!(row && ck.matches('.in .ck') && !row.classList.contains('done'));
+    }, xy);
+  const ticks = [];
+  async function tick([x, y], ms) {
+    await glide(x, y, ms);
+    if (!(await openAt([x, y]))) {
+      [x, y] = (await plan()).spots[0];
+      await glide(x, y, 140);
+    }
+    await page.mouse.down();
+    ticks.push(Date.now());
+    await sleep(50);
+    await page.mouse.up();
+  }
+  const top = await plan();
+  for (const xy of top.spots.slice(0, top.first)) {
+    await tick(xy, 190);
+    await sleep(60);
+  }
+  if (top.first) {
+    await sleep(700);
+    await page
+      .waitForFunction(() => !document.getAnimations().some(a => a.id === 'flip' && a.playState === 'running'), null, { timeout: 1500 })
+      .catch(() => {});
+    await sleep(150);
+  }
+  const rest = (await plan()).spots;
+  for (let i = 0; i < rest.length; i++) {
+    const last = i === rest.length - 1;
+    // the last one, a touch slower: the day is full
+    await tick(rest[i], last ? 230 : 170);
+    if (!last) await sleep(40);
+  }
+  const gaps = ticks.slice(top.first + 1).map((t, i) => t - ticks[top.first + i]);
+  console.log(`Full days: ${top.first} + ${rest.length} ticks, ${Math.max(...gaps)} ms at most between two (the app sorts after 560)`);
+  await sleep(300);
+  await glide(1090, 580, 1100);
+  await sleep(2250);
+
+  // 14. Light and dark, in one click, crossfaded
   await cap('Light and dark', 'It follows your system, or switches in one click.');
   await sleep(670);
   const [tx, ty] = await at('#theme');
@@ -724,7 +843,7 @@ async function main() {
   });
   await sleep(1780);
 
-  // 14. The lock: a passphrase, locked in one click, open again
+  // 15. The lock: a passphrase, locked in one click, open again
   const PASS = 'maple sunrise';
   await cap('Lock it', 'A passphrase encrypts your tasks in this browser.');
   await sleep(420);
@@ -754,13 +873,13 @@ async function main() {
   await sleep(1000);
   console.log(`Desktop part: ${((Date.now() - t0) / 1000).toFixed(1)} s (the bar plans ${DESK / 1000} s)`);
 
-  // 15. Also on a phone
+  // 16. Also on a phone
   await cap('Also on your phone', 'Add it to your Home Screen. It works offline, too.');
   await page.evaluate(ms => window.__barTo(ms), PHONE_IN + phone.dur + 450 + 2520);
   await page.evaluate(ms => window.__phone(ms), PHONE_IN);
   await sleep(PHONE_IN + phone.dur + 450);
 
-  // 16. Outro
+  // 17. Outro
   await cap('day.bemorin.com', 'Free, private and open source.');
   await page.evaluate(() => window.__barEnd());
   await sleep(2520);
@@ -783,7 +902,7 @@ async function main() {
   };
   enc(join(root, 'dist', 'one-day-demo.mp4'), 'fps=60,scale=1920:1080:flags=lanczos', 18);
   enc(join(root, 'dist', 'one-day-demo-720p.mp4'), 'fps=30,scale=1280:720:flags=lanczos', 24);
-  const span = shots.length ? shots[shots.length - 1] - shots[0] : 0;
+  const span = shots.length ? Math.max(...shots) - Math.min(...shots) : 0;
   console.log(`${shots.length} frames over ${span.toFixed(1)} s (${(shots.length / span).toFixed(0)} fps captured)`);
   await rm(frames, { recursive: true, force: true });
   console.log('Wrote dist/one-day-demo.mp4 and dist/one-day-demo-720p.mp4');
