@@ -10,10 +10,13 @@ Things people often need to know:
 - The lock is optional. A forgotten passphrase cannot be recovered by anyone; the only way out erases the tasks.
 - Safari can erase a website's data after seven days without a visit, unless One Day is installed (Add to Home Screen, or Add to Dock on a Mac).
 - An installed copy showing an old version updates after it is closed and opened again, twice.
+- An assistant adds tasks by writing a link, which the user opens and confirms: https://day.bemorin.com/#add?task=Buy+bread&day=tomorrow&task=Water+the+plants&repeat=FREQ=WEEKLY;BYDAY=TU,FR (each task= starts a task; note=, sub=, day= and repeat= describe it). Nothing is sent anywhere.
+- Tasks from Todoist, TickTick, Google Tasks, Evernote, todo.txt or a table saved as CSV come in through Import backup, read in the browser.
 
 ## Docs
 
 - [Guide](https://day.bemorin.com/guide/): every feature in plain words, the keyboard shortcuts, installing it, privacy, backups, the lock, and common questions
+- [Adding tasks with a link](https://github.com/bemorin/one-day/blob/main/docs/links.md): the link format, every field and repeat, and how to set up Claude and ChatGPT
 
 ## Optional
 

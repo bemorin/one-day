@@ -410,8 +410,9 @@ h1 {
   .toc .chs {
     columns: auto;
   }
+  /* every line keeps 24 px to be pressed (WCAG 2.2): the chapters sit closer, so all of them fit a laptop's screen */
   .toc .chs > li {
-    padding-bottom: 8px;
+    padding-bottom: 4px;
   }
   .toc .ch-a {
     padding: 3px 0;

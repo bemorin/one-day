@@ -109,11 +109,11 @@ test('SEO basics: a title, a description, one h1, headings in order, every ancho
   const parts = await page.$$eval('.body .chapter, .body .chapter > section', ns =>
     ns.map(n => [n.id, n.querySelector(n.classList.contains('chapter') ? 'h2' : 'h3').textContent.trim()]),
   );
-  expect(parts.length).toBe(26);
+  expect(parts.length).toBe(28);
   expect(toc).toEqual(parts);
   // chapters are h2, their sections h3, everything under those h4
   expect(await page.$$eval('.chapter > .ch h2', hs => hs.length)).toBe(6);
-  expect(await page.$$eval('.chapter > section > h3', hs => hs.length)).toBe(20);
+  expect(await page.$$eval('.chapter > section > h3', hs => hs.length)).toBe(22);
 });
 
 for (const [path, title, image] of [

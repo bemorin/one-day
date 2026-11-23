@@ -214,6 +214,32 @@ const SHOTS = [
     keep: ['#topbar', '#inbox'],
   },
   {
+    name: 'assistant',
+    // a link as an assistant writes it: several tasks, with a note, a sub-task, days and a repeat
+    path:
+      '/#add?task=Buy+bread&day=tomorrow&task=Call+the+bank&note=About+the+loan&sub=Find+the+account+number&day=today' +
+      '&task=Water+the+plants&repeat=FREQ=WEEKLY;BYDAY=TU,FR',
+    act: async page => {
+      await page.locator('#inbox').waitFor();
+    },
+    keep: ['#topbar', '#inbox'],
+    // stop at the card's edge, above the list it covers
+    padBottom: 4,
+  },
+  {
+    name: 'import',
+    // the day after the export was saved, so its done tasks are behind and its open ones ahead
+    now: '2026-11-25T09:41:00+00:00',
+    act: async page => {
+      await page.locator('#impf').setInputFiles(join(root, 'tests', 'fixtures', 'imports', 'TickTick-backup-2026-11-24.csv'));
+      await page.locator('#imp').waitFor();
+      await page.evaluate(() => document.activeElement.blur());
+    },
+    keep: ['#impCard'],
+    pad: 40,
+    column: false,
+  },
+  {
     name: 'install',
     act: async page => {
       await offerInstall(page);
@@ -349,7 +375,7 @@ async function take(browser, shot, scheme) {
     if (!localStorage.getItem('oneday.v1')) localStorage.setItem('oneday.v1', JSON.stringify(d));
   }, data(shot.data));
   const page = await ctx.newPage();
-  await page.clock.setFixedTime(NOW);
+  await page.clock.setFixedTime(shot.now || NOW);
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   await page.goto(BASE + (shot.path || '/'));
