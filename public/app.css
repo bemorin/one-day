@@ -1667,6 +1667,13 @@ ul {
   color: var(--ink);
   transform: rotate(90deg);
 }
+/* Archivo sets its capitals about a pixel high in a line: in the small round buttons the words come down one pixel,
+   so their capitals sit in the middle, level with the icon beside them */
+.ins-go span,
+#dlabel {
+  position: relative;
+  top: 1px;
+}
 /* the composer's plus is a button that adds what is typed: a round target, red while there are words to add */
 .add .plus {
   width: 36px;

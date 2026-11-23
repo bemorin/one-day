@@ -2083,6 +2083,46 @@ test.describe('installing One Day', () => {
     await expect(page.locator('#ipill')).toBeHidden();
   });
 
+  test('the offer\'s words sit in the middle of their button, level with its icon', async ({ page }) => {
+    await open(page);
+    await offerInstall(page);
+    await expect(page.locator('#ins')).toBeVisible();
+    await page.evaluate(() => document.fonts.load('600 13px Archivo'));
+    await page.waitForTimeout(300);
+    // What the eye sees, from a picture of the button: the capital I's ink, from its top to the baseline, against the
+    // button's middle. (Archivo sets its capitals a pixel high in a line: the words come down one pixel.)
+    const left = await page.evaluate(
+      () => document.querySelector('#insGo span').getBoundingClientRect().left - document.getElementById('insGo').getBoundingClientRect().left,
+    );
+    const png = (await page.locator('#insGo').screenshot()).toString('base64');
+    const m = await page.evaluate(
+      async ([b64, left]) => {
+        const img = new Image();
+        img.src = 'data:image/png;base64,' + b64;
+        await img.decode();
+        const c = document.createElement('canvas');
+        c.width = img.width;
+        c.height = img.height;
+        const x = c.getContext('2d');
+        x.drawImage(img, 0, 0);
+        const d = x.getImageData(0, 0, c.width, c.height).data;
+        let t = 1e9,
+          b = -1;
+        for (let j = 0; j < c.height; j++)
+          for (let i = Math.floor(left); i <= Math.ceil(left + 2.5); i++) {
+            const k = (j * c.width + i) * 4;
+            if (d[k] + d[k + 1] + d[k + 2] < 330) {
+              t = Math.min(t, j);
+              b = Math.max(b, j);
+            }
+          }
+        return { cap: (t + b + 1) / 2, box: c.height / 2 };
+      },
+      [png, left],
+    );
+    expect(Math.abs(m.cap - m.box)).toBeLessThanOrEqual(0.5);
+  });
+
   test('its cross puts the offer off for good: a small pill before the sun, still one click from installing', async ({ page }) => {
     await open(page);
     await offerInstall(page);
