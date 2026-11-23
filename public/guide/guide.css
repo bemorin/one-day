@@ -192,6 +192,210 @@ kbd {
 .open:hover {
   background: var(--hover);
 }
+/* On this page, narrower: a button in the bar (its icon alone on a phone), and the list in a sheet like the app's */
+.tocb {
+  display: none;
+}
+.tocb svg,
+.tocd-x svg,
+.hl svg,
+.prompt .btn svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tocb svg circle {
+  fill: currentColor;
+  stroke: none;
+}
+@media (max-width: 1119px) {
+  .tocb {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-left: auto;
+    height: 34px;
+    padding: 0 13px 0 11px;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    color: inherit;
+    font: 600 14px/1 Archivo, system-ui, sans-serif;
+    box-shadow: inset 0 0 0 1.25px var(--line2);
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  .tocb:hover {
+    background: var(--hover);
+  }
+  .tocb + .open {
+    margin-left: 0;
+  }
+}
+@media (max-width: 599px) {
+  .tocb {
+    justify-content: center;
+    width: 34px;
+    padding: 0;
+  }
+  .tocb span {
+    display: none;
+  }
+}
+.tocd {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgb(0 0 0 / 0.32);
+}
+.tocd[hidden] {
+  display: none;
+}
+.tocd-sheet {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: min(80vh, 720px);
+  padding: 6px 0 calc(10px + env(safe-area-inset-bottom));
+  border-radius: 22px 22px 0 0;
+  background: var(--bg);
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 -16px 40px -16px rgb(0 0 0 / 0.3);
+}
+.tocd-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px 4px 22px;
+}
+.tocd-t {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--mute);
+}
+.tocd-x {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--mute);
+  cursor: pointer;
+}
+.tocd-x:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.tocd nav {
+  position: relative;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px 22px 12px;
+  /* a line cut at either edge fades, like the app's lists that scroll */
+  -webkit-mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 14px), transparent);
+  mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 14px), transparent);
+}
+.tocd ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tocd .chs > li {
+  padding-bottom: 6px;
+}
+.tocd a {
+  display: block;
+  padding: 7px 0 7px 22px;
+  border-radius: 10px;
+  line-height: 1.35;
+  color: var(--mute);
+  text-decoration: none;
+}
+.tocd .ch-a {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 0;
+  font-weight: 650;
+  color: var(--ink);
+}
+.tocd .n {
+  min-width: 14px;
+  font-weight: 800;
+  font-variation-settings: 'wdth' 112;
+  font-variant-numeric: tabular-nums;
+  color: var(--mute);
+}
+.tocd a[aria-current] {
+  color: var(--ink);
+  font-weight: 600;
+}
+.tocd .chs > li:has(a[aria-current]) .n {
+  color: var(--red);
+}
+/* the link at the end of a title: shown on hover or focus (faintly, always, on a touch screen); a click copies it */
+.hl {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: -4px 0 -4px 6px;
+  border-radius: 8px;
+  vertical-align: middle;
+  color: var(--mute);
+  text-decoration: none;
+  opacity: 0;
+  transition:
+    opacity 0.15s,
+    background-color 0.15s,
+    color 0.15s;
+}
+h2:hover .hl,
+h3:hover .hl,
+h4:hover .hl,
+.hl:focus-visible,
+.hl.done {
+  opacity: 1;
+}
+.hl:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+.hl.done {
+  color: var(--red);
+}
+@media (hover: none) {
+  .hl {
+    opacity: 0.5;
+  }
+}
+/* the paragraph to paste into an assistant, and its Copy button */
+.prompt {
+  margin: 18px 0;
+}
+.prompt pre {
+  margin: 0 0 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--hover);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .read {
   position: absolute;
   left: 0;

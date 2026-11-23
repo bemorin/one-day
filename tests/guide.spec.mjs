@@ -255,6 +255,95 @@ test('Copy page as Markdown: the whole guide, in the clipboard only', async ({ p
   await expect(page.locator('#copy')).toHaveText('Copy page as Markdown', { timeout: 6000 });
 });
 
+test('every title ends with a link that copies the address of its place in the guide; the Markdown copy leaves them out', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await guide(page);
+  const h = page.locator('#assistants > h3');
+  await h.hover();
+  const a = h.locator('a.hl');
+  await expect(a).toHaveAttribute('aria-label', 'Copy the link to With an AI assistant');
+  expect(await a.evaluate(n => getComputedStyle(n).opacity)).toBe('1');
+  await a.click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/\/guide\/#assistants$/);
+  expect(await page.evaluate(() => location.hash)).toBe('#assistants');
+  await expect(page.locator('#copied')).toHaveText('The link is in your clipboard.');
+  // chapters and questions have theirs too
+  await expect(page.locator('#basics .ch h2 a.hl')).toHaveAttribute('href', '#basics');
+  await expect(page.locator('h4#moving a.hl')).toHaveAttribute('href', '#moving');
+  await page.locator('#copy').click();
+  await expect(page.locator('#copy span')).toHaveText('Copied');
+  // Windows' clipboard gives the lines back with \r\n
+  const md = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, '\n');
+  expect(md).toContain('\n### With an AI assistant\n');
+  // no empty link left behind by the titles' own links
+  expect(md).not.toContain('[](');
+});
+
+test('the paragraph for assistants is the one docs/links.md gives, and it copies in one click', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await guide(page);
+  // the file may be checked out with \r\n, and Windows' clipboard gives lines back so too
+  const doc = readFileSync(new URL('../docs/links.md', import.meta.url), 'utf8')
+    .replace(/\r\n/g, '\n')
+    .match(/```text\n([\s\S]*?)\n```/)[1];
+  expect(await page.locator('#aiPrompt').textContent()).toBe(doc);
+  await page.locator('#copyPrompt').click();
+  await expect(page.locator('#copyPrompt span')).toHaveText('Copied');
+  expect((await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, '\n')).toBe(doc);
+  // the extension downloads from the latest release
+  await expect(page.locator('#assistants a', { hasText: 'download the One Day extension' })).toHaveAttribute(
+    'href',
+    'https://github.com/bemorin/one-day/releases/latest/download/one-day.mcpb',
+  );
+});
+
+test.describe('narrower, On this page in a sheet', () => {
+  for (const [name, size] of [
+    ['on a phone', { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }],
+    ['on a tablet', { viewport: { width: 820, height: 1000 } }],
+  ])
+    test.describe(name, () => {
+      test.use(size);
+      test('a button in the bar opens it; a choice goes there, Escape comes back', async ({ page }) => {
+        await guide(page);
+        const b = page.locator('#tocb');
+        await expect(b).toBeVisible();
+        await expect(b.locator('span')).toBeVisible({ visible: name === 'on a tablet' });
+        await page.evaluate(() => document.getElementById('timer').scrollIntoView({ behavior: 'instant' }));
+        // once the page has stopped there, the list knows the section being read
+        await expect(page.locator('.toc a[aria-current]')).toHaveAttribute('href', '#timer');
+        // a press where the button is, as a person would (locator.click() would first scroll the page to centre the
+        // sticky bar, which moves the section being read)
+        const press = async () => {
+          const bb = await b.boundingBox();
+          await page.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2);
+        };
+        await press();
+        const d = page.locator('#tocd');
+        await expect(d).toBeVisible();
+        await expect(b).toHaveAttribute('aria-expanded', 'true');
+        await expect(d.locator('a')).toHaveCount(28);
+        // the section being read is marked, and has the focus
+        await expect(d.locator('a[aria-current]')).toHaveAttribute('href', '#timer');
+        await expect(d.locator('a[href="#timer"]')).toBeFocused();
+        const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
+        expect(violations.map(v => `${v.id}: ${v.nodes.map(n => n.target.join(' ')).join(', ')}`)).toEqual([]);
+        await page.keyboard.press('Escape');
+        await expect(d).toBeHidden();
+        await expect(b).toBeFocused();
+        await press();
+        await d.locator('a[href="#lock"]').click();
+        await expect(d).toBeHidden();
+        await expect.poll(() => page.locator('#lock').evaluate(n => Math.round(n.getBoundingClientRect().top))).toBeLessThan(140);
+      });
+    });
+
+  test('on a wide screen the list sits beside the text, and the button is not there', async ({ page }) => {
+    await guide(page);
+    await expect(page.locator('#tocb')).toBeHidden();
+  });
+});
+
 test('On this page sits on the left of the text on a wide screen and marks the section being read', async ({ page }) => {
   await guide(page);
   const [toc, body] = await Promise.all([page.locator('.toc').boundingBox(), page.locator('.body').boundingBox()]);

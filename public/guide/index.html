@@ -41,6 +41,9 @@
       <a class="brand" href="../"><img src="../icons/icon.svg" alt="" width="26" height="26" /><span>One Day</span></a>
       <span class="crumb" aria-hidden="true">/</span>
       <span class="here">Guide</span>
+      <button class="tocb" id="tocb" type="button" aria-label="On this page" aria-haspopup="dialog" aria-expanded="false" aria-controls="tocd">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.75 4.25h7.5M5.75 8h7.5M5.75 11.75h7.5" /><circle cx="2.9" cy="4.25" r=".95" /><circle cx="2.9" cy="8" r=".95" /><circle cx="2.9" cy="11.75" r=".95" /></svg><span>On this page</span>
+      </button>
       <a class="open" href="../">Open One Day</a>
       <div class="read" aria-hidden="true"><i></i></div>
     </header>
@@ -429,17 +432,37 @@
             <p>Setting it up takes a minute:</p>
             <ul>
               <li>
-                <b>Claude Desktop</b> takes the One Day extension, and <b>Claude Code</b> a small MCP server. Both run on
-                your computer and go nowhere online.
+                <b>Claude Desktop:</b>
+                <a href="https://github.com/bemorin/one-day/releases/latest/download/one-day.mcpb">download the One Day extension</a>
+                (<code>one-day.mcpb</code>) and drag it onto Settings → Desktop app → Extensions (<b>Manage</b>). It runs on
+                your computer and goes nowhere online.
               </li>
               <li>
-                <b>ChatGPT, claude.ai and other assistants</b> only need a paragraph of instructions, pasted where they keep
-                them (custom instructions, a project, or a skill).
+                <b>Claude Code:</b> add the same small server, as
+                <a href="https://github.com/bemorin/one-day/blob/main/mcp/README.md">its page</a> shows.
+              </li>
+              <li>
+                <b>ChatGPT, claude.ai and other assistants:</b> copy the paragraph below and paste it where the assistant
+                keeps instructions. In ChatGPT: the custom instructions in Settings → Personalization, a project’s
+                instructions or a custom GPT’s. In claude.ai: a project’s instructions or your profile preferences.
               </li>
             </ul>
+            <div class="prompt">
+              <pre id="aiPrompt" tabindex="0" aria-label="The paragraph to paste">When I ask to add tasks to One Day, answer with one link holding them all, shown as a Markdown link "Add to One Day". Build it as https://day.bemorin.com/#add? followed by name=value pairs joined by &amp;:
+task= the task (#word makes a tag). Each task= starts a new task; the pairs after it describe that task.
+note= details (plain text; **bold**, - lists and links work)
+sub= one sub-task; repeat it for more
+day= today, tomorrow, monday…sunday (the next one) or YYYY-MM-DD. Leave it out and I choose.
+repeat= daily, weekdays, weekends, weekly, monthly, yearly, or an RRULE such as FREQ=WEEKLY;BYDAY=MO,TH or FREQ=MONTHLY;BYDAY=-1FR. It counts from the task's day.
+Encode values as in a URL query: a space is +, and write %2B for +, %26 for &amp;, %23 for #, %25 for %, %28 and %29 for ( ), %0A for a new line. Accented letters can stay as they are.
+Example: https://day.bemorin.com/#add?task=Buy+bread&amp;day=tomorrow&amp;task=Call+the+bank&amp;note=About+the+loan&amp;sub=Find+the+number&amp;task=Water+the+plants&amp;repeat=FREQ=WEEKLY;BYDAY=TU,FR
+Nothing is sent anywhere: the tasks stay in the link until I open it and confirm.</pre>
+              <button class="btn" id="copyPrompt" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.25" y="5.25" width="8" height="8" rx="2" /><path d="M10.75 5.25V4.5a1.75 1.75 0 0 0-1.75-1.75H4.5A1.75 1.75 0 0 0 2.75 4.5V9c0 .97.78 1.75 1.75 1.75h.75" /></svg><span>Copy the paragraph</span></button>
+            </div>
             <p>
-              <a href="https://github.com/bemorin/one-day/blob/main/docs/links.md">Adding tasks with a link</a> has the
-              extension, the paragraph to paste, and every detail of the link.
+              Then ask, in any language: “Add to One Day: buy bread tomorrow, and water the plants every Tuesday and
+              Friday.” <a href="https://github.com/bemorin/one-day/blob/main/docs/links.md">Adding tasks with a link</a> has
+              every detail of the link, and the same instructions as a skill, for assistants that take skills.
             </p>
             <p>
               The tasks travel in the link, as when you send one: no One Day server is involved. Your assistant’s provider
@@ -873,5 +896,14 @@
       </nav>
       <p>Made by <a href="https://bemorin.com">Ben Morin</a></p>
     </footer>
+    <div class="tocd" id="tocd" role="dialog" aria-modal="true" aria-labelledby="tocdT" hidden>
+      <div class="tocd-sheet">
+        <div class="tocd-head">
+          <p class="tocd-t" id="tocdT">On this page</p>
+          <button class="tocd-x" id="tocdX" type="button" aria-label="Close"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7" /></svg></button>
+        </div>
+        <nav aria-labelledby="tocdT"></nav>
+      </div>
+    </div>
   </body>
 </html>
