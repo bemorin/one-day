@@ -7729,7 +7729,7 @@ try {
     syLocked();
     // a settings dialog open now must not go on with what the lock wipes
     closeLockset(null);
-    closeSync();
+    closeSync(true);
     closeImport();
     IM.impList.textContent = '';
     IM.impNote.textContent = '';
@@ -8992,7 +8992,7 @@ try {
         lh: typeof o.lh === 'string' ? o.lh : '',
       };
     // the sign-in to the cloud: its token, and what renews it where the cloud allows
-    if (a && typeof a.a === 'string' && +a.ax > 0)
+    if (a && typeof a.a === 'string' && (+a.ax > 0 || (typeof a.r === 'string' && a.r)))
       sys.auth = { a: a.a, ax: +a.ax, r: typeof a.r === 'string' ? a.r : '', rx: +a.rx || 0 };
     return sys;
   }
@@ -9045,6 +9045,7 @@ try {
         return null;
       }
       syKeepAuth({ ...a, ...t, r: t.r || a.r });
+      syTabs('auth');
       return t.a;
     });
   }
@@ -9835,6 +9836,7 @@ try {
     let dirty = false;
     const was = SYST.s,
       wasWhy = SYST.why,
+      wasK = SYST.k,
       slow = setTimeout(() => SYS === sys && !locked && syState('busy'), 400);
     try {
       for (let n = 0; n < 4; n++) {
@@ -9880,14 +9882,20 @@ try {
         // copy known to have been in the cloud. Anything else (a first sync, a copy made anew): none, and nothing is
         // deleted.
         const from = x => !!x && !!R && (R.pid === x.pid || R.hist.includes(x.pid));
-        let B = null;
+        let B = null,
+          fork = false;
         if (from(B0)) B = B0;
         else if (from(A0)) B = A0;
-        else if (R && B0 && R.epoch && R.epoch === B0.epoch && R.rev > B0.rev) B = A0 || B0;
+        // further along than the ids it keeps can show: taken to come from the copy agreed last
+        else if (R && B0 && R.epoch && R.epoch === B0.epoch && R.rev - B0.rev > R.hist.length) B = A0 || B0;
+        // Close enough that the ids would show the copy agreed last, yet they don't: the cloud's copy went back (an
+        // older version restored there) and went on from it. Nothing is deleted, and the next write starts a line of
+        // its own, so no device takes that copy for one that comes from its own.
+        else if (R && B0 && R.epoch && R.epoch === B0.epoch) fork = true;
         const L = R && !B && !sys.file && syFresh(L0) ? E : L0,
           M = syMerge(B, L, R || E);
         if (syEditing()) {
-          if (SYST.s === 'busy' && was !== 'busy') syState(was, wasWhy);
+          if (SYST.s === 'busy' && was !== 'busy') syState(was, wasWhy, wasK);
           return syncSoon(1500);
         }
         syApply(L0, M);
@@ -9904,8 +9912,8 @@ try {
         const Pk = {
           pid: uid(),
           rev: (R ? R.rev : B0 ? B0.rev : 0) + 1,
-          // the line goes on; a copy made anew (none there) starts one of its own
-          epoch: (R && R.epoch) || uid(),
+          // the line goes on; a copy made anew (none there), or one gone back, starts one of its own
+          epoch: (!fork && R && R.epoch) || uid(),
           hist: (R ? [R.pid, ...R.hist] : B0 ? [B0.pid, ...B0.hist] : []).filter(Boolean).slice(0, 64),
           days: M.days,
           rules: M.rules,
@@ -10115,9 +10123,10 @@ try {
     modalIn(TAP && TAP.el.isConnected && Date.now() - TAP.t < 1500 ? TAP.el : SYD.from, SY.syncd, SY.syForm);
     syFocus();
   }
-  function closeSync() {
+  // While a button is at work (erasing, opening), the dialog stays: what it does needs it. The lock closes it anyway.
+  function closeSync(force) {
     const m = SYD;
-    if (!m) return;
+    if (!m || (!force && SY.syGo.classList.contains('busy'))) return;
     SYD = null;
     unguard('syncd');
     if (SYW) SYW.cancel();
@@ -10331,6 +10340,8 @@ try {
       syTold = '';
       SYST.s = 'idle';
       syUI();
+      // the other tabs take this sign-in too
+      syTabs('auth');
       syncNow();
       return { again: true };
     }
@@ -10376,7 +10387,7 @@ try {
     SYST.s = 'busy';
     syQuiet();
     syUI();
-    syTabs();
+    syTabs('start');
     if (SYD) {
       SYD.step = 'on';
       syDraw();
@@ -10384,68 +10395,61 @@ try {
     }
     syncNow();
   }
-  // Other tabs of this browser hold the tasks and sync's state as they read them. Turned on, off or given a new key
-  // here, sync tells them: each takes both again as stored, together, once nothing is being edited there.
+  // Other tabs of this browser each hold the tasks as they read and changed them, and sync's state with those. When
+  // sync is turned on, off, given a new key or signed in again here, sync tells them, and each takes only sync's part:
+  // off, or the key and sign-in with no base of its own (its next sync keeps both sides then, so nothing a tab did is
+  // lost), or the new sign-in. No tab's tasks are ever replaced by another's.
   const SYBC = 'BroadcastChannel' in window ? new BroadcastChannel('one-day-sync') : null;
-  async function syTabs() {
+  function syTabs(t) {
     if (!SYBC) return;
-    await flush();
+    const sys = SYS,
+      m = t === 'stop' || !sys ? { t: 'stop' } : { t, cloud: sys.cloud, kid: sys.key.kid, key: sys.key, auth: sys.auth || null };
     try {
-      SYBC.postMessage('changed');
+      SYBC.postMessage(m);
     } catch (e) {}
   }
-  let syAdoptT = null;
-  function syAdopt() {
-    clearTimeout(syAdoptT);
-    syAdoptT = null;
-    // locked, there is nothing to take: the next unlock reads it all anyway
-    if (locked) return;
-    if (syEditing() || SYD || IMP || P) {
-      syAdoptT = setTimeout(syAdopt, 1000);
-      return;
-    }
-    (async () => {
-      let st = null,
-        sys = null;
-      if (vault) {
-        await flush();
-        const v = storedVault();
-        if (!v || (v.kid || '') !== KID || !DEK) return;
-        try {
-          const j = JSON.parse(TD.decode(await unseal(DEK, v.data)));
-          st = { days: cleanDays(j && j.days), rules: cleanRules(j && j.rules), tags: cleanTags(j && j.tags) };
-          sys = await openSys(DEK, v);
-        } catch (e) {
-          return;
-        }
-      } else {
-        let j = null;
-        try {
-          j = JSON.parse(localStorage.getItem(LS));
-        } catch (e) {}
-        if (!j || !j.days) return;
-        st = { days: cleanDays(j.days), rules: cleanRules(j.rules), tags: cleanTags(j.tags) };
-        sys = cleanSys(j.sync);
+  if (SYBC)
+    SYBC.onmessage = e => {
+      const d = e.data;
+      // locked, a tab holds no sync: the next unlock reads it as stored
+      if (!d || typeof d !== 'object' || locked) return;
+      if (d.t === 'stop') {
+        if (!SYS) return;
+        SYS = null;
+        SYKEY = null;
+        SYENV = null;
+        clearTimeout(syT);
+        syT = null;
+        SYST.s = 'off';
+        if (SYD && SYD.step !== 'pick') closeSync(true);
+        syUI();
+        return;
       }
-      if (locked || syEditing() || SYD) return syAdopt();
-      S = st;
-      SYS = sys;
-      SYPEND = null;
-      SYKEY = null;
-      SYENV = null;
-      IDX = null;
-      TAGC = null;
-      UN.length = 0;
-      RE.length = 0;
-      SYST.s = !SYS ? 'off' : SYS.auth ? 'idle' : 'auth';
-      ensure(cur);
-      repaint();
-      renderChip();
-      syUI();
-      if (SYS) syncSoon(800);
-    })();
-  }
-  if (SYBC) SYBC.onmessage = e => e.data === 'changed' && syAdopt();
+      if (d.t === 'auth') {
+        if (!SYS || SYS.cloud !== d.cloud || SYS.key.kid !== d.kid || !d.auth) return;
+        SYS.auth = { a: d.auth.a || '', ax: +d.auth.ax || 0, r: d.auth.r || '', rx: +d.auth.rx || 0 };
+        syQuiet();
+        if (SYST.s === 'auth') {
+          syTold = '';
+          syState('idle');
+          syncSoon(400);
+        }
+        return;
+      }
+      if (d.t === 'start') {
+        if (SYS && SYS.cloud === d.cloud && SYS.key.kid === d.kid) return;
+        const sys = cleanSys({ v: 1, cloud: d.cloud, key: d.key, auth: d.auth });
+        if (!sys) return;
+        SYS = sys;
+        SYKEY = null;
+        SYENV = null;
+        syTold = '';
+        SYST.s = sys.auth ? 'idle' : 'auth';
+        if (SYD && SYD.step === 'pick') closeSync(true);
+        syUI();
+        syncSoon(800);
+      }
+    };
   // Off here: the sign-in and the key leave this browser, the tasks stay. With `erase`, One Day's copy in the cloud
   // goes first; if that fails, sync stays on and says why.
   // With `keep`, the sign-in stays in this page: to start over in the same cloud.
@@ -10474,7 +10478,7 @@ try {
     SYST.s = 'off';
     syQuiet();
     syUI();
-    syTabs();
+    syTabs('stop');
     return '';
   }
   SY.syCh.addEventListener('click', e => {
