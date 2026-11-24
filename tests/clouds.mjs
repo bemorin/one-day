@@ -1,7 +1,7 @@
 // Made-up clouds for tests and for the guide's pictures: Google Drive, Dropbox and OneDrive answer here as their APIs
 // do (routed in a browser context with Playwright). Each also checks what One Day sends it: PKCE, no secret, its folder.
 import { webcrypto as wc, createHash } from 'node:crypto';
-import { inflateRawSync } from 'node:zlib';
+import { deflateRawSync, inflateRawSync } from 'node:zlib';
 
 export const GS = 'https://www.googleapis.com/auth/drive.appdata';
 const CORS = { 'access-control-allow-origin': '*', 'access-control-expose-headers': '*' };
@@ -279,6 +279,24 @@ export class OneDrive {
     if (route.request().headers().authorization) this.bad.push('a token went to the download address');
     return this.item ? route.fulfill({ status: 200, headers: CORS, body: this.item.content }) : route.fulfill({ status: 404, headers: CORS, body: '' });
   }
+}
+
+// The copy, changed here as another device would change it: opened with the passphrase, edited, sealed again with the
+// same key (a new IV). Used to make what a race or a long absence leaves in the cloud.
+export async function resealCopy(text, pass, edit) {
+  const env = JSON.parse(text),
+    v = env.vault,
+    b = s => Buffer.from(s, 'base64'),
+    base = await wc.subtle.importKey('raw', new TextEncoder().encode(pass.normalize('NFC')), 'PBKDF2', false, ['deriveKey']),
+    kek = await wc.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt: b(v.kdf.salt), iterations: v.kdf.iter }, base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']),
+    raw = new Uint8Array(await wc.subtle.decrypt({ name: 'AES-GCM', iv: b(v.pass.iv) }, kek, b(v.pass.ct))),
+    dek = await wc.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+  let u8 = Buffer.from(await wc.subtle.decrypt({ name: 'AES-GCM', iv: b(v.data.iv) }, dek, b(v.data.ct)));
+  if (v.z) u8 = inflateRawSync(u8);
+  const next = edit(JSON.parse(u8.toString('utf8'))),
+    iv = wc.getRandomValues(new Uint8Array(12)),
+    ct = await wc.subtle.encrypt({ name: 'AES-GCM', iv }, dek, deflateRawSync(Buffer.from(JSON.stringify(next))));
+  return JSON.stringify({ ...env, vault: { ...v, z: 1, data: { iv: Buffer.from(iv).toString('base64'), ct: Buffer.from(ct).toString('base64') } } });
 }
 
 // the copy, opened here as a new device would: the passphrase, its key, then the tasks
