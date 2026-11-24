@@ -108,6 +108,7 @@
             <a class="ch-a" href="#data"><span class="n" aria-hidden="true">5</span>Your data</a>
             <ol>
               <li><a href="#privacy">Privacy</a></li>
+              <li><a href="#sync">Sync with your cloud</a></li>
               <li><a href="#backups">Backups</a></li>
               <li><a href="#other-apps">From another app</a></li>
               <li><a href="#lock">The lock</a></li>
@@ -157,7 +158,8 @@
             <aside class="note">
               <p>
                 <b>Nothing to sign up for.</b> One Day has no account, no server and no tracking. Your tasks stay in this
-                browser on this device: <a href="#privacy">Privacy</a> explains what that means, and
+                browser on this device: <a href="#privacy">Privacy</a> explains what that means,
+                <a href="#sync">Sync with your cloud</a> how to have them on your other devices too, and
                 <a href="#backups">Backups</a> how to keep a copy.
               </p>
             </aside>
@@ -575,7 +577,7 @@ Nothing is sent anywhere: the tasks stay in the link until I open it and confirm
               <li><b>Timer</b> opens as a sheet, and the bar shows the time left while it runs;</li>
               <li>the red <b>+</b> opens the field to add a task, just above the keyboard;</li>
               <li><b>Send day</b> sends the day’s unfinished tasks;</li>
-              <li><b>More</b> holds installing, backups, the lock and the links.</li>
+              <li><b>More</b> holds installing, sync, backups, the lock and the links.</li>
             </ul>
             <p>
               Swipe sideways to change day. Tap a task to open it; hold it, then drag, to reorder it. A sheet or the drawer
@@ -595,8 +597,8 @@ Nothing is sent anywhere: the tasks stay in the link until I open it and confirm
                   <figcaption>Search, as a drawer</figcaption>
                 </figure>
                 <figure class="phone">
-                  <img class="l" src="shots/phone-more-light.webp" width="468" height="1013" alt="On a phone, More: Install One Day in red, Undo and Redo greyed while there is nothing to take back, Import backup, Export backup, Protect with a passphrase, How to use One Day, then the links." decoding="async" loading="lazy" />
-                  <img class="d" src="shots/phone-more-dark.webp" width="468" height="1013" alt="On a phone, More: Install One Day in red, Undo and Redo greyed while there is nothing to take back, Import backup, Export backup, Protect with a passphrase, How to use One Day, then the links." decoding="async" loading="lazy" />
+                  <img class="l" src="shots/phone-more-light.webp" width="468" height="1013" alt="On a phone, More: Install One Day in red, Undo and Redo greyed while there is nothing to take back, Sync with your cloud, Import backup, Export backup, Protect with a passphrase, How to use One Day, then the links." decoding="async" loading="lazy" />
+                  <img class="d" src="shots/phone-more-dark.webp" width="468" height="1013" alt="On a phone, More: Install One Day in red, Undo and Redo greyed while there is nothing to take back, Sync with your cloud, Import backup, Export backup, Protect with a passphrase, How to use One Day, then the links." decoding="async" loading="lazy" />
                   <figcaption>More</figcaption>
                 </figure>
               </div>
@@ -661,8 +663,10 @@ Nothing is sent anywhere: the tasks stay in the link until I open it and confirm
           <section id="privacy">
             <h3>Privacy</h3>
             <p>
-              <b>Your tasks never leave your device.</b> One Day keeps them in your browser’s storage for this site. There
-              is no server, database or account behind it, so nobody else can see them, not even its maker.
+              <b>Your tasks stay on your device.</b> One Day keeps them in your browser’s storage for this site. There is
+              no server, database or account behind it, so nobody else can see them, not even its maker. If you
+              <a href="#sync">sync them with your own cloud</a>, they also go there, encrypted with your passphrase
+              before they leave: your cloud can’t read them, and nothing ever reaches One Day.
             </p>
             <ul>
               <li>
@@ -679,20 +683,98 @@ Nothing is sent anywhere: the tasks stay in the link until I open it and confirm
               </li>
               <li>
                 <b>What the browser keeps for One Day:</b> your tasks, the timer’s settings, your light or dark choice and,
-                if you put off the install offer, that you did.
+                if you put off the install offer, that you did. With sync on, also its key and your sign-in to your cloud.
               </li>
             </ul>
             <p>
               The other side of the coin: your tasks live in <b>this browser, on this device</b>. Another browser, another
               device or a private window has its own separate list, and clearing the site’s data erases them. That’s what
-              <a href="#backups">backups</a> are for.
+              <a href="#sync">sync</a> and <a href="#backups">backups</a> are for.
             </p>
             <figure class="shot">
-              <img class="l" src="shots/backups-light.webp" width="1392" height="804" alt="Search before typing: your tags, then Your tasks are stored only in this browser. Nothing is sent anywhere, with Import backup, Export backup and Protect with a passphrase." decoding="async" loading="lazy" />
-              <img class="d" src="shots/backups-dark.webp" width="1392" height="804" alt="Search before typing: your tags, then Your tasks are stored only in this browser. Nothing is sent anywhere, with Import backup, Export backup and Protect with a passphrase." decoding="async" loading="lazy" />
-              <figcaption>Search, before you type: where your tasks are, the backup buttons and the lock. On a phone, they’re in More.</figcaption>
+              <img class="l" src="shots/backups-light.webp" width="1392" height="880" alt="Search before typing: your tags, then Your tasks are stored only in this browser. Nothing is sent anywhere, with Sync with your cloud, Import backup, Export backup and Protect with a passphrase." decoding="async" loading="lazy" />
+              <img class="d" src="shots/backups-dark.webp" width="1392" height="880" alt="Search before typing: your tags, then Your tasks are stored only in this browser. Nothing is sent anywhere, with Sync with your cloud, Import backup, Export backup and Protect with a passphrase." decoding="async" loading="lazy" />
+              <figcaption>Search, before you type: where your tasks are, sync, the backup buttons and the lock. On a phone, they’re in More.</figcaption>
             </figure>
             <p>For the legal details, read the <a href="https://bemorin.com/privacy#one-day">privacy policy</a>.</p>
+          </section>
+
+          <section id="sync">
+            <h3>Sync with your cloud</h3>
+            <p>
+              To have the same tasks on your phone and your computer, One Day can keep them in your own
+              <b>Google Drive</b>, <b>Dropbox</b> or <b>OneDrive</b>, one at a time. There is still no account and no server:
+              each device talks to your cloud directly, and your tasks are <b>encrypted with a passphrase</b> before they
+              leave it. Your cloud sees one file and when it changes, never a task, and nothing reaches One Day.
+            </p>
+            <figure class="shot pair">
+              <div class="row">
+                <div>
+                  <img class="l" src="shots/sync-pick-light.webp" width="920" height="1172" alt="Sync with your cloud: the same tasks on your phone and your computer, encrypted before they leave, with Google Drive, Dropbox and OneDrive to pick from." decoding="async" loading="lazy" />
+                  <img class="d" src="shots/sync-pick-dark.webp" width="920" height="1172" alt="Sync with your cloud: the same tasks on your phone and your computer, encrypted before they leave, with Google Drive, Dropbox and OneDrive to pick from." decoding="async" loading="lazy" />
+                </div>
+                <div>
+                  <img class="l" src="shots/sync-on-light.webp" width="920" height="1024" alt="Sync is on: up to date, synced at 09:41, with Sync now, what Google sees, how to add another device, then Stop syncing and Done." decoding="async" loading="lazy" />
+                  <img class="d" src="shots/sync-on-dark.webp" width="920" height="1024" alt="Sync is on: up to date, synced at 09:41, with Sync now, what Google sees, how to add another device, then Stop syncing and Done." decoding="async" loading="lazy" />
+                </div>
+              </div>
+              <figcaption>Pick your cloud, sign in there and choose a passphrase. Then sync says where it stands.</figcaption>
+            </figure>
+            <ol>
+              <li>Choose <b>Sync with your cloud</b>: in search before you type on a computer, in More on a phone.</li>
+              <li>
+                Pick your cloud and sign in on its own page. One Day asks for its own folder there, and nothing else: a hidden
+                folder in Google Drive, One Day’s folder under <b>Apps</b> in Dropbox and OneDrive.
+              </li>
+              <li>
+                Choose a sync passphrase, 12 characters or more. On each of your other devices, do the same with the same
+                account, and type the same passphrase.
+              </li>
+            </ol>
+            <p>
+              From then on, each change goes up a moment later, and what you changed elsewhere comes in when One Day opens,
+              when you come back to it, and every couple of minutes while it’s open. On a large screen, a cloud beside the
+              lock says how it’s going; click it to sync now, or to stop.
+            </p>
+            <h4 id="sync-merge">When two devices change the same day</h4>
+            <p>Nothing you write is lost. One Day merges task by task:</p>
+            <ul>
+              <li>Changes to different tasks, or to different parts of one task (its words on one device, its tick on the other), all stay.</li>
+              <li>If both devices change the same thing, the device whose day changed last wins.</li>
+              <li>A task deleted on one device and changed on the other stays. One deleted and left alone elsewhere goes everywhere.</li>
+              <li>A repeating task shown on both devices still comes once a day.</li>
+            </ul>
+            <h4 id="sync-offline">Offline, and signing in again</h4>
+            <p>
+              Offline, One Day works as always: your changes are kept on the device, and go up once you’re back online. Each
+              cloud decides how long One Day stays signed in: <b>Dropbox</b> until you stop syncing, <b>OneDrive</b> a day,
+              <b>Google Drive</b> an hour. After that, One Day asks you to sign in again, in a click, and your changes wait
+              meanwhile.
+            </p>
+            <h4 id="sync-lock">With the lock</h4>
+            <p>
+              They work together. With the <a href="#lock">lock</a> on, sync’s key is encrypted with your tasks, so a locked
+              One Day syncs nothing until you open it. The two passphrases can be the same or not: the lock’s opens One Day on
+              this device, the sync passphrase opens your tasks in your cloud.
+            </p>
+            <aside class="note warn">
+              <p>
+                <b>A forgotten sync passphrase cannot be recovered</b>, by anyone. The devices that already sync keep working.
+                To start over, choose <b>Forgot it?</b> where a device asks for it: One Day erases the copy in your cloud, and
+                you choose a new passphrase. Your other devices then ask for the new one.
+              </p>
+            </aside>
+            <p>Good to know:</p>
+            <ul>
+              <li>The copy in your cloud is an encrypted backup too: <b>Import backup</b> opens it with the sync passphrase.</li>
+              <li>
+                <b>Stop syncing</b>, where you turned sync on, keeps your tasks on this device, and in your cloud for your other
+                devices. Tick <b>Also erase One Day’s copy</b> to take them off your cloud too, once your other devices have
+                stopped: one still syncing would put the copy back.
+              </li>
+              <li>Deleting One Day’s folder in your cloud only deletes the copy: your tasks stay on your devices.</li>
+              <li>Sync is free: One Day keeps one small file in your cloud, counted in its storage.</li>
+            </ul>
           </section>
 
           <section id="backups">
@@ -707,7 +789,10 @@ Nothing is sent anywhere: the tasks stay in the link until I open it and confirm
               importing the same file twice changes nothing. One undo takes an import back.
             </p>
             <h4 id="moving">Moving to a new phone or computer</h4>
-            <p>One Day doesn’t sync, so you bring your tasks along yourself, in one of two ways:</p>
+            <p>
+              With <a href="#sync">sync</a> on, connect the new one to the same cloud and your tasks come along. Without it,
+              you bring them yourself, in one of two ways:
+            </p>
             <ol>
               <li>
                 <b>Everything:</b> on the old device, <b>Export backup</b>. Move the file to the new one (AirDrop, email, a
@@ -819,17 +904,21 @@ Nothing is sent anywhere: the tasks stay in the link until I open it and confirm
             <h3>Questions</h3>
 
             <h4 id="where">Where are my tasks stored?</h4>
-            <p>In your browser, on this device, for this site only. Nothing is sent anywhere, and there is no copy on a server.</p>
+            <p>
+              In your browser, on this device, for this site only. With <a href="#sync">sync</a> on, also in your own Google
+              Drive, Dropbox or OneDrive, encrypted. There is never a copy on a server of One Day’s.
+            </p>
 
             <h4 id="two-devices">Can I use One Day on my phone and my computer?</h4>
             <p>
-              Yes, but each keeps its own list: One Day doesn’t sync, since there is no server to sync through. To get tasks
-              from one to the other, see the next question.
+              Yes. Turn on <a href="#sync">sync</a> on both, with the same cloud account and the same passphrase, and they keep
+              one list. Without it, each keeps its own: see the next question.
             </p>
 
             <h4 id="other-device">How do I get my tasks onto another device?</h4>
             <p>
-              For a day’s open tasks, <b>Send this day</b> and open the link on the other device: send it by message, by
+              With <a href="#sync">sync</a>, connect it to the same cloud. Otherwise, for a day’s open tasks,
+              <b>Send this day</b> and open the link on the other device: send it by message, by
               email or in a note to yourself. For everything, export a backup, move the file and import it there. Importing
               adds what’s missing and keeps what’s there, so you can do it again later. See
               <a href="#moving">Moving to a new phone or computer</a>.
@@ -891,7 +980,11 @@ Nothing is sent anywhere: the tasks stay in the link until I open it and confirm
             </p>
 
             <h4 id="erase">How do I erase everything?</h4>
-            <p>Clear this site’s data in your browser’s settings. With the lock on, <b>Forgot it?</b> on the lock screen erases the tasks too.</p>
+            <p>
+              Clear this site’s data in your browser’s settings. With the lock on, <b>Forgot it?</b> on the lock screen erases
+              the tasks too. With sync on, first <b>Stop syncing</b> with <b>Also erase One Day’s copy</b> ticked, on every
+              device: otherwise the next one to sync puts your tasks back.
+            </p>
 
             <h4 id="free">Is there an account, a subscription or ads?</h4>
             <p>

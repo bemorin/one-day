@@ -12,6 +12,8 @@ import { spawn } from 'node:child_process';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+// sync's pictures talk to a made-up Google Drive, the tests' own: nothing reaches the real one
+import { Drive } from '../tests/clouds.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(root, 'public', 'guide', 'shots');
@@ -84,6 +86,17 @@ const data = ({ leftovers = false, done = false } = {}) => ({
   rules: { water: { text: 'Water the plants #home', start: '2026-04-07', freq: 'week', every: 1, days: [1, 4] } },
   tags: { work: 'orange', travel: 'blue', home: 'green' },
 });
+
+// Sync, as it is once One Day's apps are registered: their ids set, and Google Drive answered by a made-up one.
+async function withSync(ctx) {
+  await ctx.route(/\/app\.js$/, async route => {
+    const res = await route.fetch(),
+      body = await res.text();
+    await route.fulfill({ response: res, body: body.replace(/CLOUD_IDS = \{[^}]*\}/, "CLOUD_IDS = { google: 'g', dropbox: 'd', onedrive: 'o' }") });
+  });
+  await new Drive().route(ctx);
+}
+const SYNCPASS = 'a calm sync morning';
 
 // A link like the one Send makes, for the dialog that greets whoever opens it.
 const sentLink = () =>
@@ -221,6 +234,41 @@ const SHOTS = [
       await page.locator('#slist .sdata').waitFor();
     },
     keep: ['#topbar', '#srch .sbar', '#slist .sdata'],
+  },
+  // sync: the three clouds, then sync on, with where it stands
+  {
+    name: 'sync-pick',
+    ctx: withSync,
+    act: async page => {
+      await page.keyboard.press('/');
+      await page.locator('#slist [data-act="sync"]').click();
+      await page.locator('#syCh .syc').first().waitFor();
+      await page.evaluate(() => document.activeElement.blur());
+    },
+    keep: ['#syncd .lcard'],
+    pad: 40,
+    column: false,
+  },
+  {
+    name: 'sync-on',
+    ctx: withSync,
+    act: async page => {
+      await page.keyboard.press('/');
+      await page.locator('#slist [data-act="sync"]').click();
+      const pop = page.waitForEvent('popup');
+      await page.locator('#syCh [data-c="google"]').click();
+      await pop;
+      await page.locator('#syPass2').waitFor({ timeout: 20000 });
+      await page.locator('#syPass').fill(SYNCPASS);
+      await page.locator('#syPass2').fill(SYNCPASS);
+      await page.locator('#syOk').check();
+      await page.locator('#syGo').click();
+      await page.locator('#sySt .syd[data-s="idle"]').waitFor({ timeout: 30000 });
+      await page.evaluate(() => document.activeElement.blur());
+    },
+    keep: ['#syncd .lcard'],
+    pad: 40,
+    column: false,
   },
   {
     name: 'timer',
@@ -405,6 +453,7 @@ async function take(browser, shot, scheme) {
   await ctx.addInitScript(d => {
     if (!localStorage.getItem('oneday.v1')) localStorage.setItem('oneday.v1', JSON.stringify(d));
   }, data(shot.data));
+  if (shot.ctx) await shot.ctx(ctx);
   const page = await ctx.newPage();
   await page.clock.setFixedTime(shot.now || NOW);
   const errors = [];
@@ -451,7 +500,7 @@ const SHARES = [
     title: 'One Day',
     size: 116,
     line: 'A calm to-do list that shows one day at a time.',
-    foot: 'Free and private: no account, and your tasks never leave your device.',
+    foot: 'Free and private: no account, and your tasks stay yours.',
   },
   {
     file: join(root, 'public', 'guide', 'share.jpg'),

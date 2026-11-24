@@ -1,6 +1,7 @@
 /* One Day service worker: makes the app open instantly and work offline, even from a cold start.
-   It only caches the app's own files, and its guide. It never sees your tasks, which live in localStorage. */
-const CACHE = 'one-day-v65';
+   It only caches the app's own files, and its guide. It never sees your tasks, which live in localStorage.
+   Sync's calls to your cloud go to other sites: it lets them by untouched and keeps nothing of them. */
+const CACHE = 'one-day-v66';
 const SHELL = [
   './',
   './app.css',
@@ -17,10 +18,14 @@ const SHELL = [
   './guide/',
   './guide/guide.css',
   './guide/guide.js',
+  // where a cloud sends you back after you sign in: answered from here, its one-time code never reaches the server
+  './oauth/',
+  './oauth/oauth.js',
+  './oauth/oauth.css',
 ];
 const ROOT = new URL('./', self.registration.scope).pathname;
-// The pages it answers when opened: the app (also as /index.html) and the guide.
-const PAGES = { [ROOT]: './', [ROOT + 'index.html']: './', [ROOT + 'guide/']: './guide/' };
+// The pages it answers when opened: the app (also as /index.html), the guide, and sync's way back from a cloud.
+const PAGES = { [ROOT]: './', [ROOT + 'index.html']: './', [ROOT + 'guide/']: './guide/', [ROOT + 'oauth/']: './oauth/' };
 
 // A response that went through a redirect cannot answer a page load: keep a clean copy instead.
 const plain = async r =>
@@ -54,6 +59,7 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const request = event.request,
     url = new URL(request.url);
+  // only this site's own files: a call to a cloud (or anywhere else) goes straight to the network, never cached
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
 
   // Opening the app or the guide (with any query): the cached page at once, refreshed for next time.

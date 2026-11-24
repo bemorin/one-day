@@ -1,7 +1,9 @@
 # Security headers for Cloudflare Pages or Netlify (both read this file).
 # GitHub Pages ignores it; the Content-Security-Policy in index.html still applies there.
+# connect-src: the app's own files, and the APIs of the three clouds sync can use (Google Drive, Dropbox, OneDrive,
+# with OneDrive's download hosts), nothing else. Signing in happens on each cloud's own page, a navigation, not a fetch.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com https://api.dropboxapi.com https://content.dropboxapi.com https://graph.microsoft.com https://login.microsoftonline.com https://*.files.1drv.com https://my.microsoftpersonalcontent.com; manifest-src 'self'; worker-src 'self'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
