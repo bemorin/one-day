@@ -21,7 +21,7 @@ That’s all there is to it. The rest of this page is for the days when you want
 
 *Today in One Day: a card on a computer, the whole screen on a phone, with a bar under your thumb.*
 
-> **Nothing to sign up for.** One Day has no account, no server and no tracking. Your tasks stay in this browser on this device: [Privacy](https://day.bemorin.com/guide/#privacy) explains what that means, and [Backups](https://day.bemorin.com/guide/#backups) how to keep a copy.
+> **Nothing to sign up for.** One Day has no account, no server and no tracking. Your tasks stay in this browser on this device: [Privacy](https://day.bemorin.com/guide/#privacy) explains what that means, [Sync with your cloud](https://day.bemorin.com/guide/#sync) how to have them on your other devices too, and [Backups](https://day.bemorin.com/guide/#backups) how to keep a copy.
 
 To come back to this guide, click the **?** at the top right, above the day, on a computer; on a phone, it’s **How to use One Day** in More.
 
@@ -265,13 +265,13 @@ On a phone, One Day fills the screen and keeps everything within reach of your t
 - **Timer** opens as a sheet, and the bar shows the time left while it runs;
 - the red **+** opens the field to add a task, just above the keyboard;
 - **Send day** sends the day’s unfinished tasks;
-- **More** holds installing, backups, the lock and the links.
+- **More** holds installing, sync, backups, the lock and the links.
 
 Swipe sideways to change day. Tap a task to open it; hold it, then drag, to reorder it. A sheet or the drawer closes when you drag it down. On Android, the back button closes what is open first (a sheet, the drawer, an open task) before it leaves One Day.
 
 ![On a phone, the field to add a task rises from the bottom, with Book a table for Friday typed in and a Today chip.](https://day.bemorin.com/guide/shots/phone-add-light.webp)
 ![On a phone, search open as a drawer over the day, with two results for lisbon.](https://day.bemorin.com/guide/shots/phone-search-light.webp)
-![On a phone, More: Install One Day in red, Undo and Redo greyed while there is nothing to take back, Import backup, Export backup, Protect with a passphrase, How to use One Day, then the links.](https://day.bemorin.com/guide/shots/phone-more-light.webp)
+![On a phone, More: Install One Day in red, Sync with your cloud, Import backup, Export backup, Protect with a passphrase, How to use One Day, then the links.](https://day.bemorin.com/guide/shots/phone-more-light.webp)
 
 ### Install it
 
@@ -306,20 +306,61 @@ Where your tasks live, how to keep a copy, and how to lock them.
 
 ### Privacy
 
-**Your tasks never leave your device.** One Day keeps them in your browser’s storage for this site. There is no server, database or account behind it, so nobody else can see them, not even its maker.
+**Your tasks stay on your device.** One Day keeps them in your browser’s storage for this site. There is no server, database or account behind it, so nobody else can see them, not even its maker. If you [sync them with your own cloud](https://day.bemorin.com/guide/#sync), they also go there, encrypted with your passphrase before they leave: your cloud can’t read them, and nothing ever reaches One Day.
 
 - **No cookies, no analytics, no third-party requests.** The font comes with the app, and the site’s security policy lets nothing else load. This guide makes the same promise.
 - **The links are plain links.** Nothing is contacted until you click one. The dogood.day link tells that site you came from One Day; the others send nothing.
 - **It works offline** once you’ve opened it online one time. The browser keeps a copy of the app’s own files, never of your tasks.
-- **What the browser keeps for One Day:** your tasks, the timer’s settings, your light or dark choice and, if you put off the install offer, that you did.
+- **What the browser keeps for One Day:** your tasks, the timer’s settings, your light or dark choice and, if you put off the install offer, that you did. With sync on, also its key and your sign-in to your cloud.
 
-The other side of the coin: your tasks live in **this browser, on this device**. Another browser, another device or a private window has its own separate list, and clearing the site’s data erases them. That’s what [backups](https://day.bemorin.com/guide/#backups) are for.
+The other side of the coin: your tasks live in **this browser, on this device**. Another browser, another device or a private window has its own separate list, and clearing the site’s data erases them. That’s what [sync](https://day.bemorin.com/guide/#sync) and [backups](https://day.bemorin.com/guide/#backups) are for.
 
-![Search before typing: your tags, then Your tasks are stored only in this browser. Nothing is sent anywhere, with Import backup, Export backup and Protect with a passphrase.](https://day.bemorin.com/guide/shots/backups-light.webp)
+![Search before typing: your tags, then Your tasks are stored only in this browser. Nothing is sent anywhere, with Sync with your cloud, Import backup, Export backup and Protect with a passphrase.](https://day.bemorin.com/guide/shots/backups-light.webp)
 
-*Search, before you type: where your tasks are, the backup buttons and the lock. On a phone, they’re in More.*
+*Search, before you type: where your tasks are, sync, the backup buttons and the lock. On a phone, they’re in More.*
 
 For the legal details, read the [privacy policy](https://bemorin.com/privacy#one-day).
+
+### Sync with your cloud
+
+To have the same tasks on your phone and your computer, One Day can keep them in your own **Google Drive**, **Dropbox** or **OneDrive**, one at a time. There is still no account and no server: each device talks to your cloud directly, and your tasks are **encrypted with a passphrase** before they leave it. Your cloud sees one file and when it changes, never a task, and nothing reaches One Day.
+
+![Sync with your cloud: the same tasks on your phone and your computer, encrypted before they leave, with Google Drive, Dropbox and OneDrive to pick from.](https://day.bemorin.com/guide/shots/sync-pick-light.webp)
+![Sync is on: up to date, synced at 09:41, with Sync now, what Google sees, how to add another device, then Stop syncing and Done.](https://day.bemorin.com/guide/shots/sync-on-light.webp)
+
+*Pick your cloud, sign in there and choose a passphrase. Then sync says where it stands.*
+
+1. Choose **Sync with your cloud**: in search before you type on a computer, in More on a phone.
+2. Pick your cloud and sign in on its own page. One Day asks for its own folder there, and nothing else: a hidden folder in Google Drive, One Day’s folder under **Apps** in Dropbox and OneDrive.
+3. Choose a sync passphrase, 12 characters or more. On each of your other devices, do the same with the same account, and type the same passphrase.
+
+From then on, each change goes up a moment later, and what you changed elsewhere comes in when One Day opens, when you come back to it, and every couple of minutes while it’s open. On a large screen, a cloud beside the lock says how it’s going; click it to sync now, or to stop.
+
+#### When two devices change the same day
+
+Nothing you write is lost. One Day merges task by task:
+
+- Changes to different tasks, or to different parts of one task (its words on one device, its tick on the other), all stay.
+- If both devices change the same thing, the device whose day changed last wins.
+- A task deleted on one device and changed on the other stays. One deleted and left alone elsewhere goes everywhere.
+- A repeating task shown on both devices still comes once a day.
+
+#### Offline, and signing in again
+
+Offline, One Day works as always: your changes are kept on the device, and go up once you’re back online. Each cloud decides how long One Day stays signed in: **Dropbox** until you stop syncing, **OneDrive** a day, **Google Drive** an hour. After that, One Day asks you to sign in again, in a click, and your changes wait meanwhile.
+
+#### With the lock
+
+They work together. With the [lock](https://day.bemorin.com/guide/#lock) on, sync’s key and your sign-in are encrypted with your tasks, so a locked One Day syncs nothing until you open it. The two passphrases can be the same or not: the lock’s opens One Day on this device, the sync passphrase opens your tasks in your cloud.
+
+> **A forgotten sync passphrase cannot be recovered**, by anyone. The devices that already sync keep working. To start over, choose **Forgot it?** where a device asks for it: One Day erases the copy in your cloud, and you choose a new passphrase. Your other devices then ask for the new one.
+
+Good to know:
+
+- The copy in your cloud is an encrypted backup too: **Import backup** opens it with the sync passphrase.
+- **Stop syncing**, where you turned sync on, keeps your tasks on this device, and in your cloud for your other devices. Tick **Also erase One Day’s copy** to take them off your cloud too, once your other devices have stopped: one still syncing would put the copy back.
+- Deleting One Day’s folder in your cloud only deletes the copy: your tasks stay on your devices.
+- Sync is free: One Day keeps one small file in your cloud, counted in its storage.
 
 ### Backups
 
@@ -329,7 +370,7 @@ For the legal details, read the [privacy policy](https://bemorin.com/privacy#one
 
 #### Moving to a new phone or computer
 
-One Day doesn’t sync, so you bring your tasks along yourself, in one of two ways:
+With [sync](https://day.bemorin.com/guide/#sync) on, connect the new one to the same cloud and your tasks come along. Without it, you bring them yourself, in one of two ways:
 
 1. **Everything:** on the old device, **Export backup**. Move the file to the new one (AirDrop, email, a cloud drive), open One Day there and choose **Import backup**.
 2. **Just a day’s open tasks:** on the old device, **Send this day**, then open the link on the new one, for each day you need. The link carries the tasks with their notes and sub-tasks, but not their repeats.
@@ -383,15 +424,15 @@ Answers to common questions, and where to ask the others.
 
 #### Where are my tasks stored?
 
-In your browser, on this device, for this site only. Nothing is sent anywhere, and there is no copy on a server.
+In your browser, on this device, for this site only. With [sync](https://day.bemorin.com/guide/#sync) on, also in your own Google Drive, Dropbox or OneDrive, encrypted. There is never a copy on a server of One Day’s.
 
 #### Can I use One Day on my phone and my computer?
 
-Yes, but each keeps its own list: One Day doesn’t sync, since there is no server to sync through. To get tasks from one to the other, see the next question.
+Yes. Turn on [sync](https://day.bemorin.com/guide/#sync) on both, with the same cloud account and the same passphrase, and they keep one list. Without it, each keeps its own: see the next question.
 
 #### How do I get my tasks onto another device?
 
-For a day’s open tasks, **Send this day** and open the link on the other device: send it by message, by email or in a note to yourself. For everything, export a backup, move the file and import it there. Importing adds what’s missing and keeps what’s there, so you can do it again later. See [Moving to a new phone or computer](https://day.bemorin.com/guide/#moving).
+With [sync](https://day.bemorin.com/guide/#sync), connect it to the same cloud. Otherwise, for a day’s open tasks, **Send this day** and open the link on the other device: send it by message, by email or in a note to yourself. For everything, export a backup, move the file and import it there. Importing adds what’s missing and keeps what’s there, so you can do it again later. See [Moving to a new phone or computer](https://day.bemorin.com/guide/#moving).
 
 #### Can I bring my tasks from Todoist or another app?
 
@@ -431,7 +472,7 @@ It needs Chrome or Edge, version 116 or later, on a computer. Safari, Firefox an
 
 #### How do I erase everything?
 
-Clear this site’s data in your browser’s settings. With the lock on, **Forgot it?** on the lock screen erases the tasks too.
+Clear this site’s data in your browser’s settings. With the lock on, **Forgot it?** on the lock screen erases the tasks too. With sync on, first **Stop syncing** with **Also erase One Day’s copy** ticked, on every device: otherwise the next one to sync puts your tasks back.
 
 #### Is there an account, a subscription or ads?
 
