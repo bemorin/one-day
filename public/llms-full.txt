@@ -361,6 +361,7 @@ Good to know:
 - **Stop syncing**, where you turned sync on, keeps your tasks on this device, and in your cloud for your other devices. Tick **Also erase One Day’s copy** to take them off your cloud too, once your other devices have stopped: one still syncing would put the copy back.
 - Deleting One Day’s folder in your cloud only deletes the copy: your tasks stay on your devices.
 - Sync is free: One Day keeps one small file in your cloud, counted in its storage.
+- Google Drive is a trademark of Google LLC, Dropbox a trademark of Dropbox, Inc., and Microsoft and OneDrive trademarks of the Microsoft group of companies. One Day is not affiliated with or endorsed by any of them.
 
 ### Backups
 

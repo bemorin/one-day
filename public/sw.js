@@ -22,6 +22,9 @@ const SHELL = [
   './oauth/',
   './oauth/oauth.js',
   './oauth/oauth.css',
+  // each cloud's logo, in sync's dialog
+  './clouds/google-drive.svg',
+  './clouds/dropbox.svg',
 ];
 const ROOT = new URL('./', self.registration.scope).pathname;
 // The pages it answers when opened: the app (also as /index.html), the guide, and sync's way back from a cloud.

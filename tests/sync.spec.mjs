@@ -182,6 +182,16 @@ test.describe('sync with your cloud', () => {
     await b.click();
     await expect(A.page.locator('#syncd')).toBeVisible();
     await expect(A.page.locator('#syT')).toHaveText('Sync with your cloud');
+    // each cloud with its own logo where its owner lets apps show it, beside its name
+    for (const [c, f] of [
+      ['google', 'clouds/google-drive.svg'],
+      ['dropbox', 'clouds/dropbox.svg'],
+    ]) {
+      const img = A.page.locator(`#syCh [data-c="${c}"] .syl img`);
+      await expect(img).toHaveAttribute('src', f);
+      await expect.poll(() => img.evaluate(n => n.complete && n.naturalWidth > 0)).toBe(true);
+    }
+    await expect(A.page.locator('#syCh [data-c="google"]')).toHaveAccessibleName(/^Google Drive/);
     await A.page.keyboard.press('Escape');
     await expect(A.page.locator('#syncd')).toBeHidden();
     expect(A.errors).toEqual([]);
