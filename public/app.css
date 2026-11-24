@@ -4110,6 +4110,21 @@ mark {
   top: 6px;
   right: calc(50% - 16px);
 }
+/* where the bar is folded, sync's button waits behind ⋮: the dot shows there too */
+.bar.folded #kb.att {
+  position: relative;
+}
+.bar.folded #kb.att::after {
+  content: '';
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 0 2px var(--bg);
+}
 @media (max-width: 719px) {
   .lock .lcard {
     padding-inline: 4px;

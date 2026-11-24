@@ -144,7 +144,7 @@ Every push to `main` deploys; every other branch gets a preview URL.
 
 ### Sync, on your own copy
 
-Sync talks to each cloud as an app registered there, with One Day's address as the only place it sends you back to. A copy published elsewhere needs its own registrations: create them (Google Cloud console, Dropbox App Console, Microsoft Entra), with `https://<your address>/oauth/` as the redirect address, then put their public ids in `CLOUD_IDS` in [`public/app.js`](public/app.js). None of them is a secret. Until a cloud has an id, its row in the dialog says it isn't set up yet.
+Sync talks to each cloud as an app registered there, with One Day's address as the only place it sends you back to. `CLOUD_IDS` in [`public/app.js`](public/app.js) holds One Day's own public ids, which only work on One Day's addresses. A copy published elsewhere needs its own registrations: create them (Google Cloud console, Dropbox App Console, Microsoft Entra), with `https://<your address>/oauth/` as the redirect address, then put their public ids in `CLOUD_IDS` in place of One Day's ([docs/sync-setup.md](docs/sync-setup.md) has the steps). None of them is a secret. Until a cloud has an id, its row in the dialog says it isn't set up yet.
 
 ## Develop
 
