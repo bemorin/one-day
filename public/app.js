@@ -8934,10 +8934,15 @@ try {
      Offline, changes wait here, and go up once the connection is back. While locked, nothing syncs: the key is sealed. */
   const SYF = 'one-day.json',
     SYCH = 'one-day-oauth',
-    // One Day's public id at each cloud, from the app registered there (docs/sync-setup.md). None of them is a secret:
-    // a cloud only sends its answer to the addresses registered with it, and the answer only opens with what this page
-    // keeps (PKCE's verifier, or the sign-in's random state).
-    CLOUD_IDS = { google: '', dropbox: '', onedrive: '' },
+    // One Day's public id at each cloud, from the app registered there for One Day's own addresses (a copy published
+    // elsewhere registers its own: docs/sync-setup.md). None of them is a secret: a cloud only sends its answer to the
+    // addresses registered with it, and the answer only opens with what this page keeps (PKCE's verifier, or the
+    // sign-in's random state). A cloud without an id says in the dialog that it isn't set up yet.
+    CLOUD_IDS = {
+      google: '15640435825-74i2vrs9cj7pj0dchm37kobnp5lohigg.apps.googleusercontent.com',
+      dropbox: 'j77qztjuwc2el8m',
+      onedrive: '',
+    },
     SYON = !!(CAN_LOCK && WEB && window.fetch && window.CompressionStream && window.DecompressionStream),
     CL = {
       google: { name: 'Google Drive', co: 'Google', where: 'in a hidden folder of your Google Drive that only One Day can open', sub: 'A hidden folder only One Day opens' },
@@ -10040,8 +10045,8 @@ try {
     }
   }
 
-  /* on screen: a cloud above the card on a large screen once sync is on, a button in More on a phone, a chip in search
-     before you type, and the dialog */
+  /* on screen: a cloud above the card on a large screen once sync is on, a button in More (on a phone, or behind ⋮
+     where the bar is folded), a chip in search before you type, and the dialog */
   const SPILL = document.getElementById('spill'),
     syAtt = () => !!SYS && ['auth', 'pass', 'error'].includes(SYST.s);
   function syLabel() {
@@ -10067,6 +10072,8 @@ try {
       if (tipFor === SPILL && !SPILL.hidden) showTip(SPILL);
     }
     $.mbMore.classList.toggle('att', syAtt());
+    // ⋮ shows it only where the bar is folded, its drawer holding sync's button
+    $.kb.classList.toggle('att', syAtt());
     if (SYD && SYD.step === 'on') syDraw();
     if (lab === syLast) return;
     syLast = lab;

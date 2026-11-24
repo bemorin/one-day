@@ -1,6 +1,6 @@
 # Sync: registering One Day with each cloud
 
-Sync talks to Google Drive, Dropbox and OneDrive as an app registered with each of them. There is no server: the browser signs in on the cloud's own page and comes back to `oauth/` on One Day's own address, then talks to the cloud's API directly. Each registration gives a **public id**, which goes in `CLOUD_IDS` in [`public/app.js`](../public/app.js). None of them is a secret, and no client secret is used anywhere: leave any secret a console shows unused.
+Sync talks to Google Drive, Dropbox and OneDrive as an app registered with each of them. There is no server: the browser signs in on the cloud's own page and comes back to `oauth/` on One Day's own address, then talks to the cloud's API directly. Each registration gives a **public id**, which goes in `CLOUD_IDS` in [`public/app.js`](../public/app.js), in place of One Day's own (they only work on One Day's addresses). None of them is a secret, and no client secret is used anywhere: leave any secret a console shows unused.
 
 Until a cloud has an id, its row in the sync dialog says it isn't set up yet.
 

@@ -353,6 +353,36 @@ test.describe('sync with your cloud', () => {
     await A.ctx.close();
   });
 
+  test('in a narrow window the bar is folded: sync waits behind ⋮, with a red dot there while it waits on you', async ({ browser, baseURL }) => {
+    const drive = new Drive(),
+      A = await device(browser, baseURL, drive),
+      dot = () => A.page.locator('#kb').evaluate(n => n.classList.contains('att') && getComputedStyle(n, '::after').content !== 'none');
+    await connect(A.page, 'google');
+    await done(A.page);
+    await A.page.setViewportSize({ width: 320, height: 700 });
+    await expect(A.page.locator('.bar')).toHaveClass(/\bfolded\b/);
+    expect(await dot()).toBe(false);
+    drive.tokens.clear();
+    await add(A.page, 'Written in a side panel');
+    await expect(A.page.locator('#toast')).toContainText('Sign in to Google Drive again to sync', { timeout: 15000 });
+    await expect.poll(dot).toBe(true);
+    await A.page.locator('#kb').click();
+    const mb = A.page.locator('#moreList [data-act="sync"]');
+    await expect(mb).toHaveText('Sign in to Google Drive again to sync');
+    await expect(mb).toHaveClass(/\batt\b/);
+    await mb.click();
+    await expect(A.page.locator('#syncd')).toBeVisible();
+    await expect(A.page.locator('#sySt')).toContainText('Sign in to Google Drive again to keep syncing.');
+    await A.page.keyboard.press('Escape');
+    await expect(A.page.locator('#syncd')).toBeHidden();
+    // wide again, ⋮ goes, and its dot with it
+    await A.page.setViewportSize({ width: 1280, height: 860 });
+    await expect(A.page.locator('.bar')).not.toHaveClass(/\bfolded\b/);
+    await expect(A.page.locator('#kb')).toBeHidden();
+    expect(A.errors).toEqual([]);
+    await A.ctx.close();
+  });
+
   test('stop syncing keeps the tasks and the copy; erasing takes the copy away and gives Google its access back', async ({ browser, baseURL }) => {
     const drive = new Drive(),
       A = await device(browser, baseURL, drive);
