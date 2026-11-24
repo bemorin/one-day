@@ -162,6 +162,7 @@ public/                 the site
   app.js                the whole app
   sw.js                 offline cache for the app's own files
   oauth/                where a cloud sends you back after you sign in (sync)
+  clouds/               each cloud's logo in sync's dialog, as its owner publishes it (see License)
   manifest.webmanifest  install metadata
   _headers              security headers (Cloudflare Pages)
   guide/                the guide (/guide/): one page, its stylesheet and script, shots/ from npm run shots
@@ -202,3 +203,5 @@ If One Day helps your days, you can [buy me a croissant](https://ko-fi.com/bemor
 ## License
 
 The code is under the [MIT License](LICENSE). The One Day name and icon are not covered by it: if you publish a fork, give it your own. The Archivo typeface is © The Archivo Project Authors, under the [SIL Open Font License 1.1](public/fonts/OFL.txt).
+
+The logos in `public/clouds/` are not covered by it either: they belong to their owners and are used as each allows apps that work with it to show them. Google Drive is a trademark of Google LLC, and Dropbox of Dropbox, Inc.; Microsoft and OneDrive are trademarks of the Microsoft group of companies, and the OneDrive icon is used under the Microsoft Fabric Assets License. One Day is not affiliated with or endorsed by any of them.

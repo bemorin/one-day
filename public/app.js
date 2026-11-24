@@ -8956,7 +8956,15 @@ try {
         logo: 'clouds/google-drive.svg',
       },
       dropbox: { name: 'Dropbox', co: 'Dropbox', where: 'in One Day’s own folder of your Dropbox, under Apps', sub: 'One Day’s own folder, under Apps', logo: 'clouds/dropbox.svg' },
-      onedrive: { name: 'OneDrive', co: 'Microsoft', where: 'in One Day’s own folder of your OneDrive, under Apps', sub: 'One Day’s own folder, under Apps' },
+      // beside its icon, Microsoft asks for the product's full name; the sign-in is for personal accounts only
+      onedrive: {
+        name: 'OneDrive',
+        label: 'Microsoft OneDrive',
+        co: 'Microsoft',
+        where: 'in One Day’s own folder of your OneDrive, under Apps',
+        sub: 'A personal account: One Day’s own folder, under Apps',
+        logo: 'clouds/onedrive.svg',
+      },
     },
     SYST = { s: 'off', at: 0, why: '' }; // how sync is going: off, idle, busy, offline, auth, pass, error
   let SYD = null, // the dialog, while it is open
@@ -10220,7 +10228,7 @@ try {
         .map(k => {
           const on = !!CLOUD_IDS[k],
             logo = CL[k].logo ? `<img src="${CL[k].logo}" alt="" width="28" height="28" decoding="async">` : '';
-          return `<button type="button" class="syc" data-c="${k}"${on ? '' : ' disabled'}><i class="syl syl-${k}" aria-hidden="true">${logo}</i><b>${esc(CL[k].name)}</b><span>${esc(on ? CL[k].sub : 'Not set up yet')}</span></button>`;
+          return `<button type="button" class="syc" data-c="${k}"${on ? '' : ' disabled'}><i class="syl syl-${k}" aria-hidden="true">${logo}</i><b>${esc(CL[k].label || CL[k].name)}</b><span>${esc(on ? CL[k].sub : 'Not set up yet')}</span></button>`;
         })
         .join('');
     } else if (st === 'wait') {
