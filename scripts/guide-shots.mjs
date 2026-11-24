@@ -240,8 +240,7 @@ const SHOTS = [
     name: 'sync-pick',
     ctx: withSync,
     act: async page => {
-      await page.keyboard.press('/');
-      await page.locator('#slist [data-act="sync"]').click();
+      await page.locator('#spill').click();
       await page.locator('#syCh .syc').first().waitFor();
       await page.evaluate(() => document.activeElement.blur());
     },
@@ -253,8 +252,7 @@ const SHOTS = [
     name: 'sync-on',
     ctx: withSync,
     act: async page => {
-      await page.keyboard.press('/');
-      await page.locator('#slist [data-act="sync"]').click();
+      await page.locator('#spill').click();
       const pop = page.waitForEvent('popup');
       await page.locator('#syCh [data-c="google"]').click();
       await pop;

@@ -64,15 +64,12 @@ const idle = async page => {
   await expect(page.locator('#sySt .syd')).toBeVisible();
   await expect(page.locator('#sySt .syd')).toHaveAttribute('data-s', 'idle', { timeout: 20000 });
 };
+// the cloud beside the lock: a pill above the card on a large screen, a button in the card's bar otherwise
 async function openDialog(page) {
-  if (await page.locator('#spill').isVisible()) await page.locator('#spill').click();
-  else {
-    await page.keyboard.press('/');
-    await page.locator('#slist [data-act="sync"]').click();
-  }
+  await page.locator('#spill:visible, #syncb:visible').first().click();
   await expect(page.locator('#syncd')).toBeVisible();
 }
-// on a computer: search before you type, Sync with your cloud, a cloud, its window, then the passphrase
+// on a computer: the cloud beside the lock, a cloud to keep the copy, its window, then the passphrase
 async function connect(page, cloud, { join = false, pass = PASS } = {}) {
   await openDialog(page);
   await expect(page.locator('#syT')).toHaveText('Sync with your cloud');
@@ -158,6 +155,35 @@ test.describe('sync with your cloud', () => {
     expect(t.x < sp.x && sp.x < l.x).toBe(true);
     await A.page.keyboard.press('/');
     await expect(A.page.locator('#slist .sdata .shint')).toHaveText('Your tasks are stored in this browser, and encrypted in your Google Drive.');
+    expect(A.errors).toEqual([]);
+    await A.ctx.close();
+  });
+
+  test('the cloud waits beside the lock: above the card on a large screen, in the card’s bar in a narrower window; search keeps the backups', async ({ browser, baseURL }) => {
+    const A = await device(browser, baseURL, new Drive()),
+      sp = A.page.locator('#spill'),
+      b = A.page.locator('#syncb');
+    await expect(sp).toBeVisible();
+    await expect(sp).toHaveAttribute('aria-label', 'Sync with your cloud');
+    await expect(sp).toHaveAttribute('data-s', 'off');
+    const [t, s, l] = await Promise.all(['#theme', '#spill', '#lpill'].map(x => A.page.locator(x).boundingBox()));
+    expect(t.x < s.x && s.x < l.x).toBe(true);
+    // search before you type: where the tasks are, and the two backups; the cloud and the lock have buttons of their own
+    await A.page.keyboard.press('/');
+    await expect(A.page.locator('#slist .sdata .chip')).toHaveText(['Import backup', 'Export backup']);
+    await A.page.keyboard.press('Escape');
+    // narrower: a button in the card's bar, between the sun and the lock
+    await A.page.setViewportSize({ width: 700, height: 860 });
+    await expect(sp).toBeHidden();
+    await expect(b).toBeVisible();
+    await expect(A.page.locator('.bar')).not.toHaveClass(/\bfolded\b/);
+    const [bt, bs, bl] = await Promise.all(['.bar #theme', '#syncb', '#lockb'].map(x => A.page.locator(x).boundingBox()));
+    expect(bt.x < bs.x && bs.x < bl.x).toBe(true);
+    await b.click();
+    await expect(A.page.locator('#syncd')).toBeVisible();
+    await expect(A.page.locator('#syT')).toHaveText('Sync with your cloud');
+    await A.page.keyboard.press('Escape');
+    await expect(A.page.locator('#syncd')).toBeHidden();
     expect(A.errors).toEqual([]);
     await A.ctx.close();
   });
@@ -286,8 +312,7 @@ test.describe('sync with your cloud', () => {
   test('with the lock on, sync’s key is sealed with the tasks; locked, nothing syncs; unlocked, it goes on', async ({ browser, baseURL }) => {
     const drive = new Drive(),
       A = await device(browser, baseURL, drive);
-    await A.page.keyboard.press('/');
-    await A.page.locator('#slist [data-act="lock"]').click();
+    await A.page.locator('#lpill').click();
     await A.page.locator('#lsPass').fill('correct horse battery');
     await A.page.locator('#lsPass2').fill('correct horse battery');
     await A.page.locator('#lsOk').check();
@@ -397,7 +422,9 @@ test.describe('sync with your cloud', () => {
     expect(JSON.parse(s.plain).sync).toBeUndefined();
     expect(drive.files).toHaveLength(1);
     expect(drive.revoked).toEqual([]);
-    await expect(A.page.locator('#spill')).toBeHidden();
+    // the cloud stays beside the lock, plain again: the way to turn sync back on
+    await expect(A.page.locator('#spill')).toHaveAttribute('data-s', 'off');
+    await expect(A.page.locator('#spill')).toHaveAttribute('aria-label', 'Sync with your cloud');
     await expect(row(A.page, 'Plan the trip')).toBeVisible();
     // on again: the copy there opens with the same passphrase; then off, and erased
     await connect(A.page, 'google', { join: true });
@@ -728,7 +755,7 @@ test.describe('sync with your cloud', () => {
     await A.page.locator('#syErase').check();
     await A.page.locator('#syGo').click();
     await expect(A.page.locator('#toast')).toContainText('One Day’s copy is gone from your Google Drive');
-    await expect(tab.locator('#spill')).toBeHidden({ timeout: 10000 });
+    await expect(tab.locator('#spill')).toHaveAttribute('data-s', 'off', { timeout: 10000 });
     await add(tab, 'Written in the other tab');
     await tab.waitForTimeout(3500);
     expect(drive.files).toEqual([]);
