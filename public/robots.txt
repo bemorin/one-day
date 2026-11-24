@@ -1,0 +1,8 @@
+# One Day, a calm to-do list that shows one day at a time: https://day.bemorin.com/
+# Every crawler is welcome, search engines and AI assistants alike.
+# For AI: a summary at https://day.bemorin.com/llms.txt, the whole guide in Markdown at https://day.bemorin.com/llms-full.txt
+
+User-agent: *
+Allow: /
+
+Sitemap: https://day.bemorin.com/sitemap.xml

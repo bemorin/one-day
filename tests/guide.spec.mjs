@@ -2,8 +2,9 @@ import { test, expect } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import AxeBuilder from '@axe-core/playwright';
+import { asFile, guideMarkdown } from '../scripts/llms-full.mjs';
 
-const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
+const WCAG =['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 const PAGE = readFileSync(new URL('../public/guide/index.html', import.meta.url), 'utf8');
 const SHOTS = new URL('../public/guide/shots/', import.meta.url);
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
@@ -536,4 +537,34 @@ test('llms.txt sums One Day up for assistants and points to the guide', async ({
   const t = await r.text();
   expect(t.startsWith('# One Day\n\n> ')).toBe(true);
   expect(t).toContain('](https://day.bemorin.com/guide/)');
+  expect(t).toContain('](https://day.bemorin.com/llms-full.txt)');
+});
+
+test('llms-full.txt is the whole guide as its Copy button gives it, every link absolute (npm run llms when the guide changes)', async ({ page, baseURL, request }) => {
+  const r = await request.get('/llms-full.txt');
+  expect(r.status()).toBe(200);
+  expect(r.headers()['content-type']).toContain('text/plain');
+  const file = (await r.text()).replace(/\r\n/g, '\n');
+  expect(file).toBe(asFile(await guideMarkdown(page, new URL(baseURL).origin)));
+  expect(file.startsWith('# How to use One Day\n')).toBe(true);
+  expect(file).toContain('](https://day.bemorin.com/guide/shots/');
+  // nothing left pointing relative to the root, where the file is
+  expect([...file.matchAll(/\]\(([^)\s]+)/g)].map(m => m[1]).filter(u => !/^(https:|mailto:)/.test(u))).toEqual([]);
+});
+
+test('robots.txt welcomes every crawler, AI ones included, and points to a sitemap of the app and the guide', async ({ request }) => {
+  const r = await request.get('/robots.txt');
+  expect(r.status()).toBe(200);
+  const t = await r.text();
+  expect(t).toMatch(/^User-agent: \*$/m);
+  expect(t).toMatch(/^Allow: \/$/m);
+  expect(t).not.toMatch(/^Disallow:/m);
+  expect(t).toContain('Sitemap: https://day.bemorin.com/sitemap.xml');
+  expect(t).toContain('https://day.bemorin.com/llms.txt');
+  const s = await request.get('/sitemap.xml');
+  expect(s.status()).toBe(200);
+  expect(s.headers()['content-type']).toContain('xml');
+  const x = await s.text();
+  expect(x).toContain('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
+  expect([...x.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1])).toEqual(['https://day.bemorin.com/', 'https://day.bemorin.com/guide/']);
 });

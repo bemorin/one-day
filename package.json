@@ -11,7 +11,8 @@
     "build:standalone": "node scripts/build-standalone.mjs",
     "video": "node scripts/demo-video.mjs",
     "mcpb": "npx @anthropic-ai/mcpb@2.1.2 pack mcp dist/one-day.mcpb",
-    "shots": "node scripts/guide-shots.mjs"
+    "shots": "node scripts/guide-shots.mjs",
+    "llms": "node scripts/llms-full.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
