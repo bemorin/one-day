@@ -341,6 +341,7 @@ try {
       v.kdf.iter <= 5e6 &&
       okBlob(v.pass) &&
       okBlob(v.data) &&
+      (!v.sync || okBlob(v.sync)) &&
       (!v.bio || (okBlob(v.bio) && typeof v.bio.id === 'string' && typeof v.bio.salt === 'string')) &&
       (v.kid == null || typeof v.kid === 'string') &&
       (v.uid == null || typeof v.uid === 'string');
@@ -351,7 +352,11 @@ try {
   } catch (e) {}
   if (!okVault(vault)) vault = null;
   let locked = !!vault,
-    S = null;
+    S = null,
+    // Sync with your cloud (see "sync"): its key and the copy last agreed with the cloud. They are written with the
+    // tasks, in the same write, so the two always match; with the lock on, they are sealed with them in the vault.
+    SYS = null,
+    syncHook = null;
   if (!locked)
     try {
       S = JSON.parse(localStorage.getItem(LS));
@@ -383,9 +388,8 @@ try {
     };
     S.days[todayKey()].tasks = clean(S.days[todayKey()].tasks);
   } else {
-    S.days = cleanDays(S.days);
-    S.rules = cleanRules(S.rules);
-    S.tags = cleanTags(S.tags);
+    SYS = cleanSys(S.sync);
+    S = { days: cleanDays(S.days), rules: cleanRules(S.rules), tags: cleanTags(S.tags) };
   }
   let cur = todayKey(),
     lastToday = cur,
@@ -413,6 +417,7 @@ try {
   function persist() {
     IDX = null;
     if (locked) return false;
+    if (syncHook) syncHook();
     if (vault) {
       sealSoon();
       return true;
@@ -420,7 +425,7 @@ try {
     // another tab may have just turned the lock on: the tasks are never written in clear next to it
     if (lockReady && localStorage.getItem(VK) && adoptVault()) return true;
     try {
-      localStorage.setItem(LS, JSON.stringify(S));
+      localStorage.setItem(LS, JSON.stringify(SYS ? { ...S, sync: SYS } : S));
       return true;
     } catch (e) {
       return false;
@@ -652,6 +657,8 @@ try {
     sun: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.75"/><path d="M8 1.75V3M8 13v1.25M14.25 8H13M3 8H1.75M12.42 3.58l-.88.88M4.46 11.54l-.88.88M12.42 12.42l-.88-.88M4.46 4.46l-.88-.88"/></svg>',
     moon: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.25 9.6A5.5 5.5 0 0 1 6.4 2.75a5.5 5.5 0 1 0 6.85 6.85Z"/></svg>',
     key: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="5.25" cy="10.75" r="2.75"/><path d="M7.2 8.8 13 3M10.75 5.25l1.75 1.75M9.25 6.75l1.25 1.25"/></svg>',
+    cloud:
+      '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.75 12.75h6.6a2.9 2.9 0 0 0 .42-5.77 3.9 3.9 0 0 0-7.48.86 2.45 2.45 0 0 0 .46 4.91Z"/></svg>',
     finger:
       '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.1 5.2A4.6 4.6 0 0 1 12 5.9M3.2 8.6a5 5 0 0 1 .4-2.1M12.9 8.3c0 1.8-.3 3.4-1 4.9M5.3 12.8c.4-1.1.6-2.4.6-3.7a2.1 2.1 0 0 1 4.2 0c0 1.7-.3 3.4-.9 4.8M8 9.1c0 1.9-.4 3.7-1.2 5.2"/></svg>',
   };
@@ -2967,7 +2974,7 @@ try {
               .join('')}${tags.length > 12 ? `<button type="button" class="chip" data-more>${tags.length - 12} more tags</button>` : ''}</div>` +
             (tags.length > 12 ? '<p class="shint">Type # and a few letters to find any tag.</p>' : '')
           : '') +
-        `<div class="sdata"><p class="shint">${dataHint()}</p><div class="chips"><button type="button" class="chip" data-act="import">${IC.up}Import backup</button><button type="button" class="chip" data-act="export">${IC.down}${canTop ? 'Export backup' : 'Copy backup'}</button></div>${lockChips()}</div>${aboutHTML()}`;
+        `<div class="sdata"><p class="shint">${dataHint()}</p>${syChips()}<div class="chips"><button type="button" class="chip" data-act="import">${IC.up}Import backup</button><button type="button" class="chip" data-act="export">${IC.down}${canTop ? 'Export backup' : 'Copy backup'}</button></div>${lockChips()}</div>${aboutHTML()}`;
       moveHl();
       return;
     }
@@ -4830,7 +4837,9 @@ try {
     // the file is read here; on the hosted page with sync, the tasks it adds are saved like any other
     IM.impSub.textContent = cloud.col
       ? 'Read here, in this browser. Like your other tasks, these are also saved in your private space on Claude.'
-      : 'Read here, in this browser. Nothing is sent anywhere.';
+      : SYS
+        ? `Read here, in this browser. Like your other tasks, these will sync to your ${CL[SYS.cloud].name}, encrypted.`
+        : 'Read here, in this browser. Nothing is sent anywhere.';
     IM.impList.scrollTop = 0;
     home.inert = true;
     modalIn(TAP && TAP.el.isConnected && Date.now() - TAP.t < 1500 ? TAP.el : IMP.back, IM.imp, IM.impCard);
@@ -6510,6 +6519,7 @@ try {
         : '') +
       (insHow() ? `<button type="button" class="sins" data-act="install">${IC.install}<span>Install One Day</span></button>` : '') +
       undoBtns() +
+      syMoreBtn() +
       `<div class="sbk"><button type="button" class="sbk-b" data-act="import">${IC.up}<span>Import backup</span></button>` +
       `<button type="button" class="sbk-b" data-act="export">${IC.down}<span>${canTop ? 'Export backup' : 'Copy backup'}</span></button></div>` +
       (CAN_LOCK ? lockBtns() : '') +
@@ -6760,6 +6770,7 @@ try {
   /* toast */
   let toastTm = null,
     toastAct = null;
+  // `act`: 'undo', 'redo', or { label, run } for something else to do from the toast
   function toast(msg, act, ms = 4200) {
     const was = $.toast.classList.contains('on');
     // the message that offers to undo a change names it: Undo in More says it again once the message has gone
@@ -6768,7 +6779,7 @@ try {
     $.toastTxt.textContent = msg;
     toastAct = act || null;
     $.undo.hidden = !act;
-    $.undo.textContent = act === 'redo' ? 'Redo' : 'Undo';
+    $.undo.textContent = act === 'redo' ? 'Redo' : act && act.label ? act.label : 'Undo';
     $.toast.classList.toggle('plain', !act);
     $.toast.classList.add('on');
     if (was)
@@ -6784,7 +6795,11 @@ try {
     $.toast.classList.remove('on');
   }
   $.undo.onclick = () => {
-    toastAct === 'redo' ? redo() : undo();
+    if (toastAct && toastAct.run) {
+      const run = toastAct.run;
+      hideToast();
+      run();
+    } else toastAct === 'redo' ? redo() : undo();
   };
 
   /* tooltips: app-styled, kept inside the window, gliding between neighbours */
@@ -6871,7 +6886,13 @@ try {
 
   /* keys */
   function onKey(e) {
-    if (locked || LSM || IMP || IMSEAL) return;
+    // the sync dialog takes Escape from anywhere while it is open (its own keys stay its own)
+    if (SYD && e.key === 'Escape' && !locked && !LSM) {
+      e.preventDefault();
+      closeSync();
+      return;
+    }
+    if (locked || LSM || IMP || IMSEAL || SYD) return;
     const t = e.target,
       typing = t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName),
       k = e.key,
@@ -7315,7 +7336,9 @@ try {
         do {
           sealAgain = false;
           if (locked || !vault || !DEK) break;
-          const data = await sealWith(DEK, plain());
+          // sync's key and base go with the tasks they belong to, in the same write
+          const data = await sealWith(DEK, plain()),
+            sync = SYS ? await sealWith(DEK, TE.encode(JSON.stringify(SYS))) : null;
           if (locked || !vault) break;
           const cur = storedVault();
           if (!cur || (cur.kid || '') !== KID) {
@@ -7324,6 +7347,8 @@ try {
             break;
           }
           vault = { ...cur, data };
+          if (sync) vault.sync = sync;
+          else delete vault.sync;
           localStorage.setItem(VK, JSON.stringify(vault));
           sealOk = true;
         } while (sealAgain);
@@ -7591,10 +7616,11 @@ try {
   }
   async function opened(raw) {
     const v = vault;
-    let dek, j;
+    let dek, j, sj;
     try {
       dek = await dataKey(raw);
       j = JSON.parse(TD.decode(await unseal(dek, v.data)));
+      sj = await openSys(dek, v);
     } finally {
       raw.fill(0);
     }
@@ -7605,6 +7631,7 @@ try {
       throw new Error('key changed');
     }
     S = { days: cleanDays(j && j.days), rules: cleanRules(j && j.rules), tags: cleanTags(j && j.tags) };
+    SYS = sj;
     DEK = dek;
     KID = v.kid || '';
     locked = false;
@@ -7624,6 +7651,16 @@ try {
       intro();
     }
     if (INRE.test(location.hash)) later(readIncoming, 600);
+    syWake();
+  }
+  // sync's key and base, sealed in the vault with the tasks (null when sync is off, or it can't be read)
+  async function openSys(dek, v) {
+    if (!v.sync) return null;
+    try {
+      return cleanSys(JSON.parse(TD.decode(await unseal(dek, v.sync))));
+    } catch (e) {
+      return null;
+    }
   }
   L.lockForm.addEventListener('submit', async e => {
     e.preventDefault();
@@ -7680,8 +7717,12 @@ try {
     locked = true;
     DEK = null;
     KID = '';
+    // sync's key goes with the tasks: nothing syncs until the next unlock
+    SYS = null;
+    syLocked();
     // a settings dialog open now must not go on with what the lock wipes
     closeLockset(null);
+    closeSync();
     closeImport();
     IM.impList.textContent = '';
     IM.impNote.textContent = '';
@@ -7744,7 +7785,9 @@ try {
     if (!TOPB || !CLOCK || !BSP) return;
     if (BIG.matches) {
       TOPB.prepend(CLOCK);
-      if (LP) LP.before($.theme);
+      // the sun, then sync's cloud (once it is on) beside the lock: what keeps your tasks, side by side
+      const after = document.getElementById('spill') || LP;
+      if (after) after.before($.theme);
       else TOPB.append($.theme);
     } else {
       BSP.append(CLOCK);
@@ -8457,15 +8500,26 @@ try {
     const j = JSON.parse(TD.decode(await unseal(DEK, cur.data))),
       tasks = { days: cleanDays(j && j.days), rules: cleanRules(j && j.rules), tags: cleanTags(j && j.tags) },
       data = await sealWith(dek, TE.encode(JSON.stringify(tasks))),
+      // sync's key and base, stored with those tasks, are sealed again with them
+      sys = await openSys(DEK, cur),
+      sync = sys ? await sealWith(dek, TE.encode(JSON.stringify(sys))) : null,
       now = storedVault();
     if (!still(now) || now.data.ct !== cur.data.ct) return null;
-    return { cur: now, data, tasks };
+    return { cur: now, data, tasks, sys, sync };
   }
+  // the vault with a new key: what it holds is sealed with it, sync's part included or left out
+  const rekeyed = (v, r) => {
+    const o = { ...v, data: r.data };
+    if (r.sync) o.sync = r.sync;
+    else delete o.sync;
+    return o;
+  };
   // this tab now holds the new key, and the tasks as they were stored
-  function took(k, tasks) {
+  function took(k, tasks, sys) {
     DEK = k.dek;
     KID = k.kid;
     S = tasks;
+    SYS = sys;
     IDX = null;
     TAGC = null;
     repaint();
@@ -8501,6 +8555,8 @@ try {
       // what another tab wrote in clear meanwhile goes in too
       const merged = mergePlain();
       if (merged != null) v.data = await sealWith(dek, plain());
+      // sync's key and base are sealed with the tasks from now on, never left in clear
+      if (SYS) v.sync = await sealWith(dek, TE.encode(JSON.stringify(SYS)));
       // read it all back before the plain copy goes
       const back = await unseal(kek, v.pass);
       if (back.length !== 32 || back.some((x, i) => x !== raw[i])) throw new Error('lock check');
@@ -8548,9 +8604,9 @@ try {
         r = await reseal(k.dek);
       if (!r) return BUSY;
       const { bio, ...rest } = r.cur;
-      vault = { ...rest, kid: k.kid, kdf: { iter: ITER, salt: toB64(salt) }, pass: k.pass, data: r.data };
+      vault = rekeyed({ ...rest, kid: k.kid, kdf: { iter: ITER, salt: toB64(salt) }, pass: k.pass }, r);
       localStorage.setItem(VK, JSON.stringify(vault));
-      took(k, r.tasks);
+      took(k, r.tasks, r.sys);
       if (bio) forgetPasskey(bio.id);
       return { toast: bio ? 'Passphrase changed. Set up fingerprint or face again if you want it.' : 'Passphrase changed' };
     },
@@ -8560,19 +8616,23 @@ try {
       if (!raw) return { err: 'That isn’t the current passphrase', el: 'old' };
       await flush();
       const cur = storedVault();
-      let j;
+      let j, sys;
       try {
-        j = JSON.parse(TD.decode(await unseal(await dataKey(raw), cur.data)));
+        const dk = await dataKey(raw);
+        j = JSON.parse(TD.decode(await unseal(dk, cur.data)));
+        sys = await openSys(dk, cur);
       } finally {
         raw.fill(0);
       }
       const now = storedVault();
       if (!still(now) || now.data.ct !== cur.data.ct) return BUSY;
       const data = { days: cleanDays(j && j.days), rules: cleanRules(j && j.rules), tags: cleanTags(j && j.tags) };
-      localStorage.setItem(LS, JSON.stringify(data));
+      // sync's key and base stay with the tasks they belong to, now in clear like them
+      localStorage.setItem(LS, JSON.stringify(sys ? { ...data, sync: sys } : data));
       localStorage.removeItem(VK);
       if (now.bio) forgetPasskey(now.bio.id);
       S = data;
+      SYS = sys;
       IDX = null;
       TAGC = null;
       vault = null;
@@ -8620,9 +8680,9 @@ try {
         r = await reseal(k.dek);
       if (!r) return BUSY;
       const { bio, ...rest } = r.cur;
-      vault = { ...rest, kid: k.kid, pass: k.pass, data: r.data };
+      vault = rekeyed({ ...rest, kid: k.kid, pass: k.pass }, r);
       localStorage.setItem(VK, JSON.stringify(vault));
-      took(k, r.tasks);
+      took(k, r.tasks, r.sys);
       if (bio) forgetPasskey(bio.id);
       return { toast: 'Only your passphrase unlocks One Day now' };
     },
@@ -8632,6 +8692,8 @@ try {
       localStorage.removeItem(VK);
       try {
         localStorage.removeItem(LS);
+        // the sign-in to the cloud goes too; the copy there stays, and opens with its own passphrase
+        localStorage.removeItem('oneday.sync');
       } catch (e) {}
       location.reload();
       return { wait: true };
@@ -8695,8 +8757,11 @@ try {
         async pass => {
           const raw = await byPass(pass, v);
           if (!raw) return { err: 'That passphrase doesn’t open this backup', el: 'old' };
-          const j = JSON.parse(TD.decode(await unseal(await dataKey(raw), v.data)));
+          let u8 = await unseal(await dataKey(raw), v.data);
           raw.fill(0);
+          // the copy sync keeps in a cloud is an encrypted backup too, its tasks compressed before they are sealed
+          if (v.z) u8 = await through(u8, new DecompressionStream('deflate-raw'), 64e6);
+          const j = JSON.parse(TD.decode(u8));
           return { data: j && typeof j === 'object' ? j : { days: {} } };
         },
       );
@@ -8731,7 +8796,12 @@ try {
       : '';
   }
   function dataHint() {
-    if (vault) return 'Your tasks are encrypted and stored only in this browser.';
+    const sy = SYS && CL[SYS.cloud].name;
+    if (vault)
+      return sy
+        ? `Your tasks are encrypted, in this browser and in your ${sy}.`
+        : 'Your tasks are encrypted and stored only in this browser.';
+    if (sy) return `Your tasks are stored in this browser, and encrypted in your ${sy}.`;
     return cloud.col
       ? 'Your tasks are saved in this browser and in your private space on Claude.'
       : 'Your tasks are stored only in this browser. Nothing is sent anywhere.';
@@ -8739,6 +8809,7 @@ try {
   function doAct(a) {
     if (a === 'export') exportData();
     else if (a === 'import') $.impf.click();
+    else if (a === 'sync') openSync();
     else if (a === 'lock') openLockset('on', lockDone);
     else if (a === 'locknow') lockNow(true);
     else if (a === 'lockchange') openLockset('change', lockDone);
@@ -8838,6 +8909,1550 @@ try {
       if (this.dirty.delete(k)) this.write(k);
     },
   };
+
+  /* Sync with your cloud. The tasks also live in your own Google Drive, Dropbox or OneDrive, in the one folder One Day
+     may open there, as one file sealed here with a passphrase: AES-GCM with a random key, which a key drawn from the
+     passphrase (PBKDF2-SHA-256, as the lock's) seals in turn. One Day has no server in this: you sign in on the cloud's
+     own page, the browser then talks to the cloud directly, and the cloud only ever holds that sealed file. It is also
+     an encrypted backup: Import backup opens it with the passphrase.
+     Each device keeps the copy it last agreed with the cloud (its base), written with the tasks so the two always match,
+     and sealed with them when the lock is on. A sync knows from it what changed on each side since:
+     - the unit is a task, known by its id on whatever day it is, merged field by field: its words, done, note,
+       sub-tasks (by their ids), its day and its repeat. A field changed on both sides takes the side whose day changed
+       last; a task's place in its day follows the side that reordered;
+     - an edit beats a deletion; a task deleted on one side and left alone on the other goes everywhere;
+     - repeats merge by rule, the days they skip added up; tag colours by tag; occurrences still to come that nobody
+       touched follow their repeat as it now is;
+     - with no base (a first sync, or a copy there that doesn't come from this device's last one), nothing is deleted:
+       both sides are kept.
+     Offline, changes wait here, and go up once the connection is back. While locked, nothing syncs: the key is sealed. */
+  const SYK = 'oneday.sync',
+    SYF = 'one-day.json',
+    SYCH = 'one-day-oauth',
+    // One Day's public id at each cloud, from the app registered there (docs/sync-setup.md). None of them is a secret:
+    // a cloud only sends its answer to the addresses registered with it, and the answer only opens with what this page
+    // keeps (PKCE's verifier, or the sign-in's random state).
+    CLOUD_IDS = { google: '', dropbox: '', onedrive: '' },
+    SYON = !!(CAN_LOCK && WEB && window.fetch && window.CompressionStream && window.DecompressionStream),
+    CL = {
+      google: { name: 'Google Drive', co: 'Google', where: 'in a hidden folder of your Google Drive that only One Day can open', sub: 'A hidden folder only One Day opens' },
+      dropbox: { name: 'Dropbox', co: 'Dropbox', where: 'in One Day’s own folder of your Dropbox, under Apps', sub: 'One Day’s own folder, under Apps' },
+      onedrive: { name: 'OneDrive', co: 'Microsoft', where: 'in One Day’s own folder of your OneDrive, under Apps', sub: 'One Day’s own folder, under Apps' },
+    },
+    SYST = { s: 'off', at: 0, why: '' }; // how sync is going: off, idle, busy, offline, auth, pass, error
+  let SYD = null, // the dialog, while it is open
+    SYW = null, // a sign-in waiting for its answer
+    SYENV = null, // the copy in the cloud, sealed with a passphrase this device doesn't hold yet
+    SYBACK = null, // a sign-in that came back to this page (a phone opens the cloud's page in this window)
+    SYKEY = null, // the sync key, ready to use: [its bytes as stored, the key]
+    SYBUSY = null,
+    SYAGAIN = false,
+    SYQUIET = false,
+    syT = null,
+    syTold = '',
+    syLast = '';
+  class SyErr extends Error {
+    constructor(kind, status) {
+      super(kind);
+      this.kind = kind;
+      this.status = status || 0;
+    }
+  }
+  // sync's key and base as kept with the tasks, checked; anything else is no sync at all
+  function cleanSys(o) {
+    if (!o || typeof o !== 'object' || o.v !== 1 || !['google', 'dropbox', 'onedrive'].includes(o.cloud)) return null;
+    const k = o.key;
+    if (
+      !k ||
+      typeof k.raw !== 'string' ||
+      !/^[A-Za-z0-9+/]{43}=$/.test(k.raw) ||
+      typeof k.kid !== 'string' ||
+      !k.kdf ||
+      typeof k.kdf.salt !== 'string' ||
+      !Number.isInteger(k.kdf.iter) ||
+      k.kdf.iter < 1e5 ||
+      k.kdf.iter > 5e6 ||
+      !okBlob(k.pass)
+    )
+      return null;
+    return {
+      v: 1,
+      cloud: o.cloud,
+      key: { raw: k.raw, kid: k.kid, kdf: { iter: k.kdf.iter, salt: k.kdf.salt }, pass: { iv: k.pass.iv, ct: k.pass.ct } },
+      file: o.file && typeof o.file.id === 'string' && typeof o.file.ver === 'string' ? { id: o.file.id, ver: o.file.ver } : null,
+      base: typeof o.base === 'string' ? o.base : null,
+      lh: typeof o.lh === 'string' ? o.lh : '',
+    };
+  }
+
+  /* talking to a cloud: no cookie, no referrer, and nothing kept by the browser's cache */
+  async function syFetch(url, o = {}) {
+    try {
+      return await fetch(url, { ...o, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
+    } catch (e) {
+      throw new SyErr('offline');
+    }
+  }
+  async function syText(r) {
+    if (+r.headers.get('content-length') > 20e6) throw new SyErr('big');
+    const t = await r.text();
+    if (t.length > 20e6) throw new SyErr('big');
+    return t;
+  }
+  // the sign-in, kept in this browser: which cloud, its short-lived token, and what renews it where the cloud allows
+  function syAuth() {
+    try {
+      const a = JSON.parse(localStorage.getItem(SYK));
+      return a && a.v === 1 && CL[a.cloud] && typeof a.a === 'string' ? a : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  function syKeepAuth(a) {
+    try {
+      if (a) localStorage.setItem(SYK, JSON.stringify(a));
+      else localStorage.removeItem(SYK);
+    } catch (e) {}
+  }
+  const syLock = (name, fn) => (navigator.locks ? navigator.locks.request(name, fn) : fn());
+  // a token to call with: the one kept while it lasts (a minute's margin), else a new one where the cloud renews it;
+  // null when only a sign-in will do. Tabs renew one at a time.
+  async function syBearer(c) {
+    const ok = a => a && a.cloud === c && a.a && a.ax > Date.now() + 60e3;
+    let a = syAuth();
+    if (ok(a)) return a.a;
+    if (!a || a.cloud !== c || !a.r || (a.rx && a.rx < Date.now() + 60e3) || !CL[c].renew) return null;
+    return syLock('one-day-sync-auth', async () => {
+      a = syAuth();
+      if (ok(a)) return a.a;
+      if (!a || a.cloud !== c || !a.r) return null;
+      const t = await CL[c].renew(a.r);
+      if (!t) {
+        syKeepAuth({ ...a, a: '', ax: 0, r: '' });
+        return null;
+      }
+      syKeepAuth({ ...a, ...t, r: t.r || a.r });
+      return t.a;
+    });
+  }
+  async function syCall(c, url, o = {}, again = true) {
+    const tok = await syBearer(c);
+    if (!tok) throw new SyErr('auth');
+    const r = await syFetch(url, { ...o, headers: { ...o.headers, Authorization: 'Bearer ' + tok } });
+    if (r.status === 401) {
+      // refused before its end: renewed once, where the cloud allows it
+      const a = syAuth();
+      if (a && a.a === tok) syKeepAuth({ ...a, a: '', ax: 0 });
+      if (again && a && a.r) return syCall(c, url, o, false);
+      throw new SyErr('auth');
+    }
+    return r;
+  }
+  async function syForm(url, fields) {
+    const r = await syFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(fields) }),
+      j = await r.json().catch(() => null);
+    return { r, j: j && typeof j === 'object' ? j : null };
+  }
+  // a sign-in's code traded for tokens
+  async function syGrant(url, fields) {
+    const { r, j } = await syForm(url, fields);
+    if (!r.ok || !j || typeof j.access_token !== 'string') throw new SyErr('signin', r.status);
+    return j;
+  }
+  // a token renewed, or null when the cloud says no (access taken back, or its time is up)
+  async function syRenew(url, fields) {
+    const { r, j } = await syForm(url, fields);
+    if (r.status === 400 || r.status === 401) return null;
+    if (!r.ok || !j || typeof j.access_token !== 'string') throw new SyErr('http', r.status);
+    return j;
+  }
+  const syTok = (j, s) => ({ a: j.access_token, ax: Date.now() + (+j.expires_in || s) * 1000 }),
+    // where each cloud sends you back: One Day's own page for it, never anywhere else
+    syBack = () => new URL('oauth/', location.href).href.replace(/[?#].*$/, '');
+
+  /* Google Drive: One Day's hidden folder there (the appDataFolder, scope drive.appdata), which no other app and no other
+     file can reach. Google gives a page without a server one way to sign in: a token in the address it sends back,
+     good for an hour, with nothing to renew it; after that, a click signs in again. */
+  const GD = 'https://www.googleapis.com/drive/v3',
+    GU = 'https://www.googleapis.com/upload/drive/v3/files',
+    GS = 'https://www.googleapis.com/auth/drive.appdata';
+  async function gOk(r) {
+    if (r.ok) return r;
+    const j = await r.json().catch(() => null),
+      why = (j && j.error && j.error.errors && j.error.errors[0] && j.error.errors[0].reason) || '';
+    if (r.status === 404) throw new SyErr('gone', 404);
+    if (why === 'storageQuotaExceeded') throw new SyErr('full', r.status);
+    if (r.status === 429 || /rateLimit/i.test(why)) throw new SyErr('slow', r.status);
+    throw new SyErr('http', r.status);
+  }
+  Object.assign(CL.google, {
+    url: st =>
+      'https://accounts.google.com/o/oauth2/v2/auth?' +
+      new URLSearchParams({ client_id: CLOUD_IDS.google, redirect_uri: syBack(), response_type: 'token', scope: GS, state: st }),
+    async take(ans) {
+      if (!ans.token) throw new SyErr(ans.error === 'access_denied' ? 'denied' : 'signin');
+      if (ans.scope && !ans.scope.split(/[\s+]+/).includes(GS)) throw new SyErr('scope');
+      return { a: ans.token, ax: Date.now() + (+ans.expires || 3600) * 1000 };
+    },
+    async list() {
+      const q = new URLSearchParams({ spaces: 'appDataFolder', q: `name = '${SYF}'`, fields: 'files(id,version)', orderBy: 'createdTime', pageSize: '20' }),
+        j = await (await gOk(await syCall('google', `${GD}/files?${q}`))).json();
+      return (j.files || []).filter(f => f && typeof f.id === 'string').map(f => ({ id: f.id, ver: String(f.version) }));
+    },
+    async read(f) {
+      return syText(await gOk(await syCall('google', `${GD}/files/${encodeURIComponent(f.id)}?alt=media`)));
+    },
+    async write(f, text) {
+      let r;
+      if (f) {
+        // Drive can't refuse a write over a file changed meanwhile: its version is checked just before
+        const now = await (await gOk(await syCall('google', `${GD}/files/${encodeURIComponent(f.id)}?fields=version`))).json();
+        if (String(now.version) !== f.ver) throw new SyErr('conflict');
+        r = await syCall('google', `${GU}/${encodeURIComponent(f.id)}?uploadType=media&fields=id,version`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: text,
+        });
+      } else {
+        const bd = 'one-day-' + b64.enc(rnd(12)),
+          meta = JSON.stringify({ name: SYF, parents: ['appDataFolder'], mimeType: 'application/json' });
+        r = await syCall('google', `${GU}?uploadType=multipart&fields=id,version`, {
+          method: 'POST',
+          headers: { 'Content-Type': `multipart/related; boundary=${bd}` },
+          body: `--${bd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${bd}\r\nContent-Type: application/json\r\n\r\n${text}\r\n--${bd}--`,
+        });
+      }
+      const j = await (await gOk(r)).json();
+      return { id: j.id, ver: String(j.version) };
+    },
+    async remove(f) {
+      try {
+        await gOk(await syCall('google', `${GD}/files/${encodeURIComponent(f.id)}`, { method: 'DELETE' }));
+      } catch (e) {
+        if (e.kind !== 'gone') throw e;
+      }
+    },
+    // Giving the token back takes One Day's access away from every device at once, so only when its copy goes too.
+    // Google's address for it doesn't answer pages (no CORS): the request goes, its answer can't be read.
+    revoke(a) {
+      if (a && a.a)
+        syFetch('https://oauth2.googleapis.com/revoke', {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'token=' + encodeURIComponent(a.a),
+        }).catch(() => {});
+    },
+  });
+
+  /* Dropbox: One Day's app folder, the only folder its access reaches (Apps, then the folder's name, which you may move
+     or rename). Signed in with PKCE once: a token for a few hours, and what renews it until sync stops here. */
+  const DA = 'https://api.dropboxapi.com',
+    DC = 'https://content.dropboxapi.com';
+  async function dOk(r) {
+    if (r.ok) return r;
+    const j = await r.json().catch(() => null),
+      s = (j && j.error_summary) || '';
+    if (/^path\/not_found|\/not_found/.test(s)) throw new SyErr('gone', 404);
+    if (/^path\/conflict/.test(s)) throw new SyErr('conflict');
+    if (/insufficient_space/.test(s)) throw new SyErr('full', r.status);
+    if (r.status === 429) throw new SyErr('slow', 429);
+    throw new SyErr('http', r.status);
+  }
+  // Dropbox-API-Arg carries JSON in a header: anything past ASCII is escaped
+  const dArg = v => JSON.stringify(v).replace(/[\u007f-￿]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+  const dRpc = (path, arg) =>
+    syCall('dropbox', `${DA}/2/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(arg) });
+  Object.assign(CL.dropbox, {
+    url: (st, ch) =>
+      'https://www.dropbox.com/oauth2/authorize?' +
+      new URLSearchParams({
+        client_id: CLOUD_IDS.dropbox,
+        response_type: 'code',
+        redirect_uri: syBack(),
+        state: st,
+        code_challenge: ch,
+        code_challenge_method: 'S256',
+        token_access_type: 'offline',
+        scope: 'files.metadata.read files.content.read files.content.write',
+      }),
+    async take(ans, ver) {
+      if (!ans.code) throw new SyErr(ans.error === 'access_denied' ? 'denied' : 'signin');
+      const j = await syGrant(`${DA}/oauth2/token`, {
+        code: ans.code,
+        grant_type: 'authorization_code',
+        client_id: CLOUD_IDS.dropbox,
+        code_verifier: ver,
+        redirect_uri: syBack(),
+      });
+      return { ...syTok(j, 14400), r: typeof j.refresh_token === 'string' ? j.refresh_token : '' };
+    },
+    async renew(rt) {
+      const j = await syRenew(`${DA}/oauth2/token`, { grant_type: 'refresh_token', refresh_token: rt, client_id: CLOUD_IDS.dropbox });
+      return j && syTok(j, 14400);
+    },
+    async list() {
+      try {
+        const j = await (await dOk(await dRpc('files/get_metadata', { path: '/' + SYF }))).json();
+        return j['.tag'] === 'file' && typeof j.id === 'string' ? [{ id: j.id, ver: String(j.rev) }] : [];
+      } catch (e) {
+        if (e.kind === 'gone') return [];
+        throw e;
+      }
+    },
+    async read(f) {
+      return syText(await dOk(await syCall('dropbox', `${DC}/2/files/download`, { method: 'POST', headers: { 'Dropbox-API-Arg': dArg({ path: f.id }) } })));
+    },
+    // written over the version read, and only over it: another device's write in between is a conflict
+    async write(f, text) {
+      const arg = { path: '/' + SYF, mode: f ? { '.tag': 'update', update: f.ver } : 'add', autorename: false, mute: true, strict_conflict: true },
+        j = await (
+          await dOk(
+            await syCall('dropbox', `${DC}/2/files/upload`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/octet-stream', 'Dropbox-API-Arg': dArg(arg) },
+              body: text,
+            }),
+          )
+        ).json();
+      return { id: j.id, ver: String(j.rev) };
+    },
+    async remove(f) {
+      try {
+        await dOk(await dRpc('files/delete_v2', { path: f.id }));
+      } catch (e) {
+        if (e.kind !== 'gone') throw e;
+      }
+    },
+    // the token goes back, and the refresh token with it: this device is signed out of Dropbox, the others are not
+    revoke(a) {
+      if (!a || a.cloud !== 'dropbox') return;
+      (async () => {
+        const t = a.a && a.ax > Date.now() + 30e3 ? a.a : a.r ? (await this.renew(a.r).catch(() => null) || {}).a : '';
+        if (t) await syFetch(`${DA}/2/auth/token/revoke`, { method: 'POST', headers: { Authorization: 'Bearer ' + t } });
+      })().catch(() => {});
+    },
+  });
+
+  /* OneDrive: One Day's app folder (Apps, then One Day), the only folder its access (Files.ReadWrite.AppFolder)
+     reaches, in a personal Microsoft account. Signed in with PKCE: a token for an hour, and what renews it for a day,
+     Microsoft's limit for an app in a browser; then a click signs in again. */
+  const ML = 'https://login.microsoftonline.com/consumers/oauth2/v2.0',
+    MG = 'https://graph.microsoft.com/v1.0/me/drive',
+    MS = 'Files.ReadWrite.AppFolder offline_access';
+  async function mOk(r) {
+    if (r.ok) return r;
+    const j = await r.json().catch(() => null),
+      code = (j && j.error && j.error.code) || '';
+    if (r.status === 404) throw new SyErr('gone', 404);
+    if (r.status === 409 || r.status === 412) throw new SyErr('conflict');
+    if (r.status === 507 || code === 'quotaLimitReached' || code === 'insufficientStorage') throw new SyErr('full', r.status);
+    if (r.status === 429 || r.status === 503) throw new SyErr('slow', r.status);
+    throw new SyErr('http', r.status);
+  }
+  Object.assign(CL.onedrive, {
+    url: (st, ch) =>
+      `${ML}/authorize?` +
+      new URLSearchParams({
+        client_id: CLOUD_IDS.onedrive,
+        response_type: 'code',
+        redirect_uri: syBack(),
+        response_mode: 'fragment',
+        scope: MS,
+        state: st,
+        code_challenge: ch,
+        code_challenge_method: 'S256',
+      }),
+    async take(ans, ver) {
+      if (!ans.code) throw new SyErr(ans.error === 'access_denied' ? 'denied' : 'signin');
+      const j = await syGrant(`${ML}/token`, {
+        client_id: CLOUD_IDS.onedrive,
+        grant_type: 'authorization_code',
+        code: ans.code,
+        redirect_uri: syBack(),
+        code_verifier: ver,
+        scope: MS,
+      });
+      return { ...syTok(j, 3600), r: typeof j.refresh_token === 'string' ? j.refresh_token : '', rx: Date.now() + 864e5 };
+    },
+    async renew(rt) {
+      const j = await syRenew(`${ML}/token`, { client_id: CLOUD_IDS.onedrive, grant_type: 'refresh_token', refresh_token: rt, scope: MS });
+      return j && { ...syTok(j, 3600), ...(typeof j.refresh_token === 'string' ? { r: j.refresh_token } : {}) };
+    },
+    async list() {
+      try {
+        const j = await (await mOk(await syCall('onedrive', `${MG}/special/approot:/${SYF}?$select=id,eTag,file`))).json();
+        return j.file && typeof j.id === 'string' ? [{ id: j.id, ver: String(j.eTag) }] : [];
+      } catch (e) {
+        if (e.kind === 'gone') return [];
+        throw e;
+      }
+    },
+    // The file's bytes come from its download address, which answers a page without a token. Graph's own address for
+    // them answers with a redirect, which a page can't follow there.
+    async read(f) {
+      const j = await (await mOk(await syCall('onedrive', `${MG}/items/${encodeURIComponent(f.id)}?$select=id,@microsoft.graph.downloadUrl`))).json(),
+        u = j['@microsoft.graph.downloadUrl'];
+      if (typeof u !== 'string' || !/^https:\/\//.test(u)) throw new SyErr('gone', 404);
+      const r = await syFetch(u);
+      if (!r.ok) throw new SyErr(r.status === 404 ? 'gone' : 'http', r.status);
+      return syText(r);
+    },
+    async write(f, text) {
+      if (f) {
+        // checked just before, and again by If-Match: another device's write in between is a conflict
+        const now = await this.list();
+        if (!now.length || now[0].id !== f.id || now[0].ver !== f.ver) throw new SyErr('conflict');
+      }
+      const r = await syCall(
+        'onedrive',
+        f ? `${MG}/items/${encodeURIComponent(f.id)}/content` : `${MG}/special/approot:/${SYF}:/content?@microsoft.graph.conflictBehavior=fail`,
+        { method: 'PUT', headers: { 'Content-Type': 'text/plain', ...(f ? { 'If-Match': f.ver } : {}) }, body: text },
+      );
+      const j = await (await mOk(r)).json();
+      return { id: j.id, ver: String(j.eTag) };
+    },
+    async remove(f) {
+      try {
+        await mOk(await syCall('onedrive', `${MG}/items/${encodeURIComponent(f.id)}`, { method: 'DELETE' }));
+      } catch (e) {
+        if (e.kind !== 'gone') throw e;
+      }
+    },
+    // a page has no way to give Microsoft its tokens back: they are forgotten here, and run out
+    revoke() {},
+  });
+
+  /* Signing in, on the cloud's own page. On a computer it opens in a window of its own, opened by the click itself
+     (browsers block one opened later), and its answer comes back on a channel only this site's pages hear. On a phone
+     this page goes there, and the cloud sends it back to oauth/, which hands the answer to One Day as it opens. Either
+     way only the sign-in this page started is taken: its state is random, and a code is useless without PKCE's
+     verifier, which never leaves this page. */
+  function syWin() {
+    if (TOUCH) return null;
+    try {
+      return window.open('about:blank', 'one-day-sign-in', 'popup,width=520,height=720');
+    } catch (e) {
+      return null;
+    }
+  }
+  async function sySignIn(c, win) {
+    const pop = !!win,
+      st = b64.enc(rnd(18)) + (pop ? '.p' : '.r'),
+      ver = b64.enc(rnd(48)),
+      ch = b64.enc(new Uint8Array(await crypto.subtle.digest('SHA-256', TE.encode(ver)))),
+      url = CL[c].url(st, ch);
+    if (!pop) {
+      try {
+        sessionStorage.setItem('oneday.signin', JSON.stringify({ st, ver, c, at: Date.now() }));
+      } catch (e) {
+        throw new SyErr('signin');
+      }
+      location.assign(url);
+      return new Promise(() => {});
+    }
+    try {
+      win.location.href = url;
+    } catch (e) {
+      throw new SyErr('popup');
+    }
+    let ans;
+    try {
+      ans = await syAnswer(st);
+    } finally {
+      try {
+        win.close();
+      } catch (e) {}
+    }
+    return CL[c].take(ans, ver);
+  }
+  function syAnswer(st) {
+    return new Promise((res, rej) => {
+      let bc = null;
+      try {
+        bc = new BroadcastChannel(SYCH);
+      } catch (e) {}
+      const end = () => {
+          clearTimeout(t);
+          window.removeEventListener('message', onMsg);
+          if (bc) bc.close();
+          if (SYW && SYW.st === st) SYW = null;
+        },
+        take = d => {
+          if (!d || d.type !== 'one-day-oauth' || d.state !== st) return;
+          end();
+          res(d);
+        },
+        onMsg = e => e.origin === location.origin && take(e.data),
+        t = setTimeout(() => {
+          end();
+          rej(new SyErr('timeout'));
+        }, 5 * 60e3);
+      if (bc) bc.onmessage = e => take(e.data);
+      window.addEventListener('message', onMsg);
+      SYW = {
+        st,
+        cancel() {
+          end();
+          rej(new SyErr('cancel'));
+        },
+      };
+    });
+  }
+  // back from the cloud's page in this window: the answer oauth/ left, if it answers the sign-in this tab started
+  function syBackIn() {
+    let a = null,
+      p = null;
+    try {
+      a = JSON.parse(sessionStorage.getItem('oneday.signedin'));
+      p = JSON.parse(sessionStorage.getItem('oneday.signin'));
+      sessionStorage.removeItem('oneday.signedin');
+      sessionStorage.removeItem('oneday.signin');
+    } catch (e) {}
+    if (!a || !p || typeof a.state !== 'string' || a.state !== p.st || !CL[p.c] || !(Date.now() - p.at < 15 * 60e3)) return null;
+    return { c: p.c, ans: a, ver: p.ver };
+  }
+
+  /* the sealed copy */
+  async function syKeyOf(key) {
+    if (SYKEY && SYKEY[0] === key.raw) return SYKEY[1];
+    const k = await dataKey(fromB64(key.raw));
+    SYKEY = [key.raw, k];
+    return k;
+  }
+  // One Day's file in the cloud, or null for anything else
+  function syEnv(text) {
+    let j = null;
+    try {
+      j = JSON.parse(text);
+    } catch (e) {}
+    const v = j && j.app === 'one-day' && j.vault;
+    return v && typeof v.kid === 'string' && okVault({ ...v, v: 1, bio: null, sync: null }) ? j : null;
+  }
+  function syClean(p) {
+    p = p && typeof p === 'object' ? p : {};
+    return {
+      pid: typeof p.pid === 'string' && IDRE.test(p.pid) ? p.pid : '',
+      hist: Array.isArray(p.hist) ? p.hist.filter(x => typeof x === 'string' && IDRE.test(x)).slice(0, 64) : [],
+      days: cleanDays(p.days),
+      rules: cleanRules(p.rules),
+      tags: cleanTags(p.tags),
+    };
+  }
+  async function syOpen(env, key) {
+    try {
+      let u8 = await unseal(await syKeyOf(key), env.vault.data);
+      if (env.vault.z) u8 = await through(u8, new DecompressionStream('deflate-raw'), 64e6);
+      return syClean(JSON.parse(TD.decode(u8)));
+    } catch (e) {
+      throw new SyErr('alien');
+    }
+  }
+  // the copy as it goes up: an encrypted One Day backup, its tasks compressed, then sealed
+  async function syPack(P, key) {
+    const u8 = await through(TE.encode(JSON.stringify(P)), new CompressionStream('deflate-raw'), 64e6);
+    return JSON.stringify({
+      app: 'one-day',
+      version: 2,
+      kind: 'sync',
+      vault: { v: 1, kid: key.kid, kdf: key.kdf, pass: key.pass, z: 1, data: await sealWith(await syKeyOf(key), u8) },
+    });
+  }
+  async function syMake(c, pass) {
+    const raw = rnd(32),
+      salt = rnd(16),
+      kek = await passKey(pass, salt, ITER),
+      key = { raw: toB64(raw), kid: toB64(rnd(12)), kdf: { iter: ITER, salt: toB64(salt) }, pass: await sealWith(kek, raw) };
+    raw.fill(0);
+    return { v: 1, cloud: c, key, file: null, base: null, lh: '' };
+  }
+  // the passphrase opens the key of the copy there, which must open its tasks too
+  async function syJoin(c, pass, env) {
+    const v = env.vault,
+      o = await passOpen(pass, v);
+    if (!o) return null;
+    const key = { raw: toB64(o.raw), kid: v.kid, kdf: { iter: v.kdf.iter, salt: v.kdf.salt }, pass: { iv: v.pass.iv, ct: v.pass.ct } };
+    o.raw.fill(0);
+    await syOpen(env, key);
+    return { v: 1, cloud: c, key, file: null, base: null, lh: '' };
+  }
+  // the base, small: compressed, as the browser keeps it with the tasks
+  async function syPackBase(P) {
+    const j = JSON.stringify({ pid: P.pid, hist: P.hist, days: P.days, rules: P.rules, tags: P.tags });
+    return b64.enc(await through(TE.encode(j), new CompressionStream('deflate-raw'), 64e6));
+  }
+  async function syBase(sys) {
+    if (!sys.base) return null;
+    try {
+      const p = JSON.parse(TD.decode(await through(b64.dec(sys.base), new DecompressionStream('deflate-raw'), 64e6)));
+      return p && typeof p.pid === 'string' && p.days && p.rules
+        ? { pid: p.pid, hist: Array.isArray(p.hist) ? p.hist : [], days: p.days, rules: p.rules, tags: p.tags || {} }
+        : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  // JSON with keys in order: the same tasks always read the same
+  function syJ(v) {
+    if (Array.isArray(v)) return '[' + v.map(syJ).join(',') + ']';
+    if (v && typeof v === 'object')
+      return (
+        '{' +
+        Object.keys(v)
+          .sort()
+          .filter(k => v[k] !== undefined)
+          .map(k => JSON.stringify(k) + ':' + syJ(v[k]))
+          .join(',') +
+        '}'
+      );
+    return v === undefined ? 'null' : JSON.stringify(v);
+  }
+  // what the tasks say, without when each day changed: days with tasks, repeats, tag colours
+  function syCanon(st) {
+    const d = {};
+    for (const k in st.days) if (st.days[k].tasks.length) d[k] = st.days[k].tasks;
+    return syJ({ d, r: st.rules, t: st.tags || {} });
+  }
+  async function syHash(st) {
+    return toB64(new Uint8Array(await crypto.subtle.digest('SHA-256', TE.encode(syCanon(st)))).subarray(0, 18));
+  }
+  const syNow = () => JSON.parse(JSON.stringify({ days: S.days, rules: S.rules, tags: S.tags || {} })),
+    // the first day's examples, untouched: a device that joins with only these brings none of them
+    syFresh = st => !Object.keys(st.rules).length && !Object.keys(st.tags || {}).length && Object.values(st.days).every(d => !d.u);
+
+  /* the merge */
+  const syEq = (a, b) => syJ(a) === syJ(b),
+    syArr = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+  // One order from two: `a`'s, with what only `b` holds put in after what comes before it in `b`.
+  function syOrder(a, b, keep) {
+    const order = a.filter(id => keep.has(id)),
+      seen = new Set(order);
+    b.forEach((id, i) => {
+      if (!keep.has(id) || seen.has(id)) return;
+      let j = i - 1;
+      while (j >= 0 && !seen.has(b[j])) j--;
+      order.splice(j < 0 ? 0 : order.indexOf(b[j]) + 1, 0, id);
+      seen.add(id);
+    });
+    for (const id of keep) if (!seen.has(id)) order.push(id);
+    return order;
+  }
+  // which side's order leads: the one that reordered since the base, else the one that wins
+  const syLead = (lo, ro, bo, lw) => (bo && syArr(lo, bo) ? [ro, lo] : bo && syArr(ro, bo) ? [lo, ro] : lw ? [lo, ro] : [ro, lo]);
+  // A task's sub-tasks, merged like tasks: by id, words and done each from the side that changed them. A task made on
+  // both sides at once (a repeat's occurrence, made on each device) has sub-tasks of different ids: one side's stay,
+  // ticked where the other had them ticked.
+  function sySubs(B, L, R, lw, has) {
+    if (!has) {
+      const keep = lw ? L : R,
+        other = lw ? R : L;
+      if (!keep.length) return other.map(s => ({ ...s }));
+      return keep.map(s => (!s.done && other.some(o => o.done && o.text === s.text) ? { ...s, done: true } : { ...s }));
+    }
+    const bm = new Map((B || []).map(s => [s.id, s])),
+      lm = new Map(L.map(s => [s.id, s])),
+      rm = new Map(R.map(s => [s.id, s])),
+      pick = (b, l, r) => (l === r ? l : b !== undefined && l === b ? r : b !== undefined && r === b ? l : lw ? l : r),
+      got = new Map();
+    for (const id of new Set([...lm.keys(), ...rm.keys()])) {
+      const l = lm.get(id),
+        r = rm.get(id),
+        b = bm.get(id);
+      if (l && r) got.set(id, { id, text: pick(b && b.text, l.text, r.text), done: pick(b && !!b.done, !!l.done, !!r.done) });
+      else {
+        const x = l || r;
+        if (b && syEq(b, x)) continue;
+        got.set(id, { ...x });
+      }
+    }
+    const [a, z] = syLead(L.map(s => s.id), R.map(s => s.id), B ? B.map(s => s.id) : null, lw);
+    return syOrder(a, z, new Set(got.keys()))
+      .map(id => got.get(id))
+      .slice(0, 100);
+  }
+  // Two versions of the tasks, and the one they both came from (null when there is none): one that holds both.
+  function syMerge(B, L, R) {
+    const uOf = (st, k) => (st.days[k] && +st.days[k].u) || 0,
+      where = st => {
+        const m = new Map();
+        for (const k in st.days) for (const t of st.days[k].tasks) m.set(t.id, { k, t });
+        return m;
+      },
+      bm = B ? where(B) : null,
+      lm = where(L),
+      rm = where(R),
+      // a value changed on one side takes that side; changed on both, `lw` says which side wins
+      pick = (b, l, r, lw, has) => (syEq(l, r) ? l : has && syEq(l, b) ? r : has && syEq(r, b) ? l : lw ? l : r),
+      out = new Map();
+    for (const id of new Set([...lm.keys(), ...rm.keys()])) {
+      const l = lm.get(id),
+        r = rm.get(id),
+        b = bm && bm.get(id);
+      if (l && r) {
+        const lw = uOf(L, l.k) >= uOf(R, r.k),
+          has = !!b,
+          bt = b ? b.t : {},
+          t = { id, text: pick(bt.text, l.t.text, r.t.text, lw, has) },
+          dn = pick(b ? [!!bt.done, bt.at || 0] : null, [!!l.t.done, l.t.at || 0], [!!r.t.done, r.t.at || 0], lw, has);
+        t.done = dn[0];
+        if (dn[0] && dn[1]) t.at = dn[1];
+        const note = pick(bt.note || '', l.t.note || '', r.t.note || '', lw, has),
+          subs = sySubs(b ? bt.subs : null, l.t.subs || [], r.t.subs || [], lw, has),
+          rule = pick(bt.rule || '', l.t.rule || '', r.t.rule || '', lw, has);
+        if (note) t.note = note;
+        if (subs.length) t.subs = subs;
+        if (rule) t.rule = rule;
+        out.set(id, { k: pick(b && b.k, l.k, r.k, lw, has), t });
+      } else {
+        const x = l || r;
+        // gone from the other side: deleted there, unless it changed here since (an edit beats a deletion)
+        if (b && b.k === x.k && syEq(b.t, x.t)) continue;
+        out.set(id, x);
+      }
+    }
+    const byDay = new Map();
+    for (const [id, v] of out) (byDay.get(v.k) || byDay.set(v.k, new Set()).get(v.k)).add(id);
+    const days = {};
+    for (const k of new Set([...Object.keys(L.days), ...Object.keys(R.days), ...byDay.keys()])) {
+      const keep = byDay.get(k) || new Set(),
+        ids = st => (st && st.days[k] ? st.days[k].tasks.map(t => t.id) : []),
+        [a, z] = syLead(ids(L), ids(R), B && B.days[k] ? ids(B) : null, uOf(L, k) >= uOf(R, k));
+      if (!keep.size && !L.days[k] && !R.days[k]) continue;
+      days[k] = { u: Math.max(uOf(L, k), uOf(R, k)), tasks: syOrder(a, z, keep).map(id => out.get(id).t) };
+    }
+    // repeats: each as a whole, except the days it skips, which add up (one put back on a side goes)
+    const rules = {},
+      skips = (b, l, r) => {
+        const bs = new Set(b || []),
+          ls = new Set(l || []),
+          rs = new Set(r || []);
+        return [...new Set([...ls, ...rs])].filter(d => (ls.has(d) && rs.has(d)) || !bs.has(d)).sort();
+      },
+      def = x => {
+        const { skip, ...d } = x;
+        return d;
+      };
+    for (const id of new Set([...Object.keys(L.rules), ...Object.keys(R.rules)])) {
+      const l = L.rules[id],
+        r = R.rules[id],
+        b = B && B.rules[id];
+      if (l && r) {
+        const sk = skips(b && b.skip, l.skip, r.skip),
+          x = cleanRule({ ...pick(b ? def(b) : null, def(l), def(r), true, !!b), ...(sk.length ? { skip: sk } : {}) }, id);
+        if (x) rules[id] = x;
+      } else {
+        const x = l || r;
+        if (b && syEq(b, x)) continue;
+        rules[id] = x;
+      }
+    }
+    // tag colours, tag by tag
+    const tags = {},
+      tl = L.tags || {},
+      tr = R.tags || {},
+      tb = (B && B.tags) || {};
+    for (const g of new Set([...Object.keys(tl), ...Object.keys(tr)])) {
+      const l = tl[g],
+        r = tr[g];
+      if (l && r) tags[g] = pick(tb[g], l, r, true, !!B);
+      else if (!(B && tb[g] === (l || r))) tags[g] = l || r;
+    }
+    const M = { days, rules, tags };
+    sySettle(M, [L, R, B]);
+    return M;
+  }
+  // An occurrence still to come that nobody touched follows its repeat as it now is: gone with it or off its new days,
+  // its words its words. One that was ticked or changed stays, a task of its own once its repeat is gone.
+  const syLike = (t, r) =>
+    t.text === r.text &&
+    (t.note || '') === (r.note || '') &&
+    syEq((t.subs || []).map(s => [s.text, !!s.done]), (r.subs || []).map(s => [s.text, false]));
+  function sySettle(M, from) {
+    const tk = todayKey();
+    for (const k in M.days) {
+      const d = M.days[k],
+        next = [];
+      for (const t of d.tasks) {
+        if (!t.rule) {
+          next.push(t);
+          continue;
+        }
+        const r = M.rules[t.rule],
+          plain = k >= tk && !t.done && t.id === occId({ id: t.rule }, k) && from.some(st => st && st.rules[t.rule] && syLike(t, st.rules[t.rule]));
+        if (plain) {
+          if (r && occurs(r, k)) next.push(syLike(t, r) ? t : fromRule(r, k));
+          continue;
+        }
+        if (r) next.push(t);
+        else {
+          const x = { ...t };
+          delete x.rule;
+          next.push(x);
+        }
+      }
+      d.tasks = next;
+    }
+  }
+
+  /* one sync: what changed here goes up, what changed there comes down */
+  function syncSoon(ms = 2500) {
+    if (!SYS || locked) return;
+    clearTimeout(syT);
+    syT = setTimeout(() => {
+      syT = null;
+      syncNow();
+    }, ms);
+  }
+  function syncNow() {
+    clearTimeout(syT);
+    syT = null;
+    if (!SYS || locked) return Promise.resolve();
+    if (SYBUSY) {
+      SYAGAIN = true;
+      return SYBUSY;
+    }
+    SYBUSY = (async () => {
+      try {
+        do {
+          SYAGAIN = false;
+          // one sync at a time in this browser, whatever the tab
+          await syLock('one-day-sync', () => syRun());
+        } while (SYAGAIN && SYS && !locked);
+      } finally {
+        SYBUSY = null;
+      }
+    })();
+    return SYBUSY;
+  }
+  function syState(s, why = '') {
+    SYST.s = s;
+    SYST.why = why;
+    if (s === 'idle') SYST.at = Date.now();
+    syUI();
+  }
+  function syQuiet() {
+    SYQUIET = true;
+    try {
+      persist();
+    } finally {
+      SYQUIET = false;
+    }
+  }
+  const syEditing = () => !!($.list.querySelector('.editing,.note.editing') || P || IMSEAL || LSM);
+  async function syRun() {
+    const sys = SYS;
+    if (!sys || locked || SYST.s === 'pass') return;
+    const c = CL[sys.cloud],
+      live = () => SYS === sys && !locked,
+      E = { days: {}, rules: {}, tags: {} };
+    if (!navigator.onLine) return syState('offline');
+    let dirty = false;
+    syState('busy');
+    try {
+      for (let n = 0; n < 4; n++) {
+        const L0 = syNow(),
+          lh = await syHash(L0);
+        // changes here not in the cloud yet: worth saying so if a sign-in is needed
+        dirty = lh !== sys.lh;
+        const files = await c.list();
+        if (!live()) return;
+        const f = files[0] || null,
+          B0 = await syBase(sys);
+        let B = B0,
+          R = null;
+        if (f && B && files.length === 1 && sys.file && f.id === sys.file.id && f.ver === sys.file.ver) {
+          // the cloud holds what was agreed last time
+          if (!dirty) return syDone(sys, false);
+          R = B;
+        } else if (f) {
+          const got = [];
+          for (const x of files) {
+            const env = syEnv(await c.read(x));
+            if (!live()) return;
+            if (!env) continue;
+            // sealed again elsewhere, with a passphrase this device doesn't hold yet
+            if (env.vault.kid !== sys.key.kid) {
+              SYENV = env;
+              syState('pass');
+              syTell();
+              return;
+            }
+            got.push(await syOpen(env, sys.key));
+          }
+          if (!live()) return;
+          if (!got.length) throw new SyErr('alien');
+          R = got[0];
+          // two devices each made a copy at the same moment: both stay whole
+          for (const g of got.slice(1)) R = { ...syMerge(null, R, g), pid: R.pid, hist: [...new Set([...R.hist, g.pid, ...g.hist])].slice(0, 64) };
+        }
+        // a copy there that doesn't come from the one agreed last (or none): nothing is deleted, both sides stay
+        if (!R || (B && R.pid !== B.pid && !R.hist.includes(B.pid))) B = null;
+        const L = R && !B && !sys.file && syFresh(L0) ? E : L0,
+          M = syMerge(B, L, R || E);
+        if (syEditing()) return syncSoon(1500);
+        syApply(L0, M);
+        if (R && R !== B0) {
+          // what came down is here now: it is what this device has agreed with the cloud
+          sys.base = await syPackBase(R);
+          sys.lh = await syHash(R);
+          sys.file = { id: f.id, ver: f.ver };
+          if (!live()) return;
+          syQuiet();
+        }
+        if (R && files.length === 1 && syCanon(M) === syCanon(R)) return syDone(sys, false);
+        const Pk = { pid: uid(), hist: R ? [R.pid, ...R.hist].filter(Boolean).slice(0, 64) : [], days: M.days, rules: M.rules, tags: M.tags };
+        let nf;
+        try {
+          nf = await c.write(f, await syPack(Pk, sys.key));
+        } catch (e) {
+          // another device wrote in between, or the copy went: read again, and merge again
+          if (e.kind === 'conflict' || e.kind === 'gone') continue;
+          throw e;
+        }
+        if (!live()) return;
+        for (const x of files.slice(1)) await c.remove(x).catch(() => {});
+        sys.file = nf;
+        sys.base = await syPackBase(Pk);
+        sys.lh = await syHash(Pk);
+        return syDone(sys, true);
+      }
+      syState('error', 'Another device kept syncing at the same moment. One Day tries again in a moment.');
+      syncSoon(30e3);
+    } catch (e) {
+      if (!live()) return;
+      const k = e && e.kind;
+      if (k === 'offline') syState('offline');
+      else if (k === 'auth') {
+        syState('auth');
+        if (dirty) syTell();
+      } else {
+        syState('error', syWhy(e, sys.cloud));
+        syncSoon(k === 'slow' ? 60e3 : 120e3);
+      }
+    }
+  }
+  function syDone(sys, wrote) {
+    if (SYS !== sys || locked) return;
+    if (wrote) syQuiet();
+    syTold = '';
+    syState('idle');
+  }
+  // What came from the cloud goes into the tasks here; what changed here since the sync read them stays too.
+  function syApply(L, M) {
+    const now = syNow(),
+      A = syCanon(now) === syCanon(L) ? M : syMerge(L, now, M);
+    if (syCanon(A) === syCanon(now)) return;
+    const days = cleanDays(A.days),
+      rules = cleanRules(A.rules),
+      tags = cleanTags(A.tags),
+      one = k => syJ(days[k] ? days[k].tasks : []) !== syJ(now.days[k] ? now.days[k].tasks : []),
+      changed = Object.keys({ ...days, ...now.days }).filter(one),
+      rulesNew = !syEq(rules, now.rules);
+    S.days = days;
+    S.rules = rules;
+    S.tags = tags;
+    IDX = null;
+    TAGC = null;
+    syDropUndo(changed, rulesNew);
+    SYQUIET = true;
+    try {
+      ensure(cur);
+      persist();
+    } finally {
+      SYQUIET = false;
+    }
+    if (changed.includes(cur) || rulesNew)
+      flip(() => {
+        renderList();
+        renderAux();
+      });
+    else renderAux();
+    if ($.srch.classList.contains('on')) renderSearch();
+  }
+  // An undo from before the cloud's changes came in would take them away: those that touch what changed are dropped,
+  // and a toast still offering one goes.
+  function syDropUndo(ks, rules) {
+    let gone = false;
+    for (const st of [UN, RE])
+      for (let i = st.length - 1; i >= 0; i--)
+        if (rules || Object.keys(st[i].days).some(k => ks.includes(k))) {
+          st.splice(i, 1);
+          gone = true;
+        }
+    if (gone && (toastAct === 'undo' || toastAct === 'redo')) hideToast();
+  }
+  function syWhy(e, c) {
+    const n = c ? CL[c].name : 'your cloud';
+    switch (e && e.kind) {
+      case 'offline':
+        return `No connection to ${n}. Try again once you’re online.`;
+      case 'popup':
+        return 'Your browser blocked the sign-in window. Allow pop-ups for One Day, then try again.';
+      case 'denied':
+        return `${n} wasn’t given access, so nothing changed.`;
+      case 'scope':
+        return `One Day needs its own folder in ${n}: tick it when ${CL[c].co} asks.`;
+      case 'timeout':
+      case 'signin':
+        return `Signing in to ${n} didn’t finish. Try again.`;
+      case 'auth':
+        return `Sign in to ${n} again to sync.`;
+      case 'full':
+        return `Your ${n} is full: make room there, and sync goes on.`;
+      case 'slow':
+        return `${n} asked One Day to slow down. It tries again in a minute.`;
+      case 'alien':
+        return `The file One Day keeps in your ${n} can’t be read.`;
+      case 'big':
+        return `The copy in your ${n} is larger than One Day can hold.`;
+      default:
+        return `${n} couldn’t do that${e && e.status ? ` (${e.status})` : ''}. One Day tries again in a moment.`;
+    }
+  }
+
+  /* on screen: a cloud above the card on a large screen once sync is on, a button in More on a phone, a chip in search
+     before you type, and the dialog */
+  const SPILL = document.getElementById('spill'),
+    syAtt = () => !!SYS && ['auth', 'pass', 'error'].includes(SYST.s);
+  function syLabel() {
+    if (!SYS) return 'Sync with your cloud';
+    const n = CL[SYS.cloud].name;
+    return (
+      {
+        busy: `Syncing with ${n}…`,
+        offline: 'Offline: your changes will sync later',
+        auth: `Sign in to ${n} again to sync`,
+        pass: 'Enter your new sync passphrase',
+        error: `Sync with ${n} is paused`,
+      }[SYST.s] || `Synced with ${n}`
+    );
+  }
+  function syUI() {
+    const lab = syLabel();
+    if (SPILL) {
+      SPILL.hidden = !SYS || locked;
+      SPILL.dataset.s = SYS ? SYST.s : 'off';
+      SPILL.dataset.tip = lab;
+      SPILL.setAttribute('aria-label', lab);
+      if (tipFor === SPILL && !SPILL.hidden) showTip(SPILL);
+    }
+    $.mbMore.classList.toggle('att', syAtt());
+    if (SYD && SYD.step === 'on') syDraw();
+    if (lab === syLast) return;
+    syLast = lab;
+    if ($.srch.classList.contains('on') && !$.sq.value.trim()) renderSearch();
+    const mb = moreOpen && $.moreList.querySelector('[data-act="sync"]');
+    if (mb) {
+      mb.querySelector('span').textContent = lab;
+      mb.classList.toggle('att', syAtt());
+    }
+  }
+  function syMoreBtn() {
+    return SYON
+      ? `<div class="ssy"><button type="button" class="sbk-b${syAtt() ? ' att' : ''}" data-act="sync">${IC.cloud}<span>${esc(syLabel())}</span></button></div>`
+      : '';
+  }
+  function syChips() {
+    return SYON
+      ? `<div class="chips"><button type="button" class="chip${syAtt() ? ' att' : ''}" data-act="sync">${IC.cloud}${esc(syLabel())}</button></div>`
+      : '';
+  }
+  // something waits on you (a sign-in, a new passphrase): said once, with the way to do it
+  function syTell() {
+    if (SYD || !SYS || syTold === SYST.s) return;
+    const n = CL[SYS.cloud].name;
+    if (SYST.s === 'auth') {
+      syTold = 'auth';
+      toast(`Sign in to ${n} again to sync`, { label: 'Sign in', run: syAgain }, 8000);
+    } else if (SYST.s === 'pass') {
+      syTold = 'pass';
+      toast('Your sync passphrase changed on another device', { label: 'Enter it', run: () => openSync({ step: 'rekey' }) }, 8000);
+    }
+  }
+  if (SPILL) SPILL.onclick = () => openSync();
+
+  const SY = {};
+  'syncd syForm syT sySub syCh syOn sySt syLi syPass syPass2 syOkL syWarn syOk syEraseL syErase syEraseT syErr syNo syGo syHint'
+    .split(' ')
+    .forEach(id => (SY[id] = document.getElementById(id)));
+  function openSync(o) {
+    if (!SYON || !SY.syncd || SYD || LSM || IMP || locked) return;
+    if (pip) pip.close();
+    closePops();
+    closeMore();
+    compose(false);
+    const ae = D().activeElement;
+    SYD = { step: SYS ? 'on' : 'pick', c: SYS ? SYS.cloud : null, env: o && o.step === 'rekey' ? SYENV : null, ...o, from: ae && ae !== D().body ? ae : null };
+    guard('syncd', () => closeSync());
+    home.inert = true;
+    for (const i of [SY.syPass, SY.syPass2]) i.value = '';
+    SY.syOk.checked = SY.syErase.checked = false;
+    SY.syErr.textContent = '';
+    syDraw();
+    modalIn(TAP && TAP.el.isConnected && Date.now() - TAP.t < 1500 ? TAP.el : SYD.from, SY.syncd, SY.syForm);
+    syFocus();
+  }
+  function closeSync() {
+    const m = SYD;
+    if (!m) return;
+    SYD = null;
+    unguard('syncd');
+    if (SYW) SYW.cancel();
+    // signed in, but sync never turned on: that sign-in is of no use
+    if (!SYS && ['new', 'join', 'reset'].includes(m.step)) syKeepAuth(null);
+    modalOut(SY.syncd, SY.syForm);
+    for (const i of [SY.syPass, SY.syPass2]) i.value = '';
+    if (!locked) home.inert = false;
+    if (m.from && m.from.isConnected && !m.from.closest('[inert]')) m.from.focus({ preventScroll: true });
+  }
+  function syFocus() {
+    const m = SYD;
+    if (!m) return;
+    const el =
+      m.step === 'pick'
+        ? SY.syCh.querySelector('button:not(:disabled)') || SY.syNo
+        : ['new', 'join', 'rekey'].includes(m.step)
+          ? SY.syPass
+          : m.step === 'stop' || m.step === 'reset'
+            ? SY.syErase
+            : m.step === 'on'
+              ? SY.syGo
+              : SY.syNo;
+    if (el && !el.hidden) el.focus({ preventScroll: true });
+  }
+  function syStatus() {
+    const n = CL[SYS.cloud].name;
+    switch (SYST.s) {
+      case 'busy':
+        return ['Syncing…'];
+      case 'offline':
+        return [`Offline. Your changes are kept here, and go to your ${n} once you’re back online.`];
+      case 'auth':
+        return [`Sign in to ${n} again to keep syncing.`, 'signin', 'Sign in'];
+      case 'pass':
+        return ['Your sync passphrase was changed on another device.', 'rekey', 'Enter it'];
+      case 'error':
+        return [SYST.why || syWhy(null, SYS.cloud), 'now', 'Try again'];
+      default:
+        return [SYST.at ? `Up to date. Synced at ${CLF.format(SYST.at)}.` : 'Up to date.', 'now', 'Sync now'];
+    }
+  }
+  function syDraw() {
+    const m = SYD;
+    if (!m) return;
+    const c = m.c,
+      n = c ? CL[c].name : '',
+      st = m.step,
+      pass = ['new', 'join', 'rekey'].includes(st);
+    let t = '',
+      sub = '',
+      go = '',
+      no = 'Cancel',
+      hint = '';
+    SY.syCh.hidden = st !== 'pick';
+    SY.syOn.hidden = st !== 'on';
+    SY.syPass.hidden = !pass;
+    SY.syPass2.hidden = st !== 'new';
+    SY.syOkL.hidden = st !== 'new';
+    SY.syEraseL.hidden = st !== 'stop' && st !== 'reset';
+    SY.syPass.autocomplete = st === 'new' ? 'new-password' : 'current-password';
+    SY.syPass.placeholder = st === 'new' ? 'Passphrase, 12 characters or more' : 'Sync passphrase';
+    SY.syPass.setAttribute('aria-label', st === 'new' ? 'New sync passphrase' : 'Sync passphrase');
+    if (st === 'pick') {
+      t = 'Sync with your cloud';
+      sub = 'The same tasks on your phone and your computer, kept in your own cloud. They’re encrypted here with a passphrase before they leave, so neither your cloud nor One Day can read them.';
+      hint = 'One Day keeps one small file there, and nothing else. Stop whenever you like.';
+      SY.syCh.innerHTML = Object.keys(CL)
+        .map(k => {
+          const on = !!CLOUD_IDS[k];
+          return `<button type="button" class="syc" data-c="${k}"${on ? '' : ' disabled'}><b>${esc(CL[k].name)}</b><span>${esc(on ? CL[k].sub : 'Not set up yet')}</span></button>`;
+        })
+        .join('');
+    } else if (st === 'wait') {
+      t = `Signing in to ${n}`;
+      sub = `Finish in the window that opened. ${CL[c].co} asks you to let One Day use its own folder there, and nothing else.`;
+    } else if (st === 'go') {
+      t = `Opening ${n}…`;
+      sub = 'Sign in there, and you’ll come straight back to One Day.';
+      no = '';
+    } else if (st === 'new') {
+      t = 'Choose a sync passphrase';
+      sub = `It encrypts your tasks here, before they go to your ${n}. You’ll type it once on each device you sync.`;
+      go = 'Start syncing';
+      if (vault) hint = 'It can be the same as your lock’s passphrase.';
+    } else if (st === 'join' || st === 'rekey') {
+      t = st === 'join' ? 'Enter your sync passphrase' : 'Your sync passphrase changed';
+      sub =
+        st === 'join'
+          ? `Your ${n} already holds tasks from One Day. Enter the passphrase you chose when you turned sync on.`
+          : `The tasks in your ${n} were sealed again on another device, with a new passphrase. Enter it to keep syncing.`;
+      go = 'Sync';
+      hint = '<button class="lnk" type="button" data-sy="forgot">Forgot it?</button>';
+    } else if (st === 'reset') {
+      t = `Start over in your ${n}?`;
+      sub = `Nobody can recover the passphrase. You can erase the tasks One Day keeps in your ${n}, then sync this device’s tasks there under a new passphrase. Your other devices will ask for it.`;
+      SY.syEraseT.textContent = `Erase One Day’s copy from my ${n}`;
+      go = 'Erase';
+    } else if (st === 'on') {
+      t = 'Sync is on';
+      sub = `Your tasks are kept ${CL[c].where}, encrypted with your sync passphrase.`;
+      const [line, act, lab] = syStatus(),
+        h = `<span class="syd" data-s="${esc(SYST.s)}" aria-hidden="true"></span><span>${esc(line)}</span>${
+          act ? ` <button class="lnk" type="button" data-sy="${act}">${esc(lab)}</button>` : ''
+        }`;
+      if (SY.sySt.dataset.h !== h) {
+        // the focus stays in the dialog when what it was on is drawn again
+        const had = SY.sySt.contains(D().activeElement);
+        SY.sySt.innerHTML = SY.sySt.dataset.h = h;
+        if (had) (SY.sySt.querySelector('button') || SY.syGo).focus({ preventScroll: true });
+      }
+      SY.syLi.innerHTML = [
+        `${CL[c].co} sees one file and when it changes, never a task.`,
+        `On your other devices, open One Day, choose Sync with your cloud, then ${n} with the same account and the same passphrase.`,
+        'Offline, your changes wait here, and go up once you’re back online.',
+      ]
+        .map(x => `<li>${esc(x)}</li>`)
+        .join('');
+      go = 'Done';
+      no = 'Stop syncing';
+    } else if (st === 'stop') {
+      t = 'Stop syncing here?';
+      sub = `Your tasks stay in this browser, and in your ${n} for your other devices.`;
+      SY.syEraseT.textContent = `Also erase One Day’s copy from your ${n}`;
+      if (SY.syErase.checked) hint = 'Stop syncing on your other devices first: one still syncing would put the copy back.';
+      go = 'Stop syncing';
+      no = 'Keep syncing';
+    }
+    SY.syT.textContent = t;
+    SY.sySub.textContent = sub;
+    SY.syGo.hidden = !go;
+    SY.syGo.textContent = go;
+    SY.syGo.classList.toggle('danger', st === 'reset' || (st === 'stop' && SY.syErase.checked));
+    SY.syNo.hidden = !no;
+    SY.syNo.textContent = no;
+    SY.syHint.innerHTML = hint;
+    SY.syHint.hidden = !hint;
+  }
+  // a cloud picked: its sign-in opens from this very click
+  function syPick(c) {
+    if (!SYD || !CLOUD_IDS[c]) return;
+    const win = syWin();
+    SYD.c = c;
+    SYD.step = win ? 'wait' : 'go';
+    say(SY.syForm, SY.syErr, '');
+    syDraw();
+    syFocus();
+    const m = SYD;
+    sySignIn(c, win)
+      .then(tok => syGot(c, tok))
+      .then(
+        got => {
+          if (SYD !== m) return;
+          if (got.again) {
+            m.step = 'on';
+            syDraw();
+            return;
+          }
+          m.step = got.step;
+          m.env = got.env || null;
+          syDraw();
+          syFocus();
+        },
+        e => {
+          if (SYD !== m || (e && e.kind === 'cancel')) return;
+          m.step = 'pick';
+          syDraw();
+          wrong(SY.syForm, SY.syErr, null, syWhy(e, c));
+        },
+      );
+  }
+  // signed in again to the cloud in use, from a click (the toast, or the dialog)
+  function syAgain() {
+    if (!SYS) return;
+    const c = SYS.cloud,
+      win = syWin();
+    if (SYD) {
+      SYD.step = win ? 'wait' : 'go';
+      syDraw();
+    }
+    const m = SYD;
+    sySignIn(c, win)
+      .then(tok => syGot(c, tok))
+      .then(
+        () => {
+          if (SYD && SYD === m) {
+            m.step = 'on';
+            syDraw();
+          }
+        },
+        e => {
+          if (e && e.kind === 'cancel') return;
+          if (SYD && SYD === m) {
+            m.step = 'on';
+            syDraw();
+            wrong(SY.syForm, SY.syErr, null, syWhy(e, c));
+          } else toast(syWhy(e, c));
+        },
+      );
+  }
+  // signed in: on with sync (the cloud in use), or what the cloud holds says what comes next
+  async function syGot(c, tok) {
+    const a = syAuth();
+    syKeepAuth({ v: 1, cloud: c, ...tok, r: tok.r || (a && a.cloud === c ? a.r || '' : '') });
+    if (SYS && SYS.cloud === c) {
+      syTold = '';
+      SYST.s = 'idle';
+      syUI();
+      syncNow();
+      return { again: true };
+    }
+    const files = await CL[c].list();
+    if (!files.length) return { step: 'new' };
+    const env = syEnv(await CL[c].read(files[0]));
+    if (!env) throw new SyErr('alien');
+    return { step: 'join', env };
+  }
+  // back from the cloud's page in this window: on from where the sign-in left off
+  async function syFinish(b) {
+    try {
+      const got = await syGot(b.c, await CL[b.c].take(b.ans, b.ver));
+      if (got.again) toast(`Signed in to ${CL[b.c].name} again`);
+      else openSync({ step: got.step, c: b.c, env: got.env || null });
+    } catch (e) {
+      if (e && e.kind === 'cancel') return;
+      if (SYS) toast(syWhy(e, b.c));
+      else {
+        openSync({ step: 'pick' });
+        if (SYD) wrong(SY.syForm, SY.syErr, null, syWhy(e, b.c));
+      }
+    }
+  }
+  function syStart(sys) {
+    if (SYD && SYD.step === 'rekey' && SYS && SYS.cloud === sys.cloud) {
+      // the new key, and no base: the copy there and this device's tasks are both kept
+      SYS.key = sys.key;
+      SYS.base = null;
+      SYS.file = null;
+      SYS.lh = '';
+    } else SYS = sys;
+    SYKEY = null;
+    SYENV = null;
+    syTold = '';
+    SYST.s = 'busy';
+    syQuiet();
+    syUI();
+    if (SYD) {
+      SYD.step = 'on';
+      syDraw();
+      syFocus();
+    }
+    syncNow();
+  }
+  // Off here: the sign-in and the key leave this browser, the tasks stay. With `erase`, One Day's copy in the cloud
+  // goes first; if that fails, sync stays on and says why.
+  async function syStop(erase) {
+    const sys = SYS;
+    if (!sys) return '';
+    const c = CL[sys.cloud],
+      a = syAuth();
+    SYS = null;
+    clearTimeout(syT);
+    syT = null;
+    if (SYBUSY) await SYBUSY.catch(() => {});
+    if (erase)
+      try {
+        for (const f of await c.list()) await c.remove(f);
+      } catch (e) {
+        if (!locked) SYS = sys;
+        return syWhy(e, sys.cloud);
+      }
+    if (erase || sys.cloud === 'dropbox') c.revoke(a);
+    SYKEY = null;
+    SYENV = null;
+    syKeepAuth(null);
+    SYST.s = 'off';
+    syQuiet();
+    syUI();
+    return '';
+  }
+  SY.syCh.addEventListener('click', e => {
+    const b = e.target.closest('[data-c]');
+    if (b && !b.disabled) syPick(b.dataset.c);
+  });
+  SY.syForm.addEventListener('click', e => {
+    const b = e.target.closest('[data-sy]');
+    if (!b || !SYD) return;
+    const a = b.dataset.sy;
+    if (a === 'now') syncNow();
+    else if (a === 'signin') syAgain();
+    else if (a === 'rekey') {
+      SYD.step = 'rekey';
+      SYD.env = SYENV;
+      syDraw();
+      syFocus();
+    } else if (a === 'forgot') {
+      SYD.step = 'reset';
+      SY.syErase.checked = false;
+      say(SY.syForm, SY.syErr, '');
+      syDraw();
+      syFocus();
+    }
+  });
+  SY.syErase.addEventListener('change', () => {
+    if (SY.syErase.checked && /^Tick/.test(SY.syErr.textContent)) say(SY.syForm, SY.syErr, '');
+    syDraw();
+  });
+  SY.syOk.addEventListener('change', () => {
+    if (SY.syOk.checked && /^Tick/.test(SY.syErr.textContent)) say(SY.syForm, SY.syErr, '');
+  });
+  SY.syForm.addEventListener('input', e => {
+    if (e.target.type !== 'password') return;
+    e.target.removeAttribute('aria-invalid');
+    say(SY.syForm, SY.syErr, '');
+  });
+  SY.syNo.onclick = () => {
+    const m = SYD;
+    if (!m) return;
+    if (m.step === 'on') {
+      m.step = 'stop';
+      SY.syErase.checked = false;
+    } else if (m.step === 'stop') m.step = 'on';
+    else return closeSync();
+    say(SY.syForm, SY.syErr, '');
+    syDraw();
+    syFocus();
+  };
+  SY.syncd.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation();
+    closeSync();
+  });
+  SY.syncd.addEventListener('click', e => {
+    if (e.target === SY.syncd) closeSync();
+  });
+  SY.syForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const m = SYD;
+    if (!m || SY.syGo.disabled || SY.syGo.hidden) return;
+    const no = (msg, el, at) => wrong(SY.syForm, SY.syErr, el, msg, at);
+    if (m.step === 'on') return closeSync();
+    if (m.step === 'new') {
+      const p1 = SY.syPass.value,
+        p2 = SY.syPass2.value;
+      if (p1.length < 12) return no('Use 12 characters or more', SY.syPass, SY.syPass);
+      if (p1 !== p2) return no('The two passphrases are not the same', SY.syPass2, SY.syPass2);
+      if (!SY.syOk.checked) return no('Tick “I understand” first', SY.syOk, SY.syOkL);
+      say(SY.syForm, SY.syErr, '');
+      busy(SY.syGo, 'Encrypting…');
+      let sys = null;
+      try {
+        sys = await syMake(m.c, p1);
+      } catch (err) {}
+      busy(SY.syGo);
+      if (SYD !== m) return;
+      if (!sys) return no('Something went wrong. Nothing was changed.');
+      return syStart(sys);
+    }
+    if (m.step === 'join' || m.step === 'rekey') {
+      const p = SY.syPass.value;
+      if (!p) return no('Enter the passphrase', SY.syPass, SY.syPass);
+      if (!m.env) return no(syWhy(new SyErr('alien'), m.c));
+      say(SY.syForm, SY.syErr, '');
+      busy(SY.syGo, 'Opening…');
+      let sys = null,
+        bad = null;
+      try {
+        sys = await syJoin(m.c, p, m.env);
+      } catch (err) {
+        bad = err;
+      }
+      busy(SY.syGo);
+      if (SYD !== m) return;
+      if (bad) return no(syWhy(bad, m.c));
+      if (!sys) return no(`That passphrase doesn’t open the tasks in your ${CL[m.c].name}`, SY.syPass);
+      return syStart(sys);
+    }
+    if (m.step === 'reset') {
+      if (!SY.syErase.checked) return no('Tick the box to erase it', SY.syErase, SY.syEraseL);
+      say(SY.syForm, SY.syErr, '');
+      busy(SY.syGo, 'Erasing…');
+      let why = '';
+      try {
+        // this device's own sync, if any, stops first: it would put the copy back
+        if (SYS) why = await syStop(false);
+        for (const f of await CL[m.c].list()) await CL[m.c].remove(f);
+      } catch (err) {
+        why = syWhy(err, m.c);
+      }
+      busy(SY.syGo);
+      if (SYD !== m) return;
+      if (why) return no(why);
+      m.step = 'new';
+      m.env = null;
+      SY.syErase.checked = false;
+      syDraw();
+      syFocus();
+      return;
+    }
+    if (m.step === 'stop') {
+      const erase = SY.syErase.checked,
+        n = CL[m.c].name;
+      say(SY.syForm, SY.syErr, '');
+      busy(SY.syGo, erase ? 'Erasing…' : 'Stopping…');
+      const why = await syStop(erase);
+      busy(SY.syGo);
+      if (SYD !== m) return;
+      if (why) return no(why);
+      closeSync();
+      toast(erase ? `Sync is off, and One Day’s copy is gone from your ${n}` : 'Sync is off on this device');
+    }
+  });
+  // the lock closed: the key went with the tasks, and nothing syncs until the next unlock
+  function syLocked() {
+    clearTimeout(syT);
+    syT = null;
+    SYKEY = null;
+    SYENV = null;
+    SYST.s = 'off';
+    syUI();
+  }
+  // started, or unlocked: sync takes up where it was
+  function syWake() {
+    if (!SYON || locked) return;
+    const back = SYBACK;
+    SYBACK = null;
+    if (SYS) {
+      const a = syAuth();
+      SYST.s = !a || a.cloud !== SYS.cloud ? 'auth' : navigator.onLine ? 'idle' : 'offline';
+      syUI();
+      syncSoon(700);
+    } else syUI();
+    if (back) syFinish(back);
+  }
+  function syBoot() {
+    if (!SYON) return;
+    SYBACK = syBackIn();
+    syncHook = () => {
+      if (SYS && !SYQUIET) syncSoon();
+    };
+    window.addEventListener('online', () => syncSoon(300));
+    window.addEventListener('offline', () => {
+      if (SYS && !['auth', 'pass'].includes(SYST.s)) syState('offline');
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (!SYS || locked) return;
+      // changes still waiting go up before the page is put away; back, what changed elsewhere comes in
+      if (document.hidden) {
+        if (syT) syncNow();
+      } else syncSoon(400);
+    });
+    // while One Day is open, what other devices did comes in every couple of minutes
+    setInterval(() => {
+      if (SYS && !locked && !document.hidden) syncNow();
+    }, 120e3);
+    syWake();
+  }
 
   /* the day turning over while the app is open */
   setInterval(() => {
@@ -9069,6 +10684,7 @@ try {
   ]).then(() => (locked ? (introLater = true) : intro()));
   bindDoc(document);
   cloud.init();
+  syBoot();
   if (!locked && INRE.test(location.hash)) later(readIncoming, RM.matches ? 0 : 900);
   if (
     'serviceWorker' in navigator &&

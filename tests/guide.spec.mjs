@@ -110,11 +110,11 @@ test('SEO basics: a title, a description, one h1, headings in order, every ancho
   const parts = await page.$$eval('.body .chapter, .body .chapter > section', ns =>
     ns.map(n => [n.id, n.querySelector(n.classList.contains('chapter') ? 'h2' : 'h3').textContent.trim()]),
   );
-  expect(parts.length).toBe(28);
+  expect(parts.length).toBe(29);
   expect(toc).toEqual(parts);
   // chapters are h2, their sections h3, everything under those h4
   expect(await page.$$eval('.chapter > .ch h2', hs => hs.length)).toBe(6);
-  expect(await page.$$eval('.chapter > section > h3', hs => hs.length)).toBe(22);
+  expect(await page.$$eval('.chapter > section > h3', hs => hs.length)).toBe(23);
 });
 
 for (const [path, title, image] of [
@@ -328,7 +328,7 @@ test.describe('narrower, On this page in a sheet', () => {
         const d = page.locator('#tocd');
         await expect(d).toBeVisible();
         await expect(b).toHaveAttribute('aria-expanded', 'true');
-        await expect(d.locator('a')).toHaveCount(28);
+        await expect(d.locator('a')).toHaveCount(29);
         // the section being read is marked, and has the focus
         await expect(d.locator('a[aria-current]')).toHaveAttribute('href', '#timer');
         await expect(d.locator('a[href="#timer"]')).toBeFocused();

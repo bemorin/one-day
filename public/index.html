@@ -5,18 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com https://api.dropboxapi.com https://content.dropboxapi.com https://graph.microsoft.com https://login.microsoftonline.com https://*.files.1drv.com https://my.microsoftpersonalcontent.com; manifest-src 'self'; worker-src 'self'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
     />
     <meta name="referrer" content="no-referrer" />
     <meta
       name="description"
-      content="A calm, minimalist task list that shows one day at a time. Private by design: your tasks never leave your device."
+      content="A calm, minimalist task list that shows one day at a time. Private by design: your tasks stay on your device, or sync encrypted through your own cloud."
     />
     <!-- what a shared link shows (WhatsApp, X, iMessage…); the picture comes from npm run shots -->
     <meta property="og:site_name" content="One Day" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="One Day" />
-    <meta property="og:description" content="A calm to-do list that shows one day at a time. Free and private: no account, and your tasks never leave your device." />
+    <meta property="og:description" content="A calm to-do list that shows one day at a time. Free and private: no account, and your tasks stay yours, on your device or encrypted in your own cloud." />
     <meta property="og:url" content="https://day.bemorin.com/" />
     <meta property="og:image" content="https://day.bemorin.com/share.jpg" />
     <meta property="og:image:type" content="image/jpeg" />
@@ -50,6 +50,9 @@
         <a class="gpill" id="gpill" href="guide/" target="_blank" rel="noopener" data-tip="Guide" aria-label="Guide">
           <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.25" /><path d="M7.9 8.1a2.15 2.15 0 1 1 3.05 1.95c-.6.28-.95.78-.95 1.4v.3M10 13.95v.05" /></svg>
         </a>
+        <button class="spill" id="spill" type="button" data-tip="Sync" aria-label="Sync" hidden>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path class="sc-c" d="M5.9 15.75h8.3a3.6 3.6 0 0 0 .52-7.17 4.85 4.85 0 0 0-9.33 1.07A3.05 3.05 0 0 0 5.9 15.75Z" /><path class="sc-k" d="m7.9 11.55 1.55 1.55 3-3.25" /><path class="sc-x" d="M3.25 3.25 16.75 16.75" /></svg><i class="sc-d"></i>
+        </button>
         <button class="lpill" id="lpill" type="button" data-tip="Protect with a passphrase" aria-label="Protect with a passphrase">
           <svg class="lk-open" viewBox="0 0 20 20" aria-hidden="true"><rect x="4.25" y="9" width="11.5" height="8.25" rx="2.25" /><path d="M6.75 9V6.75a3.25 3.25 0 0 1 6.3-1.1" /></svg><svg class="lk-shut" viewBox="0 0 20 20" aria-hidden="true"><rect x="4.25" y="9" width="11.5" height="8.25" rx="2.25" /><path d="M6.75 9V6.75a3.25 3.25 0 0 1 6.5 0V9" /></svg>
         </button>
@@ -641,6 +644,46 @@
           <button class="tbtn" id="lsCancel" type="button">Cancel</button
           ><button class="pbtn" id="lsGo" type="submit">Protect</button>
         </div>
+      </form>
+    </div>
+    <div class="modal" id="syncd" role="dialog" aria-modal="true" aria-labelledby="syT" aria-describedby="sySub" hidden>
+      <form class="lcard scard" id="syForm" novalidate>
+        <h2 id="syT">Sync with your cloud</h2>
+        <p class="lsub" id="sySub"></p>
+        <div class="sych" id="syCh" role="group" aria-label="Your cloud"></div>
+        <div class="syon" id="syOn" hidden>
+          <p class="syst" id="sySt" role="status"></p>
+          <ul class="syli" id="syLi"></ul>
+        </div>
+        <input type="text" name="username" autocomplete="username" value="One Day sync" hidden />
+        <input id="syPass" type="password" autocomplete="new-password" placeholder="Passphrase, 12 characters or more" aria-label="Sync passphrase" aria-describedby="syErr" hidden />
+        <input
+          id="syPass2"
+          type="password"
+          autocomplete="new-password"
+          placeholder="The same passphrase again"
+          aria-label="The same passphrase again"
+          hidden
+        />
+        <label class="lwarn" id="syOkL" hidden>
+          <span class="lwt" id="syWarn"
+            ><b>Keep it somewhere safe.</b> Without it, a new device can’t open your tasks in your cloud, and nobody can recover it, not even the maker of One Day.</span
+          >
+          <span class="lok">
+            <span class="ckb"><input type="checkbox" id="syOk" aria-labelledby="syOkT" aria-describedby="syWarn" /><svg viewBox="0 0 20 20" aria-hidden="true"><path pathLength="1" d="m5.6 10.4 3 3 5.9-6.6" /></svg></span>
+            <span id="syOkT">I understand</span>
+          </span>
+        </label>
+        <label class="lchk" id="syEraseL" hidden>
+          <span class="ckb"><input type="checkbox" id="syErase" aria-labelledby="syEraseT" /><svg viewBox="0 0 20 20" aria-hidden="true"><path pathLength="1" d="m5.6 10.4 3 3 5.9-6.6" /></svg></span>
+          <span id="syEraseT"></span>
+        </label>
+        <p class="lerr" id="syErr" role="alert"></p>
+        <div class="racts">
+          <button class="tbtn" id="syNo" type="button">Cancel</button
+          ><button class="pbtn" id="syGo" type="submit">Start syncing</button>
+        </div>
+        <p class="lhint" id="syHint" hidden></p>
       </form>
     </div>
     <div class="modal" id="imp" role="dialog" aria-modal="true" aria-labelledby="impT" aria-describedby="impSub" hidden>
