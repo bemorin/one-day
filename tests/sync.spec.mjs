@@ -782,6 +782,29 @@ test.describe('sync with your cloud', () => {
     await A.ctx.close();
   });
 
+  test('a cloud that never answers while the copy is erased: One Day gives up, says so, and the dialog can be closed', async ({ browser, baseURL }) => {
+    test.slow();
+    const drive = new Drive(),
+      A = await device(browser, baseURL, drive);
+    await connect(A.page, 'google');
+    await A.ctx.route('https://www.googleapis.com/drive/v3/files/**', route => (route.request().method() === 'DELETE' ? new Promise(() => {}) : route.fallback()));
+    await A.page.locator('#syNo').click();
+    await A.page.locator('#syErase').check();
+    await A.page.locator('#syGo').click();
+    await expect(A.page.locator('#syGo')).toHaveText('Erasing…');
+    // at work, the dialog stays
+    await A.page.keyboard.press('Escape');
+    await expect(A.page.locator('#syncd')).toBeVisible();
+    await expect(A.page.locator('#syErr')).toHaveText('Google Drive couldn’t be reached. One Day tries again in a moment.', { timeout: 60000 });
+    await A.page.keyboard.press('Escape');
+    await expect(A.page.locator('#syncd')).toBeHidden();
+    // nothing was stopped: sync is still on, the copy still there
+    await expect(A.page.locator('#spill')).toBeVisible();
+    expect(drive.files).toHaveLength(1);
+    expect(await A.page.evaluate(() => document.getElementById('home').inert)).toBe(false);
+    await A.ctx.close();
+  });
+
   test('the same task id on two days (an old backup imported after a move): both copies sync', async ({ browser, baseURL }) => {
     const drive = new Drive(),
       t = { id: 'dup', text: 'Pay the rent', done: false },
