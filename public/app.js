@@ -8947,8 +8947,15 @@ try {
     },
     SYON = !!(CAN_LOCK && WEB && window.fetch && window.CompressionStream && window.DecompressionStream),
     CL = {
-      google: { name: 'Google Drive', co: 'Google', where: 'in a hidden folder of your Google Drive that only One Day can open', sub: 'A hidden folder only One Day opens' },
-      dropbox: { name: 'Dropbox', co: 'Dropbox', where: 'in One Day’s own folder of your Dropbox, under Apps', sub: 'One Day’s own folder, under Apps' },
+      // logo: the cloud's own artwork, as its owner publishes it for apps that work with it (public/clouds/)
+      google: {
+        name: 'Google Drive',
+        co: 'Google',
+        where: 'in a hidden folder of your Google Drive that only One Day can open',
+        sub: 'A hidden folder only One Day opens',
+        logo: 'clouds/google-drive.svg',
+      },
+      dropbox: { name: 'Dropbox', co: 'Dropbox', where: 'in One Day’s own folder of your Dropbox, under Apps', sub: 'One Day’s own folder, under Apps', logo: 'clouds/dropbox.svg' },
       onedrive: { name: 'OneDrive', co: 'Microsoft', where: 'in One Day’s own folder of your OneDrive, under Apps', sub: 'One Day’s own folder, under Apps' },
     },
     SYST = { s: 'off', at: 0, why: '' }; // how sync is going: off, idle, busy, offline, auth, pass, error
@@ -10211,8 +10218,9 @@ try {
       hint = 'One Day keeps one small file there, and nothing else. Stop whenever you like.';
       SY.syCh.innerHTML = Object.keys(CL)
         .map(k => {
-          const on = !!CLOUD_IDS[k];
-          return `<button type="button" class="syc" data-c="${k}"${on ? '' : ' disabled'}><b>${esc(CL[k].name)}</b><span>${esc(on ? CL[k].sub : 'Not set up yet')}</span></button>`;
+          const on = !!CLOUD_IDS[k],
+            logo = CL[k].logo ? `<img src="${CL[k].logo}" alt="" width="28" height="28" decoding="async">` : '';
+          return `<button type="button" class="syc" data-c="${k}"${on ? '' : ' disabled'}><i class="syl syl-${k}" aria-hidden="true">${logo}</i><b>${esc(CL[k].name)}</b><span>${esc(on ? CL[k].sub : 'Not set up yet')}</span></button>`;
         })
         .join('');
     } else if (st === 'wait') {
