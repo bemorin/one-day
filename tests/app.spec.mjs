@@ -1940,8 +1940,12 @@ test.describe('on a touch screen', () => {
     await page.locator('#mbMore').tap();
     await expect(page.locator('#more')).toBeVisible();
     await expect(page.locator('#more [data-act="export"]')).toBeVisible();
-    await expect(page.locator('#more .slinks a')).toHaveCount(5);
-    await expect(page.locator('#more .slinks a').first()).toHaveText('Guide');
+    // the guide is a button of its own, opening in this window; the links below keep the legal pages and the source
+    await expect(page.locator('#more .sgd a')).toHaveText('How to use One Day');
+    await expect(page.locator('#more .sgd a')).toHaveAttribute('href', 'guide/');
+    await expect(page.locator('#more .sgd a')).not.toHaveAttribute('target', /.+/);
+    await expect(page.locator('#more .slinks a')).toHaveCount(4);
+    await expect(page.locator('#more .slinks a').first()).toHaveText('Privacy');
     // the croissant says why it is there, on a row of its own under dogood.day
     await expect(page.locator('#more .spromo.kofi')).toHaveText('This app is free. If you want, buy me a 🥐.');
     await expect(page.locator('#more .spromo:not(.kofi) + .spromo.kofi')).toHaveCount(1);

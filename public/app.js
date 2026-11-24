@@ -625,6 +625,7 @@ try {
   /* rows */
   const IC = {
     search: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7.25" cy="7.25" r="4.5"/><path d="m10.6 10.6 3.15 3.15"/></svg>',
+    help: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.8"/><path d="M6.32 6.48a1.72 1.72 0 1 1 2.44 1.56c-.48.22-.76.62-.76 1.12v.24M8 11.16v.04"/></svg>',
     tick: '<svg viewBox="0 0 12 12"><path d="M2.6 6.3 5 8.6l4.4-5"/></svg>',
     mv: '<svg viewBox="0 0 20 20"><path d="M4 10h11.5M11 5.5l4.5 4.5-4.5 4.5"/></svg>',
     rm: '<svg viewBox="0 0 20 20"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg>',
@@ -6411,7 +6412,13 @@ try {
     const f = document.getElementById('foot'),
       promo = f && f.querySelector('.promo'),
       kofi = f && f.querySelector('.kofi'),
-      links = f ? [...f.querySelectorAll('nav a')].map(x => x.cloneNode(true).outerHTML).join('') : '',
+      // the guide has its own button above; the links at the bottom keep the legal pages and the source
+      links = f
+        ? [...f.querySelectorAll('nav a')]
+            .filter(x => !x.matches('.gd'))
+            .map(x => x.cloneNode(true).outerHTML)
+            .join('')
+        : '',
       // in a narrow floating window, what the bar let go of comes first
       held = pipNarrow(),
       dark = themeNow() === 'dark';
@@ -6425,6 +6432,9 @@ try {
       `<div class="sbk"><button type="button" class="sbk-b" data-act="import">${IC.up}<span>Import backup</span></button>` +
       `<button type="button" class="sbk-b" data-act="export">${IC.down}<span>${canTop ? 'Export backup' : 'Copy backup'}</span></button></div>` +
       (CAN_LOCK ? lockBtns() : '') +
+      // the guide, a button of its own under the backups and the lock: in this window on a phone (back returns to the
+      // day), in a tab of its own from a floating window
+      `<div class="sgd"><a class="sbk-b" href="guide/"${TOUCH ? '' : ' target="_blank" rel="noopener"'}>${IC.help}<span>How to use One Day</span></a></div>` +
       (promo
         ? `<a class="spromo" href="${esc(promo.href)}" target="_blank" rel="noopener" referrerpolicy="strict-origin">${promo.innerHTML}</a>`
         : '') +

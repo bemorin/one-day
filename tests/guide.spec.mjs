@@ -459,7 +459,7 @@ test.describe('the app links to the guide', () => {
     test('from More, in the same window, so the back button returns to the app', async ({ page }) => {
       await app(page);
       await page.locator('#mbMore').tap();
-      const link = page.locator('#more .slinks a', { hasText: 'Guide' });
+      const link = page.locator('#more .sgd a', { hasText: 'How to use One Day' });
       await expect(link).toBeVisible();
       await expect(link).not.toHaveAttribute('target', /.+/);
       await link.tap();

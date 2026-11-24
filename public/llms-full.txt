@@ -23,7 +23,7 @@ That’s all there is to it. The rest of this page is for the days when you want
 
 > **Nothing to sign up for.** One Day has no account, no server and no tracking. Your tasks stay in this browser on this device: [Privacy](https://day.bemorin.com/guide/#privacy) explains what that means, and [Backups](https://day.bemorin.com/guide/#backups) how to keep a copy.
 
-To come back to this guide, click the **?** at the top right, above the day, on a computer; on a phone, it’s **Guide** in More.
+To come back to this guide, click the **?** at the top right, above the day, on a computer; on a phone, it’s **How to use One Day** in More.
 
 ### Your day
 
