@@ -3108,14 +3108,19 @@ mark {
 .bar.grouped #lockb {
   display: none;
 }
-/* in the floating window: its own close button brings the card back, so no button for that; and when the bar runs
-   out of room, the timer stays and the rest waits behind ⋮, in the drawer */
+/* in the floating window: its own close button brings the card back, so no button for that. And when the bar runs
+   out of room (that window, a browser's side panel, a page zoomed in), the timer stays and the rest waits behind ⋮,
+   in the drawer; still short of room in the middle, the time steps out too. */
 #app.inpip #float,
-.bar.pipnarrow #sb,
-.bar.pipnarrow #sendd,
-.bar.pipnarrow #theme,
-.bar.pipnarrow #lockb {
+.bar.folded #sb,
+.bar.folded #sendd,
+.bar.folded #float,
+.bar.folded #theme,
+.bar.folded #lockb {
   display: none;
+}
+.sp.nomid .clock {
+  visibility: hidden;
 }
 .pop.kpop {
   left: auto;

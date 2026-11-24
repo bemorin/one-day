@@ -973,7 +973,7 @@ test('keep on top: no button to come back inside the window, and a narrow one ke
         d = w.document,
         shown = id => !d.getElementById(id).hidden && w.getComputedStyle(d.getElementById(id)).display !== 'none';
       return {
-        narrow: d.querySelector('.bar').classList.contains('pipnarrow'),
+        narrow: d.querySelector('.bar').classList.contains('folded'),
         float: shown('float'),
         sb: shown('sb'),
         sendd: shown('sendd'),
@@ -1010,9 +1010,50 @@ test('keep on top: no button to come back inside the window, and a narrow one ke
     documentPictureInPicture.window.close();
   });
   await expect(page.locator('#home > #app')).toBeVisible();
-  await expect(page.locator('.bar')).not.toHaveClass(/pipnarrow/);
+  await expect(page.locator('.bar')).not.toHaveClass(/\bfolded\b/);
   await expect(page.locator('#float')).toBeVisible();
   await expect(page.locator('#sb')).toBeVisible();
+  await expect(page.locator('#kb')).toBeHidden();
+});
+
+test('in a narrow window (a side panel, a page zoomed in) the bar folds like the floating one: the timer stays, the rest behind ⋮', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await open(page);
+  const bar = page.locator('.bar');
+  await expect(bar).toHaveClass(/\bfolded\b/);
+  for (const id of ['#sb', '#sendd', '#float', '#theme']) await expect(page.locator(id)).toBeHidden();
+  for (const id of ['#prev', '#next', '#tmb', '#kb']) await expect(page.locator(id)).toBeVisible();
+  // what stays in the bar never overlaps: the chevrons, the time if it fits, the timer and ⋮
+  const boxes = await page.evaluate(() =>
+    ['#prev', '#next', '#clock', '#tmb', '#kb']
+      .map(s => document.querySelector(s))
+      .filter(n => n && n.getClientRects().length && getComputedStyle(n).visibility !== 'hidden')
+      .map(n => {
+        const r = (n.querySelector('.cdg') || n).getBoundingClientRect();
+        return [r.left, r.right];
+      }),
+  );
+  for (let i = 1; i < boxes.length; i++) expect(boxes[i][0]).toBeGreaterThanOrEqual(boxes[i - 1][1] - 1);
+  expect(boxes[boxes.length - 1][1]).toBeLessThanOrEqual(320);
+  // ⋮ is More, with what the bar let go of first, keeping on top included
+  await page.locator('#kb').click();
+  await expect(page.locator('#more')).toBeVisible();
+  await expect(page.locator('#kb')).toHaveAttribute('aria-label', 'More');
+  await expect(page.locator('#moreList .sbk-b').nth(0)).toHaveText('Search');
+  await expect(page.locator('#moreList .sbk-b').nth(1)).toHaveText('Send this day');
+  await expect(page.locator('#moreList .sbk-b').nth(2)).toHaveText(/^(Dark|Light) mode$/);
+  await expect(page.locator('#moreList .sbk-b').nth(3)).toHaveText('Keep on top');
+  await page.locator('#moreList [data-act="float"]').click();
+  await expect
+    .poll(() => page.evaluate(() => !!documentPictureInPicture.window?.document.getElementById('app')))
+    .toBe(true);
+  await page.evaluate(() => documentPictureInPicture.window.close());
+  await expect(page.locator('#home > #app')).toBeVisible();
+  await expect(page.locator('#more')).toBeHidden();
+  // wide again, the bar is whole
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await expect(bar).not.toHaveClass(/\bfolded\b/);
+  for (const id of ['#sb', '#sendd', '#float']) await expect(page.locator(id)).toBeVisible();
   await expect(page.locator('#kb')).toBeHidden();
 });
 
@@ -3243,7 +3284,7 @@ test.describe('full days', () => {
             box = id => d.getElementById(id).getBoundingClientRect(),
             [n, dd, t] = ['next', 'dd', 'tmb'].map(box);
           return {
-            narrow: d.querySelector('.bar').classList.contains('pipnarrow'),
+            narrow: d.querySelector('.bar').classList.contains('folded'),
             shown: w.getComputedStyle(d.getElementById('dd')).display !== 'none' && dd.width > 40,
             between: dd.left >= n.right && dd.right <= t.left,
           };

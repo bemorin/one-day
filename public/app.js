@@ -636,6 +636,8 @@ try {
     rep: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.75 7.25a5.25 5.25 0 0 1 9.1-3.3l1.4 1.3M13.25 2.25v3h-3M13.25 8.75a5.25 5.25 0 0 1-9.1 3.3l-1.4-1.3M2.75 13.75v-3h3"/></svg>',
     journal: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.75h10.75c.55 0 1 .45 1 1v14.5c0 .55-.45 1-1 1H6.5a1.75 1.75 0 0 1-1.75-1.75V5.5c0-.97.78-1.75 1.75-1.75Z"/><path d="M9 8h6M9 11.5h4"/></svg>',
     send: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 9.75V2.25M5.25 5 8 2.25 10.75 5M5.5 7H4.5c-.83 0-1.5.67-1.5 1.5v4c0 .83.67 1.5 1.5 1.5h7c.83 0 1.5-.67 1.5-1.5v-4c0-.83-.67-1.5-1.5-1.5h-1"/></svg>',
+    float:
+      '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3.2" width="12" height="9.6" rx="2"/><rect x="8" y="7.2" width="4" height="3.6" rx=".8" fill="currentColor" stroke="none"/></svg>',
     down: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7.5M4.75 7 8 10.25 11.25 7M2.75 11.5v.75c0 .69.56 1.25 1.25 1.25h8c.69 0 1.25-.56 1.25-1.25v-.75"/></svg>',
     up: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.25V2.75M4.75 6 8 2.75 11.25 6M2.75 11.5v.75c0 .69.56 1.25 1.25 1.25h8c.69 0 1.25-.56 1.25-1.25v-.75"/></svg>',
     lock: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.25" y="7" width="9.5" height="6.75" rx="1.75"/><path d="M5.25 7V5.25a2.75 2.75 0 0 1 5.5 0V7"/></svg>',
@@ -6483,14 +6485,16 @@ try {
             .map(x => x.cloneNode(true).outerHTML)
             .join('')
         : '',
-      // in a narrow floating window, what the bar let go of comes first
-      held = pipNarrow(),
+      // where the bar is folded, what it let go of comes first (the floating window has its own way back)
+      held = barFolded(),
       dark = themeNow() === 'dark';
     $.moreList.innerHTML =
       (held
         ? `<div class="sbk"><button type="button" class="sbk-b" data-act="search">${IC.search}<span>Search</span></button>` +
           `<button type="button" class="sbk-b" data-act="send">${IC.send}<span>Send this day</span></button></div>` +
-          `<div class="sbk"><button type="button" class="sbk-b" data-act="theme">${dark ? IC.sun : IC.moon}<span>${dark ? 'Light mode' : 'Dark mode'}</span></button></div>`
+          `<div class="sbk"><button type="button" class="sbk-b" data-act="theme">${dark ? IC.sun : IC.moon}<span>${dark ? 'Light mode' : 'Dark mode'}</span></button>` +
+          (pip ? '' : `<button type="button" class="sbk-b" data-act="float">${IC.float}<span>Keep on top</span></button>`) +
+          '</div>'
         : '') +
       (insHow() ? `<button type="button" class="sins" data-act="install">${IC.install}<span>Install One Day</span></button>` : '') +
       `<div class="sbk"><button type="button" class="sbk-b" data-act="import">${IC.up}<span>Import backup</span></button>` +
@@ -6520,7 +6524,7 @@ try {
     moreOpen = false;
     unguard('more');
     // back to the button that opened it, unless what was chosen takes the focus next
-    if (pipNarrow() && $.more.contains(D().activeElement)) $.kb.focus({ preventScroll: true });
+    if (barFolded() && $.more.contains(D().activeElement)) $.kb.focus({ preventScroll: true });
     sheetOut($.more, from);
     $.mbMore.setAttribute('aria-expanded', 'false');
     $.kb.setAttribute('aria-expanded', 'false');
@@ -6537,6 +6541,8 @@ try {
     const a = e.target.closest('[data-act]');
     if (!a) return;
     closeMore();
+    // the floating window takes the card at once: the drawer is shut before it goes
+    if (a.dataset.act === 'float') for (const el of [$.more, $.scrim]) el.getAnimations().forEach(x => x.finish());
     doAct(a.dataset.act);
   };
   // Drag a sheet down to close it, from anywhere on it that ok() allows. A drag never presses what it started on.
@@ -7080,9 +7086,9 @@ try {
     setFloatUI(true);
     // in there, the window's own close button brings the card back; the bar keeps what fits as the window changes
     app.classList.add('inpip');
-    const fitRo = new pip.ResizeObserver(() => pipFit());
+    const fitRo = new pip.ResizeObserver(() => barFit());
     [BAR, $.tmb, $.todayb].forEach(n => n && fitRo.observe(n));
-    pipFit();
+    barFit();
     pip.addEventListener('keydown', onKey);
     bindDoc(pd);
     tmLoop();
@@ -7110,8 +7116,6 @@ try {
           $.more.getAnimations().forEach(x => x.finish());
         }
         app.classList.remove('inpip');
-        if (BAR) BAR.classList.remove('pipnarrow');
-        syncKb();
         if (spot.parentNode) spot.replaceWith(app);
         else {
           const top = home.querySelector('#topbar');
@@ -7122,6 +7126,8 @@ try {
         document.body.classList.remove('floating');
         setFloatUI(false);
         repaint();
+        // back in the page: the bar keeps what fits there
+        barFit();
         tmLoop();
       },
       { once: true },
@@ -7763,15 +7769,21 @@ try {
     syncKb();
     if (!grouped && $.kpop.classList.contains('on')) closePops();
   }
-  /* In the floating window the bar keeps what fits. When the buttons on the right stop fitting, the timer stays and the
-     rest waits behind ⋮, in the drawer. It is measured with everything showing, so the answer never flickers. */
-  function pipNarrow() {
-    return !!BAR && BAR.classList.contains('pipnarrow');
+  /* The bar keeps what fits: in the floating window, in a browser's side panel, on a page zoomed in. When the buttons
+     on the right stop fitting, the timer stays and the rest waits behind ⋮, in the drawer; folded and still short of
+     room in the middle, the time steps out too. It is measured with everything showing, so the answer never
+     flickers. A phone has its own bar at the bottom. */
+  function barFolded() {
+    return !!BAR && BAR.classList.contains('folded');
   }
-  function pipFit() {
+  function barFit() {
     if (!BAR) return;
-    BAR.classList.remove('pipnarrow');
-    if (pip && (BAR.scrollWidth > BAR.clientWidth + 1 || midCramped())) BAR.classList.add('pipnarrow');
+    BAR.classList.remove('folded');
+    if (BSP) BSP.classList.remove('nomid');
+    if (!PHONE.matches && (BAR.scrollWidth > BAR.clientWidth + 1 || midCramped())) {
+      BAR.classList.add('folded');
+      if (clockShows() && CLOCK.scrollWidth > BSP.clientWidth) BSP.classList.add('nomid');
+    }
     syncKb();
   }
   // What sits in the middle keeps its place too: when the time, or the full days (at least their tick and number), do
@@ -7785,9 +7797,9 @@ try {
     BSP.classList.remove('fit');
     return need > BSP.clientWidth;
   }
-  // ⋮ is the drawer in a narrow floating window, and the install, theme and lock menu where those are grouped
+  // ⋮ is the drawer where the bar is folded, and the install, theme and lock menu where those are grouped
   function syncKb() {
-    const held = pipNarrow(),
+    const held = barFolded(),
       label = held ? 'More' : 'Install, theme and lock';
     $.kb.hidden = !held && !(BAR && BAR.classList.contains('grouped'));
     $.kb.dataset.tip = label;
@@ -7865,7 +7877,7 @@ try {
     $.kpop.querySelector('.kit').focus({ preventScroll: true });
   }
   $.kb.onclick = () => {
-    if (pipNarrow()) moreOpen ? closeMore() : openMore();
+    if (barFolded()) moreOpen ? closeMore() : openMore();
     else $.kpop.classList.contains('on') ? closePops() : openKmenu();
   };
   $.kpop.onclick = e => {
@@ -7896,6 +7908,13 @@ try {
   const todayRoom = () => $.todayb.parentElement.style.setProperty('--tw', $.todayb.offsetWidth + 6 + 'px');
   todayRoom();
   if (document.fonts) document.fonts.ready.then(todayRoom);
+  // the bar folds again as its room changes: a window resized, a page zoomed, the time or "Today" changing width
+  if (window.ResizeObserver && BAR) {
+    const barRo = new ResizeObserver(() => barFit());
+    [BAR, $.tmb, $.todayb, CLOCK].forEach(n => n && barRo.observe(n));
+  }
+  barFit();
+  if (document.fonts) document.fonts.ready.then(barFit);
   /* and the time, its digits rolling like the timer's */
   const CLK = document.getElementById('cdg'),
     CLF = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
@@ -7954,14 +7973,14 @@ try {
     if ($.ddw.textContent !== words) $.ddw.textContent = words;
     if (!n) {
       $.dd.hidden = true;
-      if (pip) pipFit();
+      barFit();
       return ddPlace();
     }
     $.dd.hidden = false;
     roll($.ddn, String(n), was ? 0 : d);
     if (was && d && !BSP.classList.contains('wclock')) ddIn(0);
-    // in the floating window, a count that comes or grows may need the bar to make room
-    if (pip && (was || String(n).length !== String(prev).length)) pipFit();
+    // a count that comes or grows may need the bar to make room
+    if (was || String(n).length !== String(prev).length) barFit();
   }
   function ddIn(delay) {
     an($.ddv, [{ transform: 'translateY(140%)', opacity: 0 }, { transform: 'none', opacity: 1 }], { delay, fill: 'backwards' });
@@ -8704,6 +8723,7 @@ try {
     else if (a === 'search') openSearch();
     else if (a === 'send') sendDay();
     else if (a === 'theme') toggleTheme();
+    else if (a === 'float') float();
   }
   if (locked) showLock();
 
