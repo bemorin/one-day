@@ -6,7 +6,7 @@ One Day is free and open source (MIT). It works offline once it has been opened,
 
 Things people often need to know:
 
-- There is no account. Each browser keeps its own list unless sync is on: Sync with your cloud (in search before typing, or More on a phone) keeps one list through the user's own Google Drive, Dropbox or OneDrive, with the same account and the same sync passphrase on each device. Without sync, tasks move to another device as a link (Send, or Send this day) or as a backup file (Export backup, then Import backup, which only adds what is missing).
+- There is no account. Each browser keeps its own list unless sync is on: Sync with your cloud (the cloud beside the lock, or More on a phone) keeps one list through the user's own Google Drive, Dropbox or OneDrive, with the same account and the same sync passphrase on each device. Without sync, tasks move to another device as a link (Send, or Send this day) or as a backup file (Export backup, then Import backup, which only adds what is missing).
 - The lock is optional. A forgotten passphrase cannot be recovered by anyone; the only way out erases the tasks.
 - A forgotten sync passphrase cannot be recovered either: Forgot it?, where One Day asks for it, erases the copy in the cloud and starts again from that device.
 - Safari can erase a website's data after seven days without a visit, unless One Day is installed (Add to Home Screen, or Add to Dock on a Mac).

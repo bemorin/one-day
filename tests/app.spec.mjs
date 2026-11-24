@@ -2205,8 +2205,7 @@ test.describe('the lock', () => {
     await page.locator('#lsOk').check();
   }
   async function turnOn(page, pass = PASS) {
-    await page.keyboard.press('/');
-    await page.locator('#slist [data-act="lock"]').click();
+    await page.locator('#lpill').click();
     await fillOn(page, pass);
     await page.locator('#lsGo').click();
     await expect(page.locator('#lockset')).toBeHidden({ timeout: 20000 });
@@ -2228,8 +2227,12 @@ test.describe('the lock', () => {
     expect(s.plain).toBeNull();
     expect(s.vault).not.toContain('Plan the trip');
     expect(s.vault).not.toContain('passports');
+    // search keeps what the lock's own button doesn't do
+    await page.keyboard.press('/');
     await expect(page.locator('#slist .sdata .shint')).toHaveText('Your tasks are encrypted and stored only in this browser.');
-    await expect(page.locator('#slist [data-act="locknow"]')).toBeVisible();
+    await expect(page.locator('#slist [data-act="lockchange"]')).toBeVisible();
+    await expect(page.locator('#slist [data-act="locknow"]')).toHaveCount(0);
+    await page.keyboard.press('Escape');
     await expect(page.locator('#lpill')).toHaveClass(/\bon\b/);
     await expect(page.locator('#lpill')).toHaveAttribute('aria-label', 'Lock now');
 
@@ -2294,6 +2297,7 @@ test.describe('the lock', () => {
   test('change the passphrase, then turn the lock off', async ({ page }) => {
     await openLock(page);
     await turnOn(page);
+    await page.keyboard.press('/');
     await page.locator('#slist [data-act="lockchange"]').click();
     await page.locator('#lsOld').fill('wrong one!');
     await page.locator('#lsPass').fill('a brand new phrase');
@@ -2326,6 +2330,7 @@ test.describe('the lock', () => {
   test('backups are encrypted, and open with their passphrase in another browser', async ({ page, browser }) => {
     await openLock(page);
     await turnOn(page);
+    await page.keyboard.press('/');
     const [dl] = await Promise.all([page.waitForEvent('download'), page.locator('#slist [data-act="export"]').click()]);
     expect(dl.suggestedFilename()).toMatch(/-encrypted\.json$/);
     const body = readFileSync(await dl.path(), 'utf8');
@@ -2370,8 +2375,7 @@ test.describe('the lock', () => {
       Promise.all([PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable(), PublicKeyCredential.getClientCapabilities ? PublicKeyCredential.getClientCapabilities() : null]),
     );
     await page.waitForTimeout(50);
-    await page.keyboard.press('/');
-    await page.locator('#slist [data-act="lock"]').click();
+    await page.locator('#lpill').click();
     await fillOn(page);
     await expect(page.locator('#lsBioL')).toBeVisible();
     await page.locator('#lsBio').check();
@@ -2568,6 +2572,7 @@ test.describe('the lock', () => {
     await openLock(page);
     await turnOn(page);
     const before = JSON.parse((await stored(page)).vault);
+    await page.keyboard.press('/');
     await page.locator('#slist [data-act="lockchange"]').click();
     await page.locator('#lsOld').fill(PASS);
     await page.locator('#lsPass').fill('a brand new phrase');
@@ -2680,7 +2685,7 @@ test.describe('the lock', () => {
 
   test.describe('in a narrower window', () => {
     test.use({ viewport: { width: 640, height: 800 } });
-    test('the time sits in the middle of the bar; the sun and the lock come after the floating window', async ({ page }) => {
+    test('the time sits in the middle of the bar; the sun, sync’s cloud and the lock come after the floating window', async ({ page }) => {
       await openLock(page);
       await expect(page.locator('.bar .sp #clock')).toBeVisible();
       // exactly between the chevrons and the first button on the right
@@ -2689,7 +2694,7 @@ test.describe('the lock', () => {
       const order = await page.evaluate(() =>
         [...document.querySelector('.bar').children].filter(e => e.getClientRects().length).map(e => e.id || e.className),
       );
-      expect(order.slice(-3)).toEqual(['float', 'theme', 'lockb']);
+      expect(order.slice(-4)).toEqual(['float', 'theme', 'syncb', 'lockb']);
       await expect(page.locator('#lockb')).toHaveAttribute('aria-label', 'Protect with a passphrase');
       await page.locator('#lockb').click();
       await expect(page.locator('#lsT')).toHaveText('Protect One Day');
@@ -3497,12 +3502,10 @@ test.describe('accessibility (axe, WCAG 2.2 AA)', () => {
       await page.locator('#ftags .fdot[data-tag="work"]').click();
     },
     'lock settings': async page => {
-      await page.keyboard.press('/');
-      await page.locator('#slist [data-act="lock"]').click();
+      await page.locator('#lpill').click();
     },
     'lock screen': async page => {
-      await page.keyboard.press('/');
-      await page.locator('#slist [data-act="lock"]').click();
+      await page.locator('#lpill').click();
       await page.locator('#lsPass').fill('correct horse battery');
       await page.locator('#lsPass2').fill('correct horse battery');
       await page.locator('#lsOk').check();

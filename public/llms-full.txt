@@ -146,7 +146,7 @@ Pick a result, with a click or with ↑ ↓ and Enter, to go to its day, where t
 
 *Search finds tasks on every day, and says which day each one is on.*
 
-Before you type anything, search lists your tags, then the buttons for [backups](https://day.bemorin.com/guide/#backups) and [the lock](https://day.bemorin.com/guide/#lock).
+Before you type anything, search lists your tags, then the buttons for [backups](https://day.bemorin.com/guide/#backups), and for changing [the lock](https://day.bemorin.com/guide/#lock) once it’s on.
 
 ## Tools
 
@@ -315,9 +315,9 @@ Where your tasks live, how to keep a copy, and how to lock them.
 
 The other side of the coin: your tasks live in **this browser, on this device**. Another browser, another device or a private window has its own separate list, and clearing the site’s data erases them. That’s what [sync](https://day.bemorin.com/guide/#sync) and [backups](https://day.bemorin.com/guide/#backups) are for.
 
-![Search before typing: your tags, then Your tasks are stored only in this browser. Nothing is sent anywhere, with Sync with your cloud, Import backup, Export backup and Protect with a passphrase.](https://day.bemorin.com/guide/shots/backups-light.webp)
+![Search before typing: your tags, then Your tasks are stored only in this browser. Nothing is sent anywhere, with Import backup and Export backup.](https://day.bemorin.com/guide/shots/backups-light.webp)
 
-*Search, before you type: where your tasks are, sync, the backup buttons and the lock. On a phone, they’re in More.*
+*Search, before you type: where your tasks are, and the backup buttons. On a phone, they’re in More.*
 
 For the legal details, read the [privacy policy](https://bemorin.com/privacy#one-day).
 
@@ -330,11 +330,11 @@ To have the same tasks on your phone and your computer, One Day can keep them in
 
 *Pick your cloud, sign in there and choose a passphrase. Then sync says where it stands.*
 
-1. Choose **Sync with your cloud**: in search before you type on a computer, in More on a phone.
+1. Choose **Sync with your cloud**: the cloud beside the lock, above the card on a large screen or in the card’s bar in a narrower window; in More on a phone.
 2. Pick your cloud and sign in on its own page. One Day asks for its own folder there, and nothing else: a hidden folder in Google Drive, One Day’s folder under **Apps** in Dropbox and OneDrive.
 3. Choose a sync passphrase, 12 characters or more. On each of your other devices, do the same with the same account, and type the same passphrase.
 
-From then on, each change goes up a moment later, and what you changed elsewhere comes in when One Day opens, when you come back to it, and every couple of minutes while it’s open. On a large screen, a cloud beside the lock says how it’s going; click it to sync now, or to stop.
+From then on, each change goes up a moment later, and what you changed elsewhere comes in when One Day opens, when you come back to it, and every couple of minutes while it’s open. The cloud beside the lock says how it’s going; click it to sync now, or to stop.
 
 #### When two devices change the same day
 
@@ -396,7 +396,7 @@ Things, Apple Reminders and Microsoft To Do have no export One Day can read. Sel
 
 ### The lock
 
-If someone else might open your computer or phone, a passphrase keeps your tasks to yourself. Choose **Protect with a passphrase**: the lock at the top right on a large screen, in the **⋮** menu of a narrower window, in More on a phone, or in search before you type. One Day then encrypts your tasks in the browser.
+If someone else might open your computer or phone, a passphrase keeps your tasks to yourself. Choose **Protect with a passphrase**: the lock at the top right on a large screen, in the **⋮** menu of a narrower window, or in More on a phone. One Day then encrypts your tasks in the browser.
 
 From then on, it asks for the passphrase when it opens, after five minutes away, and as soon as you press L or click the lock. Where your device can, your fingerprint, face or device PIN opens it too; setting that up asks for the passphrase once.
 

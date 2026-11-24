@@ -3113,6 +3113,7 @@ mark {
 .bar.folded #sendd,
 .bar.folded #float,
 .bar.folded #theme,
+.bar.folded #syncb,
 .bar.folded #lockb {
   display: none;
 }
@@ -3520,6 +3521,7 @@ mark {
   #tmb,
   #sendd,
   #float,
+  #syncb,
   #lockb {
     display: none !important;
   }
@@ -4110,6 +4112,54 @@ mark {
   top: 6px;
   right: calc(50% - 16px);
 }
+/* Sync's cloud, beside the lock (a pill above the card on a large screen, a button in the card's bar otherwise): off,
+   just the cloud; on, a tick when all is in, a slash offline, a red dot when it waits on you; at work, its outline
+   breathes. */
+.syb {
+  position: relative;
+}
+.syb .sc-k,
+.syb .sc-x {
+  display: none;
+}
+.syb[data-s='idle'] .sc-k,
+.syb[data-s='offline'] .sc-x {
+  display: inline;
+}
+.syb[data-s='offline'] {
+  color: var(--mute);
+}
+.syb .sc-d {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 0 2px var(--bg);
+  transform: scale(0);
+  transition: transform 0.3s var(--pop);
+}
+.syb[data-s='auth'] .sc-d,
+.syb[data-s='pass'] .sc-d,
+.syb[data-s='error'] .sc-d {
+  transform: none;
+}
+.syb[data-s='busy'] .sc-c {
+  animation: sybreath 1.2s ease-in-out infinite alternate;
+}
+@keyframes sybreath {
+  to {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .syb[data-s='busy'] .sc-c {
+    animation: none;
+    opacity: 0.6;
+  }
+}
 /* where the bar is folded, sync's button waits behind ⋮: the dot shows there too */
 .bar.folded #kb.att {
   position: relative;
@@ -4563,6 +4613,7 @@ mark {
     margin-right: auto;
     padding-bottom: 1px;
   }
+  #syncb,
   #lockb {
     display: none !important;
   }
@@ -4648,50 +4699,6 @@ mark {
   }
   .lpill.on .lk-shut {
     display: block;
-  }
-  /* sync, once it is on: a cloud with a tick when all is in, a slash offline, a red dot when it waits on you; at work,
-     its outline breathes */
-  .spill .sc-k,
-  .spill .sc-x {
-    display: none;
-  }
-  .spill[data-s='idle'] .sc-k,
-  .spill[data-s='offline'] .sc-x {
-    display: inline;
-  }
-  .spill[data-s='offline'] {
-    color: var(--mute);
-  }
-  .spill .sc-d {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--red);
-    box-shadow: 0 0 0 2px var(--bg);
-    transform: scale(0);
-    transition: transform 0.3s var(--pop);
-  }
-  .spill[data-s='auth'] .sc-d,
-  .spill[data-s='pass'] .sc-d,
-  .spill[data-s='error'] .sc-d {
-    transform: none;
-  }
-  .spill[data-s='busy'] .sc-c {
-    animation: sybreath 1.2s ease-in-out infinite alternate;
-  }
-  @keyframes sybreath {
-    to {
-      opacity: 0.35;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .spill[data-s='busy'] .sc-c {
-      animation: none;
-      opacity: 0.6;
-    }
   }
   /* Not installed yet: the offer in the middle of the line, between the time and the pills; put off, a small pill
      before the sun. Glass like the pills, and what lights up on hover sits five pixels in, like theirs. */

@@ -2974,7 +2974,7 @@ try {
               .join('')}${tags.length > 12 ? `<button type="button" class="chip" data-more>${tags.length - 12} more tags</button>` : ''}</div>` +
             (tags.length > 12 ? '<p class="shint">Type # and a few letters to find any tag.</p>' : '')
           : '') +
-        `<div class="sdata"><p class="shint">${dataHint()}</p>${syChips()}<div class="chips"><button type="button" class="chip" data-act="import">${IC.up}Import backup</button><button type="button" class="chip" data-act="export">${IC.down}${canTop ? 'Export backup' : 'Copy backup'}</button></div>${lockChips()}</div>${aboutHTML()}`;
+        `<div class="sdata"><p class="shint">${dataHint()}</p><div class="chips"><button type="button" class="chip" data-act="import">${IC.up}Import backup</button><button type="button" class="chip" data-act="export">${IC.down}${canTop ? 'Export backup' : 'Copy backup'}</button></div>${lockChips()}</div>${aboutHTML()}`;
       moveHl();
       return;
     }
@@ -7792,13 +7792,14 @@ try {
     if (!TOPB || !CLOCK || !BSP) return;
     if (BIG.matches) {
       TOPB.prepend(CLOCK);
-      // the sun, then sync's cloud (once it is on) beside the lock: what keeps your tasks, side by side
+      // the sun, then sync's cloud beside the lock: what keeps your tasks, side by side
       const after = document.getElementById('spill') || LP;
       if (after) after.before($.theme);
       else TOPB.append($.theme);
     } else {
       BSP.append(CLOCK);
-      $.lockb.before($.theme);
+      // the sun, sync's cloud, then the lock, as above the card
+      (document.getElementById('syncb') || $.lockb).before($.theme);
     }
     ddPlace();
   }
@@ -8795,8 +8796,9 @@ try {
       .map(([k, i, l]) => `<button type="button" class="sbk-b" data-act="${k}">${i}<span>${l}</span></button>`)
       .join('')}</div>`;
   }
+  // In search before you type: what the lock's own button doesn't do (it protects, then locks)
   function lockChips() {
-    const a = lockActs();
+    const a = lockActs().filter(([k]) => k !== 'lock' && k !== 'locknow');
     return a.length
       ? `<div class="chips">${a.map(([k, i, l]) => `<button type="button" class="chip" data-act="${k}">${i}${l}</button>`).join('')}</div>`
       : '';
@@ -10045,9 +10047,10 @@ try {
     }
   }
 
-  /* on screen: a cloud above the card on a large screen once sync is on, a button in More (on a phone, or behind ⋮
-     where the bar is folded), a chip in search before you type, and the dialog */
+  /* on screen: a cloud beside the lock (a pill above the card on a large screen, a button in the card's bar otherwise),
+     a button in More (on a phone, or behind ⋮ where the bar is folded), and the dialog */
   const SPILL = document.getElementById('spill'),
+    SYNCB = document.getElementById('syncb'),
     syAtt = () => !!SYS && ['auth', 'pass', 'error'].includes(SYST.s);
   function syLabel() {
     if (!SYS) return 'Sync with your cloud';
@@ -10063,27 +10066,26 @@ try {
     );
   }
   function syUI() {
-    const lab = syLabel();
-    if (SPILL) {
-      SPILL.hidden = !SYS || locked;
-      SPILL.dataset.s = SYS ? SYST.s : 'off';
-      SPILL.dataset.tip = lab;
-      SPILL.setAttribute('aria-label', lab);
-      if (tipFor === SPILL && !SPILL.hidden) showTip(SPILL);
+    const lab = syLabel(),
+      had = SYNCB && SYNCB.hidden;
+    for (const b of [SPILL, SYNCB]) {
+      if (!b) continue;
+      b.hidden = !SYON || locked;
+      b.dataset.s = SYS ? SYST.s : 'off';
+      b.dataset.tip = lab;
+      b.setAttribute('aria-label', lab);
+      if (tipFor === b && !b.hidden) showTip(b);
     }
+    // a button more in the card's bar: it folds again if they no longer fit
+    if (SYNCB && SYNCB.hidden !== had) barFit();
     $.mbMore.classList.toggle('att', syAtt());
     // ⋮ shows it only where the bar is folded, its drawer holding sync's button
     $.kb.classList.toggle('att', syAtt());
     if (SYD && SYD.step === 'on') syDraw();
     if (lab === syLast) return;
     syLast = lab;
-    const chip = $.slist.querySelector('.sdata [data-act="sync"]');
-    if (chip) {
-      chip.lastChild.textContent = lab;
-      chip.classList.toggle('att', syAtt());
-      const hint = $.slist.querySelector('.sdata .shint');
-      if (hint) hint.textContent = dataHint();
-    }
+    const hint = $.slist.querySelector('.sdata .shint');
+    if (hint) hint.textContent = dataHint();
     const mb = moreOpen && $.moreList.querySelector('[data-act="sync"]');
     if (mb) {
       mb.querySelector('span').textContent = lab;
@@ -10093,11 +10095,6 @@ try {
   function syMoreBtn() {
     return SYON
       ? `<div class="ssy"><button type="button" class="sbk-b${syAtt() ? ' att' : ''}" data-act="sync">${IC.cloud}<span>${esc(syLabel())}</span></button></div>`
-      : '';
-  }
-  function syChips() {
-    return SYON
-      ? `<div class="chips"><button type="button" class="chip${syAtt() ? ' att' : ''}" data-act="sync">${IC.cloud}${esc(syLabel())}</button></div>`
       : '';
   }
   // something waits on you (a sign-in, a new passphrase): said once, with the way to do it
@@ -10112,7 +10109,7 @@ try {
       toast('Your sync passphrase changed on another device', { label: 'Enter it', run: () => openSync({ step: 'rekey' }) }, 8000);
     }
   }
-  if (SPILL) SPILL.onclick = () => openSync();
+  for (const b of [SPILL, SYNCB]) if (b) b.onclick = () => openSync();
 
   const SY = {};
   'syncd syForm syT sySub syCh syOn sySt syLi syPass syPass2 syOkL syWarn syOk syEraseL syErase syEraseT syErr syNo syGo syHint'
