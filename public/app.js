@@ -8999,11 +8999,16 @@ try {
 
   /* talking to a cloud: no cookie, no referrer, and nothing kept by the browser's cache */
   async function syFetch(url, o = {}) {
+    // a request that gets no answer is given up after 45 seconds: nothing waits on it for ever
+    const ac = new AbortController(),
+      t = setTimeout(() => ac.abort(), 45e3);
     try {
-      return await fetch(url, { ...o, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
+      return await fetch(url, { ...o, signal: ac.signal, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
     } catch (e) {
-      // no connection at all, or one that didn't get through (a network in the way, the cloud down)
+      // no connection at all, or one that didn't get through (a network in the way, the cloud down, no answer)
       throw new SyErr(navigator.onLine ? 'unreachable' : 'offline');
+    } finally {
+      clearTimeout(t);
     }
   }
   async function syText(r) {
@@ -10126,7 +10131,12 @@ try {
   // While a button is at work (erasing, opening), the dialog stays: what it does needs it. The lock closes it anyway.
   function closeSync(force) {
     const m = SYD;
-    if (!m || (!force && SY.syGo.classList.contains('busy'))) return;
+    if (!m) return;
+    if (!force && SY.syGo.classList.contains('busy')) {
+      // the device's back stays the dialog's, still at work
+      guard('syncd', () => closeSync());
+      return;
+    }
     SYD = null;
     unguard('syncd');
     if (SYW) SYW.cancel();
@@ -10427,8 +10437,8 @@ try {
       }
       if (d.t === 'auth') {
         if (!SYS || SYS.cloud !== d.cloud || SYS.key.kid !== d.kid || !d.auth) return;
+        // kept in this tab, and written with its tasks next time: the tab that signed in has written it already
         SYS.auth = { a: d.auth.a || '', ax: +d.auth.ax || 0, r: d.auth.r || '', rx: +d.auth.rx || 0 };
-        syQuiet();
         if (SYST.s === 'auth') {
           syTold = '';
           syState('idle');
@@ -10462,13 +10472,22 @@ try {
     SYPEND = sys.auth ? { cloud: sys.cloud, ...sys.auth } : null;
     clearTimeout(syT);
     syT = null;
+    // the other tabs stop first, so that none of them puts the copy back while it goes
+    syTabs('stop');
     if (SYBUSY) await SYBUSY.catch(() => {});
     if (erase)
       try {
-        for (const f of await c.list()) await c.remove(f);
+        // after any sync under way in this browser, and before the next one
+        await syLock('one-day-sync', async () => {
+          for (const f of await c.list()) await c.remove(f);
+        });
       } catch (e) {
         SYPEND = null;
-        if (!locked) SYS = sys;
+        if (!locked) {
+          // still on: so are the other tabs, with no base of their own (their next sync keeps both sides)
+          SYS = sys;
+          syTabs('start');
+        }
         return syWhy(e, sys.cloud);
       }
     if (!keep && (erase || sys.cloud === 'dropbox')) c.revoke(syAuth());
@@ -10478,7 +10497,6 @@ try {
     SYST.s = 'off';
     syQuiet();
     syUI();
-    syTabs('stop');
     return '';
   }
   SY.syCh.addEventListener('click', e => {
