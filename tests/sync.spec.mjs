@@ -706,6 +706,82 @@ test.describe('sync with your cloud', () => {
     await A.ctx.close();
   });
 
+  test('an older tab that turns sync on doesn’t take away what a newer tab added: that tab syncs it too', async ({ browser, baseURL }) => {
+    const drive = new Drive(),
+      A = await device(browser, baseURL, drive),
+      tab = await A.ctx.newPage();
+    await tab.emulateMedia({ reducedMotion: 'reduce' });
+    await tab.goto(baseURL + '/');
+    await expect(tab.locator('#app')).not.toHaveClass(/\bpre\b/);
+    await add(tab, 'Added in the newer tab');
+    // the first tab, opened before it, turns sync on with what it holds
+    await connect(A.page, 'google');
+    await done(A.page);
+    await expect(row(tab, 'Added in the newer tab')).toBeVisible();
+    await expect.poll(async () => texts(await openCopy(drive.files[0].content)), { timeout: 15000 }).toContain('Added in the newer tab');
+    await expect(tab.locator('#spill')).toHaveAttribute('aria-label', 'Synced with Google Drive');
+    await syncNow(A.page, drive);
+    await expect(row(A.page, 'Added in the newer tab')).toBeVisible();
+    expect(drive.files).toHaveLength(1);
+    await A.ctx.close();
+  });
+
+  test('signed in again in one tab, the other tabs sync again too', async ({ browser, baseURL }) => {
+    const drive = new Drive(),
+      A = await device(browser, baseURL, drive);
+    await connect(A.page, 'google');
+    await done(A.page);
+    const tab = await A.ctx.newPage();
+    await tab.emulateMedia({ reducedMotion: 'reduce' });
+    await tab.goto(baseURL + '/');
+    await expect(tab.locator('#spill')).toHaveAttribute('aria-label', 'Synced with Google Drive', { timeout: 15000 });
+    // the hour is up
+    drive.tokens.clear();
+    await add(tab, 'Waiting in the other tab');
+    await expect(tab.locator('#spill')).toHaveAttribute('aria-label', 'Sign in to Google Drive again to sync', { timeout: 15000 });
+    await add(A.page, 'Written here');
+    await expect(A.page.locator('#toast')).toContainText('Sign in to Google Drive again to sync', { timeout: 15000 });
+    const pop = A.page.waitForEvent('popup');
+    await A.page.locator('#undo').click();
+    await pop;
+    await expect(tab.locator('#spill')).toHaveAttribute('aria-label', 'Synced with Google Drive', { timeout: 15000 });
+    await expect
+      .poll(async () => texts(await openCopy(drive.files[0].content)), { timeout: 15000 })
+      .toEqual(expect.arrayContaining(['Waiting in the other tab', 'Written here']));
+    await A.ctx.close();
+  });
+
+  test('an older version restored in the cloud, then written on: a task made after it is kept, not deleted', async ({ browser, baseURL }) => {
+    const drive = new Drive(),
+      A = await device(browser, baseURL, drive);
+    await connect(A.page, 'google');
+    await done(A.page);
+    const old = drive.files[0].content;
+    // two writes after it, so this device keeps no copy from before them
+    await add(A.page, 'Made after the old copy');
+    await expect.poll(async () => texts(await openCopy(drive.files[0].content)), { timeout: 15000 }).toContain('Made after the old copy');
+    await add(A.page, 'And another one');
+    await expect.poll(async () => texts(await openCopy(drive.files[0].content)), { timeout: 15000 }).toContain('And another one');
+    // the old version comes back (the cloud's version history), and another device writes on it three times
+    drive.files[0].content = await resealCopy(old, PASS, p => {
+      for (let i = 0; i < 3; i++) {
+        p.hist = [p.pid, ...p.hist].slice(0, 64);
+        p.pid = 'back' + i;
+        p.rev++;
+      }
+      return p;
+    });
+    drive.files[0].ver++;
+    const before = JSON.parse(await openCopy(old).then(x => JSON.stringify(x)));
+    await syncNow(A.page, drive);
+    await expect(row(A.page, 'Made after the old copy')).toBeVisible();
+    const copy = await openCopy(drive.files[0].content);
+    expect(texts(copy)).toEqual(expect.arrayContaining(['Made after the old copy', 'And another one']));
+    // a line of its own from here: devices on the old one keep both sides too
+    expect(copy.epoch).not.toBe(before.epoch);
+    await A.ctx.close();
+  });
+
   test('the same task id on two days (an old backup imported after a move): both copies sync', async ({ browser, baseURL }) => {
     const drive = new Drive(),
       t = { id: 'dup', text: 'Pay the rent', done: false },
