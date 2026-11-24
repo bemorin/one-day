@@ -15,7 +15,7 @@ try {
     home = document.getElementById('home'),
     q = s => app.querySelector(s),
     $ = {};
-  'num dnum meta wd mo rel prev next todayb dd ddv ddn ddw ddsr ddlive sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inT inTitle inMeta inList inDay inDayL inNo inYes mbar mbSearch mbTimer mbTimerL mbAdd mbSend mbMore scrim more moreList theme sendd fx fbtn fname fclr fpop ftags fnone fqL fq spicks lockb kb kpop addGo'
+  'num dnum meta wd mo rel prev next todayb dd ddv ddn ddw ddsr ddlive sb tmb tv float vp sc stage list empty carry carryTxt bring add input toast toastTxt undo pop popT grid pmPrev pmNext tpop seg tset trun tpv tminus tplus tpre tstart tbig tunit tsec tprog tpause tadd tstop tip fmt fmtIn lb lbA lbRm sug srch sq sx sres hl slist scount impf dchip dlabel dpop dq dpT dpPrev dpNext dgrid drep drepV rpop rseg rminus rnum rplus runit rdays rmon rsum rnone rdone inbox inVeil inT inTitle inMeta inList inDay inDayL inNo inYes mbar mbSearch mbTimer mbTimerL mbAdd mbSend mbMore scrim more moreList theme sendd fx fbtn fname fclr fpop ftags fnone fqL fq spicks lockb kb kpop addGo'
     .split(' ')
     .forEach(id => ($[id] = q('#' + id)));
   const fill = q('.rule i'),
@@ -2329,6 +2329,11 @@ try {
     return false;
   }
   function onWheel(e) {
+    // a sent task waiting for an answer: only its own list scrolls, and nothing behind it moves
+    if (app.classList.contains('inboxing')) {
+      if (!e.ctrlKey && !(e.target.closest && e.target.closest('#inList') && scrollsY(e.target, e.deltaY))) e.preventDefault();
+      return;
+    }
     if (P || e.ctrlKey || $.srch.classList.contains('on') || popOn()) return;
     const k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? innerHeight : 1,
       dx = e.deltaX * k,
@@ -2542,13 +2547,15 @@ try {
       go(b.dataset.k);
     }
   };
+  let downPop = false;
   function onOutside(e) {
+    downPop = popOn();
     const t = e.target && e.target.closest ? e.target : null;
     // the lock's screen and dialog sit above the app: what happens there leaves the app as it is
     if (t && t.closest('#lock,#lockset')) return;
     if ($.srch.classList.contains('on') && t && !app.contains(t)) closeSearch(false);
     if (popOn() && !(t && t.closest('#pop,#meta,#tpop,#tmb,#dpop,#dchip,#rpop,.rbtn,#inDay,#mbTimer,#fpop,#fx,#kpop,#kb'))) closePops();
-    if (t && t.closest('#fmt,#lb,#sug,#toast,.srch,#dpop,#rpop,#inbox,#more,#mbar,#scrim')) return;
+    if (t && t.closest('#fmt,#lb,#sug,#toast,.srch,#dpop,#rpop,#inbox,#inVeil,#more,#mbar,#scrim')) return;
     const keep = t && t.closest('.row.open');
     for (const li of $.list.querySelectorAll('.row.open')) if (li !== keep) setOpen(li, false);
     for (const id of [...openIds]) if (!keep || keep.dataset.id !== id) openIds.delete(id);
@@ -5009,7 +5016,8 @@ try {
   }
   function renderFilter() {
     const move = !RM.matches && $.fx.getClientRects().length > 0,
-      w0 = move ? $.fx.getBoundingClientRect().width : 0;
+      r0 = move ? $.fx.getBoundingClientRect() : null,
+      w0 = move ? r0.width : 0;
     if (move) $.fx.getAnimations().forEach(a => a.id === 'fw' && a.cancel());
     $.fx.classList.toggle('on', !!FX);
     $.fname.textContent = FX ? '#' + FX : '';
@@ -5018,8 +5026,15 @@ try {
     $.fbtn.dataset.tip = FX ? 'Change the filter' : 'Filter by tag';
     $.input.placeholder = FX ? `Add a task to #${FX}` : 'Add a task';
     if (!move) return;
-    const w1 = $.fx.getBoundingClientRect().width;
+    const r1 = $.fx.getBoundingClientRect(),
+      w1 = r1.width;
     if (Math.abs(w1 - w0) < 0.5) return;
+    // short of room, it went to a line of its own under the date (or came back): it appears there, without
+    // stretching across the jump
+    if (Math.abs(r1.top - r0.top) > 1) {
+      an($.fx, [{ opacity: 0, transform: 'scale(.92)' }, { opacity: 1, transform: 'none' }], { easing: POP.ease, duration: POP.dur });
+      return;
+    }
     $.fx.style.overflow = 'hidden';
     const a = $.fx.animate([{ width: w0 + 'px' }, { width: w1 + 'px' }], { duration: SP.dur, easing: SP.ease });
     a.id = 'fw';
@@ -6142,6 +6157,7 @@ try {
       IN = null;
       $.inbox.hidden = true;
       unguard('inbox');
+      holdBehind(false);
     }
     toast('That link doesn’t hold a task');
   }
@@ -6178,6 +6194,12 @@ try {
       : '';
     $.inTitle.innerHTML = many ? '' : titleHTML(list[0].task.text);
     renderInbox();
+    // what was open closes: the sent tasks are the one thing to answer
+    closeMore();
+    compose(false);
+    closePops();
+    closeSearch(false);
+    holdBehind(true);
     $.inbox.style.top = q('header').offsetHeight - 6 + 'px';
     $.inbox.getAnimations().forEach(x => x.cancel());
     $.inbox.hidden = false;
@@ -6247,10 +6269,52 @@ try {
       m.hidden = !s;
     });
   }
+  /* While they wait for an answer, the day behind dims and holds still: it does not scroll or turn, and nothing there
+     takes a click, a tab or a key. */
+  let inHeld = null;
+  function holdBehind(on) {
+    const v = $.inVeil;
+    app.classList.toggle('inboxing', on);
+    if (on && !inHeld) {
+      inHeld = [q('header'), $.vp, $.mbar, $.more, document.getElementById('topbar'), document.getElementById('foot')]
+        .filter(Boolean)
+        .map(el => [el, el.inert]);
+      for (const [el] of inHeld) el.inert = true;
+    } else if (!on && inHeld) {
+      for (const [el, was] of inHeld) el.inert = was;
+      inHeld = null;
+    }
+    if (on) {
+      v.getAnimations().forEach(x => x.cancel());
+      delete v.dataset.out;
+      if (v.hidden) {
+        v.hidden = false;
+        an(v, [{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease' });
+      }
+    } else if (!v.hidden && !v.dataset.out) {
+      v.dataset.out = '1';
+      then(an(v, [{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: 'ease', fill: 'forwards' }), () => {
+        if (!v.dataset.out) return;
+        delete v.dataset.out;
+        v.getAnimations().forEach(x => x.cancel());
+        v.hidden = true;
+      });
+    }
+  }
+  // A click beside it changes nothing: the card stirs to say it waits for Add or Ignore (Escape and back are Ignore).
+  // A click that only shut the day picker does just that.
+  $.inVeil.addEventListener('click', () => {
+    if (downPop || !IN || $.inbox.getAnimations().length) return;
+    an($.inbox, [{ transform: 'none' }, { transform: 'scale(1.018)' }, { transform: 'none' }], {
+      duration: 320,
+      easing: 'cubic-bezier(.3,0,.3,1)',
+    });
+  });
   function closeInbox() {
     if ($.inbox.hidden) return;
     unguard('inbox');
     IN = null;
+    holdBehind(false);
     if ($.dpop.classList.contains('on') && DPX === 'in') closePops();
     then(
       an($.inbox, [{ opacity: 1 }, { opacity: 0, transform: 'translateY(-8px) scale(.98)' }], {
@@ -6792,6 +6856,19 @@ try {
       }
       return;
     }
+    // sent tasks waiting for an answer (not once answered, while the dialog fades): Escape is Ignore (or shuts the
+    // day picker first), undo and redo still work, and no other key reaches the day behind them; the picker keeps
+    // its own arrows
+    if (app.classList.contains('inboxing')) {
+      if (k === 'Escape') {
+        e.preventDefault();
+        if (popOn()) closePops(true);
+        else closeInbox();
+        return;
+      }
+      const undoKey = m && !e.altKey && (kl === 'z' || kl === 'y');
+      if (!undoKey && (m || e.altKey || !(popOn() && t.closest && t.closest('#dpop')))) return;
+    }
     if (m && !e.altKey && (kl === 'z' || kl === 'y')) {
       const own = t.isContentEditable || (/^(INPUT|TEXTAREA)$/.test(t.tagName) && t.type !== 'checkbox' && t.value);
       if (!own) {
@@ -6819,11 +6896,6 @@ try {
       e.preventDefault();
       closeMore();
       compose(false);
-      return;
-    }
-    if (k === 'Escape' && !$.inbox.hidden && !popOn()) {
-      e.preventDefault();
-      closeInbox();
       return;
     }
     if (typing || m) return;

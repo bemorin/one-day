@@ -495,6 +495,41 @@ test.describe('filter by tag', () => {
       .poll(() => page.evaluate(k => JSON.parse(localStorage.getItem('oneday.v1')).days[k].tasks.map(t => t.id).join(''), today()))
       .toBe('cbad');
   });
+
+  test('in a narrow window, like the floating one, it never covers the date: off at the end of the weekday’s line, on under the date', async ({ page }) => {
+    await page.setViewportSize({ width: 280, height: 600 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.addInitScript(k => {
+      const tasks = Array.from({ length: 46 }, (_, i) => ({ id: 't' + i, text: `Task ${i}${i % 4 ? '' : ' #panicdraft'}`, done: i < 12, ...(i < 12 && { at: i + 1 }) }));
+      localStorage.setItem('oneday.v1', JSON.stringify({ days: { [k]: { u: 1, tasks } }, rules: {} }));
+    }, today());
+    await page.goto('/');
+    await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
+    const boxes = () =>
+      page.evaluate(() =>
+        Object.fromEntries(
+          ['#fx', '#wd', '#rel'].map(s => {
+            const r = document.querySelector(s).getBoundingClientRect();
+            return [s, { l: r.left, r: r.right, t: r.top, b: r.bottom }];
+          }),
+        ),
+      );
+    const apart = (a, b) => a.l >= b.r - 1 || a.r <= b.l + 1 || a.t >= b.b - 1 || a.b <= b.t + 1;
+    let b = await boxes();
+    expect(apart(b['#fx'], b['#wd']) && apart(b['#fx'], b['#rel'])).toBe(true);
+    expect(Math.abs((b['#fx'].t + b['#fx'].b) / 2 - (b['#wd'].t + b['#wd'].b) / 2)).toBeLessThan(6);
+    expect(b['#fx'].r).toBeLessThanOrEqual(280);
+    await page.locator('#fbtn').click();
+    await page.locator('#ftags .ftag', { hasText: '#panicdraft' }).click();
+    await expect(page.locator('#fname')).toHaveText('#panicdraft');
+    b = await boxes();
+    expect(b['#fx'].t).toBeGreaterThanOrEqual(b['#rel'].b - 1);
+    await expect(page.locator('#fx')).toBeInViewport({ ratio: 1 });
+    await page.locator('#fclr').click();
+    await expect(page.locator('#fx')).not.toHaveClass(/\bon\b/);
+    b = await boxes();
+    expect(apart(b['#fx'], b['#wd']) && apart(b['#fx'], b['#rel'])).toBe(true);
+  });
 });
 
 test.describe('pasting a list', () => {
@@ -1564,6 +1599,44 @@ test.describe('links from assistants', () => {
     await expect(page.locator('#inYes')).toHaveText('Add 98');
     await page.locator('#inYes').click();
     await expect(page.locator('#toast')).toContainText('Added 98 tasks to 2 days');
+  });
+
+  test('while the dialog waits, the day behind dims and holds still: only its list scrolls, nothing turns the day', async ({ page }) => {
+    await openOn(page);
+    await page.goto('/#add?' + Array.from({ length: 30 }, (_, i) => `task=Task+${i + 1}`).join('&'));
+    await expect(page.locator('#inbox')).toBeVisible();
+    await expect(page.locator('#inVeil')).toBeVisible();
+    const day = () => page.locator('#wd').textContent();
+    const d0 = await day();
+    const list = page.locator('#inList');
+    const lb = await list.boundingBox();
+    // up from the top of its list, then down past its end: the list scrolls, the day stays
+    await page.mouse.move(lb.x + lb.width / 2, lb.y + 20);
+    await page.mouse.wheel(0, -400);
+    for (let i = 0; i < 10; i++) await page.mouse.wheel(0, 300);
+    await expect.poll(() => list.evaluate(n => n.scrollTop > 0 && n.scrollTop + n.clientHeight >= n.scrollHeight - 1)).toBe(true);
+    await page.waitForTimeout(300);
+    await page.mouse.wheel(0, 400);
+    // on the veil, and the keys that turn the day or open something
+    await page.mouse.move(640, 840);
+    await page.mouse.wheel(0, 400);
+    await page.mouse.wheel(400, 0);
+    for (const k of ['Alt+ArrowRight', 'ArrowRight', 't', '/']) await page.keyboard.press(k);
+    await page.waitForTimeout(300);
+    expect(await day()).toBe(d0);
+    await expect(page.locator('#tpop')).not.toHaveClass(/\bon\b/);
+    await expect(page.locator('#srch')).not.toHaveClass(/\bon\b/);
+    // nothing behind takes a click or a tab; a click on the veil leaves the dialog open
+    for (const s of ['header', '#vp']) expect(await page.locator(s).evaluate(n => n.inert)).toBe(true);
+    await page.mouse.click(640, 840);
+    await expect(page.locator('#inbox')).toBeVisible();
+    // Escape is Ignore, and the day is yours again
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#inbox')).toBeHidden();
+    await expect(page.locator('#inVeil')).toBeHidden();
+    for (const s of ['header', '#vp']) expect(await page.locator(s).evaluate(n => n.inert)).toBe(false);
+    await page.keyboard.press('ArrowRight');
+    await expect.poll(day).not.toBe(d0);
   });
 });
 
