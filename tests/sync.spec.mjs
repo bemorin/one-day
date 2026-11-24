@@ -1,7 +1,7 @@
 // Sync with your cloud, against made-up clouds: Google Drive, Dropbox and OneDrive answer here, in the test, as their
 // APIs do. Each test's devices are browser contexts of their own (their own storage), talking to the same cloud.
 import { test, expect } from '@playwright/test';
-import { Drive, Dropbox, OneDrive, openCopy as openWith, GS } from './clouds.mjs';
+import { Drive, Dropbox, OneDrive, openCopy as openWith, resealCopy, GS } from './clouds.mjs';
 import AxeBuilder from '@axe-core/playwright';
 
 const PASS = 'a long sync passphrase';
@@ -58,7 +58,12 @@ async function device(browser, baseURL, clouds, o = {}) {
   return { ctx, page, errors, hosts };
 }
 const row = (page, text) => page.locator('#list .row', { hasText: text });
-const idle = page => expect(page.locator('#sySt .syd')).toHaveAttribute('data-s', 'idle', { timeout: 20000 });
+// all in, as the dialog says once sync is on (what an earlier step left hidden there doesn't count)
+const idle = async page => {
+  await expect(page.locator('#syT')).toHaveText('Sync is on', { timeout: 20000 });
+  await expect(page.locator('#sySt .syd')).toBeVisible();
+  await expect(page.locator('#sySt .syd')).toHaveAttribute('data-s', 'idle', { timeout: 20000 });
+};
 async function openDialog(page) {
   if (await page.locator('#spill').isVisible()) await page.locator('#spill').click();
   else {
@@ -107,7 +112,13 @@ async function add(page, text) {
   await page.locator('#input').evaluate(n => n.blur());
 }
 const tick = (page, text) => row(page, text).locator('.in .ck').click();
-const stored = page => page.evaluate(() => ({ plain: localStorage.getItem('oneday.v1'), vault: localStorage.getItem('oneday.vault'), sync: localStorage.getItem('oneday.sync') }));
+const stored = page =>
+  page.evaluate(() => ({
+    plain: localStorage.getItem('oneday.v1'),
+    vault: localStorage.getItem('oneday.vault'),
+    keys: Object.keys(localStorage).sort(),
+    all: Object.values(localStorage).join(' '),
+  }));
 
 test.describe('sync with your cloud', () => {
   test.describe.configure({ timeout: 90000 });
@@ -138,7 +149,8 @@ test.describe('sync with your cloud', () => {
     // with sync on and no lock, its key is kept with the tasks; the sign-in apart
     const s = await stored(A.page);
     expect(JSON.parse(s.plain).sync).toMatchObject({ v: 1, cloud: 'google', file: { id: 'gf1' } });
-    expect(JSON.parse(s.sync)).toMatchObject({ v: 1, cloud: 'google', a: 'g-token-1' });
+    expect(JSON.parse(s.plain).sync.auth).toMatchObject({ a: 'g-token-1' });
+    expect(s.keys).toEqual(['oneday.v1']);
     // on a large screen, a cloud beside the lock says it is all in
     await expect(A.page.locator('#spill')).toBeVisible();
     await expect(A.page.locator('#spill')).toHaveAttribute('aria-label', 'Synced with Google Drive');
@@ -289,6 +301,9 @@ test.describe('sync with your cloud', () => {
     expect(s.plain).toBeNull();
     expect(JSON.parse(s.vault).sync).toMatchObject({ iv: expect.any(String), ct: expect.any(String) });
     expect(s.vault).not.toContain('Plan the trip');
+    // nothing of sync in clear: its key, its copy and the sign-in are all sealed with the tasks
+    expect(s.keys).toEqual(['oneday.vault']);
+    expect(s.all).not.toContain('g-token');
     // locked: the key and the tasks leave the page, and the cloud hears nothing from it
     await A.page.keyboard.press('l');
     await expect(A.page.locator('#lock')).toBeVisible();
@@ -348,7 +363,7 @@ test.describe('sync with your cloud', () => {
     await expect(A.page.locator('#syncd')).toBeHidden();
     await expect(A.page.locator('#toast')).toContainText('Sync is off on this device');
     const s = await stored(A.page);
-    expect(s.sync).toBeNull();
+    expect(s.all).not.toContain('g-token');
     expect(JSON.parse(s.plain).sync).toBeUndefined();
     expect(drive.files).toHaveLength(1);
     expect(drive.revoked).toEqual([]);
@@ -502,7 +517,7 @@ test.describe('sync with your cloud', () => {
     await A.page.evaluate(() => sessionStorage.setItem('oneday.signedin', JSON.stringify({ type: 'one-day-oauth', state: 'made-up.r', token: 'stolen' })));
     await A.page.reload();
     await expect(A.page.locator('#syncd')).toBeHidden();
-    expect(JSON.parse((await stored(A.page)).sync).a).toBe('g-token-1');
+    expect(JSON.parse((await stored(A.page)).plain).sync.auth.a).toBe('g-token-1');
     expect(A.errors).toEqual([]);
     await A.ctx.close();
   });
@@ -543,6 +558,166 @@ test.describe('sync with your cloud', () => {
     });
     expect(cached.filter(u => !u.startsWith(baseURL + '/'))).toEqual([]);
     expect(cached).toContain(baseURL + '/oauth/');
+    await A.ctx.close();
+  });
+
+  test('away for longer than a copy remembers (70 writes): a deletion made elsewhere goes, a rename made here stays', async ({ browser, baseURL }) => {
+    const drive = new Drive(),
+      A = await device(browser, baseURL, drive),
+      B = await device(browser, baseURL, drive, { seed: false });
+    await connect(A.page, 'google');
+    await done(A.page);
+    await connect(B.page, 'google', { join: true });
+    await done(B.page);
+    await B.ctx.setOffline(true);
+    await row(A.page, 'Plan the trip').hover();
+    await row(A.page, 'Plan the trip').locator('.rm').click();
+    await syncNow(A.page, drive);
+    // seventy more writes elsewhere: past the 64 ids a copy keeps of the ones before it
+    drive.files[0].content = await resealCopy(drive.files[0].content, PASS, p => {
+      for (let i = 0; i < 70; i++) {
+        p.hist = [p.pid, ...p.hist].slice(0, 64);
+        p.pid = 'w' + i;
+        p.rev++;
+      }
+      return p;
+    });
+    drive.files[0].ver++;
+    await row(B.page, 'Write the report').locator('.t').dblclick();
+    await B.page.keyboard.press('End');
+    await B.page.keyboard.type(' today');
+    await B.page.keyboard.press('Enter');
+    await B.ctx.setOffline(false);
+    await expect
+      .poll(async () => texts(await openCopy(drive.files[0].content)).sort(), { timeout: 15000 })
+      .toEqual(['Water the plants', 'Write the report #work today']);
+    await expect(row(B.page, 'Plan the trip')).toHaveCount(0);
+    await A.ctx.close();
+    await B.ctx.close();
+  });
+
+  test('Google Drive: a write another device wrote over unseen is merged again, from the copy it came from', async ({ browser, baseURL }) => {
+    const drive = new Drive(),
+      A = await device(browser, baseURL, drive);
+    await connect(A.page, 'google');
+    await done(A.page);
+    const before = drive.files[0].content;
+    // one write: a tick and a deletion
+    await tick(A.page, 'Write the report');
+    await row(A.page, 'Plan the trip').hover();
+    await row(A.page, 'Plan the trip').locator('.rm').click();
+    await expect.poll(async () => texts(await openCopy(drive.files[0].content)), { timeout: 15000 }).not.toContain('Plan the trip');
+    // another device read the copy before that write and wrote over it just after: its own task in, A's changes out
+    drive.files[0].content = await resealCopy(before, PASS, p => ({
+      ...p,
+      hist: [p.pid, ...p.hist].slice(0, 64),
+      pid: 'racer1',
+      rev: p.rev + 1,
+      days: { ...p.days, [today()]: { u: Date.now(), tasks: [...p.days[today()].tasks, { id: 'zz1', text: 'From the other device', done: false }] } },
+    }));
+    drive.files[0].ver++;
+    await syncNow(A.page, drive);
+    await expect(row(A.page, 'From the other device')).toBeVisible();
+    await expect(row(A.page, 'Plan the trip')).toHaveCount(0);
+    await expect(row(A.page, 'Write the report')).toHaveClass(/\bdone\b/);
+    const copy = await openCopy(drive.files[0].content);
+    expect(texts(copy).sort()).toEqual(['From the other device', 'Water the plants', 'Write the report #work']);
+    expect(copy.days[today()].tasks.find(t => t.id === 'a1').done).toBe(true);
+    await A.ctx.close();
+  });
+
+  test('a repeat changed from its task today keeps that task today', async ({ browser, baseURL }) => {
+    const drive = new Drive(),
+      A = await device(browser, baseURL, drive),
+      wd = d => (d.getDay() + 6) % 7,
+      now = new Date(),
+      next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    await connect(A.page, 'google');
+    await done(A.page);
+    await A.page.locator('#dchip').click();
+    await A.page.locator('#drep').click();
+    await A.page.locator('#rseg [data-f="day"]').click();
+    await A.page.locator('#rdone').click();
+    await add(A.page, 'Stretch');
+    await syncNow(A.page, drive);
+    // from its card: weekly, on tomorrow's weekday only
+    await row(A.page, 'Stretch').locator('.mt').click();
+    await row(A.page, 'Stretch').locator('.rbtn').click();
+    await A.page.locator('#rseg [data-f="week"]').click();
+    await A.page.locator(`#rdays [data-d="${wd(next)}"]`).click();
+    await A.page.locator(`#rdays [data-d="${wd(now)}"]`).click();
+    await A.page.locator('#rdone').click();
+    await syncNow(A.page, drive);
+    await expect(row(A.page, 'Stretch')).toHaveCount(1);
+    const copy = await openCopy(drive.files[0].content);
+    expect(copy.days[today()].tasks.filter(t => t.text === 'Stretch')).toHaveLength(1);
+    await A.ctx.close();
+  });
+
+  test('forgot the new passphrase, where this device asks for it: the copy is started again from here', async ({ browser, baseURL }) => {
+    const drive = new Drive(),
+      A = await device(browser, baseURL, drive);
+    await connect(A.page, 'google');
+    await done(A.page);
+    // another device sealed the copy again with a passphrase A doesn't know
+    drive.files[0].content = await resealCopy(drive.files[0].content, PASS, p => p);
+    const env = JSON.parse(drive.files[0].content);
+    env.vault.kid = 'another-key-id';
+    drive.files[0].content = JSON.stringify(env);
+    drive.files[0].ver++;
+    await A.page.evaluate(() => window.dispatchEvent(new Event('online')));
+    await expect(A.page.locator('#toast')).toContainText('Your sync passphrase changed on another device', { timeout: 15000 });
+    await A.page.locator('#undo').click();
+    await expect(A.page.locator('#syT')).toHaveText('Your sync passphrase changed');
+    await A.page.locator('#syHint [data-sy="forgot"]').click();
+    await A.page.locator('#syErase').check();
+    await A.page.locator('#syGo').click();
+    await expect(A.page.locator('#syT')).toHaveText('Choose a sync passphrase', { timeout: 15000 });
+    await A.page.locator('#syPass').fill('a third sync phrase');
+    await A.page.locator('#syPass2').fill('a third sync phrase');
+    await A.page.locator('#syOk').check();
+    await A.page.locator('#syGo').click();
+    await idle(A.page);
+    expect(drive.files).toHaveLength(1);
+    expect(texts(await openCopy(drive.files[0].content, 'a third sync phrase')).sort()).toEqual(['Plan the trip', 'Water the plants', 'Write the report #work']);
+    expect(A.errors).toEqual([]);
+    await A.ctx.close();
+  });
+
+  test('two tabs of one browser: sync turned off in one is off in the other, which puts nothing back', async ({ browser, baseURL }) => {
+    const drive = new Drive(),
+      A = await device(browser, baseURL, drive);
+    await connect(A.page, 'google');
+    await done(A.page);
+    const tab = await A.ctx.newPage();
+    await tab.emulateMedia({ reducedMotion: 'reduce' });
+    await tab.goto(baseURL + '/');
+    await expect(tab.locator('#spill')).toHaveAttribute('aria-label', 'Synced with Google Drive', { timeout: 15000 });
+    await openDialog(A.page);
+    await A.page.locator('#syNo').click();
+    await A.page.locator('#syErase').check();
+    await A.page.locator('#syGo').click();
+    await expect(A.page.locator('#toast')).toContainText('One Day’s copy is gone from your Google Drive');
+    await expect(tab.locator('#spill')).toBeHidden({ timeout: 10000 });
+    await add(tab, 'Written in the other tab');
+    await tab.waitForTimeout(3500);
+    expect(drive.files).toEqual([]);
+    expect(JSON.parse(await tab.evaluate(() => localStorage.getItem('oneday.v1'))).sync).toBeUndefined();
+    await A.ctx.close();
+  });
+
+  test('the same task id on two days (an old backup imported after a move): both copies sync', async ({ browser, baseURL }) => {
+    const drive = new Drive(),
+      t = { id: 'dup', text: 'Pay the rent', done: false },
+      A = await device(browser, baseURL, drive, { seed: { days: { [today()]: { u: 1, tasks: [t] }, [plus(1)]: { u: 1, tasks: [t] } } } });
+    await connect(A.page, 'google');
+    await done(A.page);
+    const copy = await openCopy(drive.files[0].content);
+    expect(copy.days[today()].tasks.map(x => x.text)).toEqual(['Pay the rent']);
+    expect(copy.days[plus(1)].tasks.map(x => x.text)).toEqual(['Pay the rent']);
+    await expect(row(A.page, 'Pay the rent')).toHaveCount(1);
+    await A.page.keyboard.press('ArrowRight');
+    await expect(row(A.page, 'Pay the rent')).toHaveCount(1);
     await A.ctx.close();
   });
 });

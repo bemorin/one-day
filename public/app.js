@@ -7337,11 +7337,18 @@ try {
           sealAgain = false;
           if (locked || !vault || !DEK) break;
           // sync's key and base go with the tasks they belong to, in the same write
-          const data = await sealWith(DEK, plain()),
-            sync = SYS ? await sealWith(DEK, TE.encode(JSON.stringify(SYS))) : null;
+          const dek = DEK,
+            kid = KID,
+            data = await sealWith(dek, plain()),
+            sync = SYS ? await sealWith(dek, TE.encode(JSON.stringify(SYS))) : null;
           if (locked || !vault) break;
+          // this tab took a new key meanwhile (a new passphrase): sealed again, with that one
+          if (DEK !== dek || KID !== kid) {
+            sealAgain = true;
+            continue;
+          }
           const cur = storedVault();
-          if (!cur || (cur.kid || '') !== KID) {
+          if (!cur || (cur.kid || '') !== kid) {
             sealOk = false;
             later(() => obsolete(cur), 0);
             break;
@@ -8690,10 +8697,9 @@ try {
       const v = storedVault();
       if (v && v.bio) forgetPasskey(v.bio.id);
       localStorage.removeItem(VK);
+      // (sync's key and sign-in went with the vault; the copy in the cloud stays, and opens with its own passphrase)
       try {
         localStorage.removeItem(LS);
-        // the sign-in to the cloud goes too; the copy there stays, and opens with its own passphrase
-        localStorage.removeItem('oneday.sync');
       } catch (e) {}
       location.reload();
       return { wait: true };
@@ -8926,8 +8932,7 @@ try {
      - with no base (a first sync, or a copy there that doesn't come from this device's last one), nothing is deleted:
        both sides are kept.
      Offline, changes wait here, and go up once the connection is back. While locked, nothing syncs: the key is sealed. */
-  const SYK = 'oneday.sync',
-    SYF = 'one-day.json',
+  const SYF = 'one-day.json',
     SYCH = 'one-day-oauth',
     // One Day's public id at each cloud, from the app registered there (docs/sync-setup.md). None of them is a secret:
     // a cloud only sends its answer to the addresses registered with it, and the answer only opens with what this page
@@ -8942,6 +8947,7 @@ try {
     SYST = { s: 'off', at: 0, why: '' }; // how sync is going: off, idle, busy, offline, auth, pass, error
   let SYD = null, // the dialog, while it is open
     SYW = null, // a sign-in waiting for its answer
+    SYPEND = null, // a sign-in done, its passphrase still to come: held in this page only
     SYENV = null, // the copy in the cloud, sealed with a passphrase this device doesn't hold yet
     SYBACK = null, // a sign-in that came back to this page (a phone opens the cloud's page in this window)
     SYKEY = null, // the sync key, ready to use: [its bytes as stored, the key]
@@ -8975,14 +8981,20 @@ try {
       !okBlob(k.pass)
     )
       return null;
-    return {
-      v: 1,
-      cloud: o.cloud,
-      key: { raw: k.raw, kid: k.kid, kdf: { iter: k.kdf.iter, salt: k.kdf.salt }, pass: { iv: k.pass.iv, ct: k.pass.ct } },
-      file: o.file && typeof o.file.id === 'string' && typeof o.file.ver === 'string' ? { id: o.file.id, ver: o.file.ver } : null,
-      base: typeof o.base === 'string' ? o.base : null,
-      lh: typeof o.lh === 'string' ? o.lh : '',
-    };
+    const a = o.auth,
+      sys = {
+        v: 1,
+        cloud: o.cloud,
+        key: { raw: k.raw, kid: k.kid, kdf: { iter: k.kdf.iter, salt: k.kdf.salt }, pass: { iv: k.pass.iv, ct: k.pass.ct } },
+        file: o.file && typeof o.file.id === 'string' && typeof o.file.ver === 'string' ? { id: o.file.id, ver: o.file.ver } : null,
+        base: typeof o.base === 'string' ? o.base : null,
+        anc: typeof o.anc === 'string' ? o.anc : null,
+        lh: typeof o.lh === 'string' ? o.lh : '',
+      };
+    // the sign-in to the cloud: its token, and what renews it where the cloud allows
+    if (a && typeof a.a === 'string' && +a.ax > 0)
+      sys.auth = { a: a.a, ax: +a.ax, r: typeof a.r === 'string' ? a.r : '', rx: +a.rx || 0 };
+    return sys;
   }
 
   /* talking to a cloud: no cookie, no referrer, and nothing kept by the browser's cache */
@@ -8990,7 +9002,8 @@ try {
     try {
       return await fetch(url, { ...o, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
     } catch (e) {
-      throw new SyErr('offline');
+      // no connection at all, or one that didn't get through (a network in the way, the cloud down)
+      throw new SyErr(navigator.onLine ? 'unreachable' : 'offline');
     }
   }
   async function syText(r) {
@@ -8999,20 +9012,20 @@ try {
     if (t.length > 20e6) throw new SyErr('big');
     return t;
   }
-  // the sign-in, kept in this browser: which cloud, its short-lived token, and what renews it where the cloud allows
+  // The sign-in: kept with sync's key, so with the tasks (sealed with them when the lock is on). Before sync is on (a
+  // sign-in whose passphrase is still to come), it is held in this page only.
   function syAuth() {
-    try {
-      const a = JSON.parse(localStorage.getItem(SYK));
-      return a && a.v === 1 && CL[a.cloud] && typeof a.a === 'string' ? a : null;
-    } catch (e) {
-      return null;
-    }
+    if (SYS) return SYS.auth ? { cloud: SYS.cloud, ...SYS.auth } : null;
+    return SYPEND;
   }
   function syKeepAuth(a) {
-    try {
-      if (a) localStorage.setItem(SYK, JSON.stringify(a));
-      else localStorage.removeItem(SYK);
-    } catch (e) {}
+    if (SYS && (!a || a.cloud === SYS.cloud)) {
+      if (a) SYS.auth = { a: a.a || '', ax: +a.ax || 0, r: a.r || '', rx: +a.rx || 0 };
+      else delete SYS.auth;
+      syQuiet();
+      return;
+    }
+    SYPEND = a ? { cloud: a.cloud, a: a.a || '', ax: +a.ax || 0, r: a.r || '', rx: +a.rx || 0 } : null;
   }
   const syLock = (name, fn) => (navigator.locks ? navigator.locks.request(name, fn) : fn());
   // a token to call with: the one kept while it lasts (a minute's margin), else a new one where the cloud renews it;
@@ -9086,9 +9099,17 @@ try {
     throw new SyErr('http', r.status);
   }
   Object.assign(CL.google, {
-    url: st =>
+    url: (st, ch, again) =>
       'https://accounts.google.com/o/oauth2/v2/auth?' +
-      new URLSearchParams({ client_id: CLOUD_IDS.google, redirect_uri: syBack(), response_type: 'token', scope: GS, state: st }),
+      new URLSearchParams({
+        client_id: CLOUD_IDS.google,
+        redirect_uri: syBack(),
+        response_type: 'token',
+        scope: GS,
+        state: st,
+        // the first time, the account is yours to pick; signing in again goes straight back
+        ...(again ? {} : { prompt: 'select_account' }),
+      }),
     async take(ans) {
       if (!ans.token) throw new SyErr(ans.error === 'access_denied' ? 'denied' : 'signin');
       if (ans.scope && !ans.scope.split(/[\s+]+/).includes(GS)) throw new SyErr('scope');
@@ -9164,6 +9185,8 @@ try {
   const dRpc = (path, arg) =>
     syCall('dropbox', `${DA}/2/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(arg) });
   Object.assign(CL.dropbox, {
+    // it refuses a write over a version other than the one read: a write that succeeds is never lost unseen
+    cas: true,
     url: (st, ch) =>
       'https://www.dropbox.com/oauth2/authorize?' +
       new URLSearchParams({
@@ -9251,7 +9274,7 @@ try {
     throw new SyErr('http', r.status);
   }
   Object.assign(CL.onedrive, {
-    url: (st, ch) =>
+    url: (st, ch, again) =>
       `${ML}/authorize?` +
       new URLSearchParams({
         client_id: CLOUD_IDS.onedrive,
@@ -9262,6 +9285,7 @@ try {
         state: st,
         code_challenge: ch,
         code_challenge_method: 'S256',
+        ...(again ? {} : { prompt: 'select_account' }),
       }),
     async take(ans, ver) {
       if (!ans.code) throw new SyErr(ans.error === 'access_denied' ? 'denied' : 'signin');
@@ -9336,20 +9360,23 @@ try {
       return null;
     }
   }
-  async function sySignIn(c, win) {
+  async function sySignIn(c, win, again) {
     const pop = !!win,
       st = b64.enc(rnd(18)) + (pop ? '.p' : '.r'),
       ver = b64.enc(rnd(48)),
       ch = b64.enc(new Uint8Array(await crypto.subtle.digest('SHA-256', TE.encode(ver)))),
-      url = CL[c].url(st, ch);
+      url = CL[c].url(st, ch, again);
     if (!pop) {
       try {
         sessionStorage.setItem('oneday.signin', JSON.stringify({ st, ver, c, at: Date.now() }));
       } catch (e) {
         throw new SyErr('signin');
       }
+      // This page usually goes, and comes back with the answer (syBackIn). Where it stays (a home-screen app may show
+      // the cloud's page in a view of its own), the answer comes on the channel instead.
+      const got = syAnswer(st);
       location.assign(url);
-      return new Promise(() => {});
+      return CL[c].take(await got, ver);
     }
     try {
       win.location.href = url;
@@ -9375,21 +9402,33 @@ try {
       const end = () => {
           clearTimeout(t);
           window.removeEventListener('message', onMsg);
+          window.removeEventListener('storage', onStore);
           if (bc) bc.close();
           if (SYW && SYW.st === st) SYW = null;
         },
         take = d => {
           if (!d || d.type !== 'one-day-oauth' || d.state !== st) return;
           end();
+          try {
+            localStorage.removeItem('oneday.signedin');
+          } catch (e) {}
           res(d);
         },
         onMsg = e => e.origin === location.origin && take(e.data),
+        // left by oauth/ for a tab it couldn't reach on the channel
+        onStore = e => {
+          if (e.key !== 'oneday.signedin' || !e.newValue) return;
+          try {
+            take(JSON.parse(e.newValue));
+          } catch (x) {}
+        },
         t = setTimeout(() => {
           end();
           rej(new SyErr('timeout'));
         }, 5 * 60e3);
       if (bc) bc.onmessage = e => take(e.data);
       window.addEventListener('message', onMsg);
+      window.addEventListener('storage', onStore);
       SYW = {
         st,
         cancel() {
@@ -9399,22 +9438,29 @@ try {
       };
     });
   }
-  // back from the cloud's page in this window: the answer oauth/ left, if it answers the sign-in this tab started
+  // Back from the cloud's page: the answer oauth/ left (in this tab, or for it), if it answers the sign-in this tab
+  // started. One left for another tab is left alone, unless it is old.
   function syBackIn() {
     let a = null,
-      p = null;
+      p = null,
+      kept = null;
     try {
-      a = JSON.parse(sessionStorage.getItem('oneday.signedin'));
       p = JSON.parse(sessionStorage.getItem('oneday.signin'));
+      a = JSON.parse(sessionStorage.getItem('oneday.signedin'));
+      kept = JSON.parse(localStorage.getItem('oneday.signedin'));
       sessionStorage.removeItem('oneday.signedin');
       sessionStorage.removeItem('oneday.signin');
+      if (kept && ((p && kept.state === p.st) || !(Date.now() - kept.at < 15 * 60e3))) localStorage.removeItem('oneday.signedin');
     } catch (e) {}
+    if (!a && kept && p && kept.state === p.st) a = kept;
     if (!a || !p || typeof a.state !== 'string' || a.state !== p.st || !CL[p.c] || !(Date.now() - p.at < 15 * 60e3)) return null;
     return { c: p.c, ans: a, ver: p.ver };
   }
 
   /* the sealed copy */
   async function syKeyOf(key) {
+    // locked, the key is out of reach: a sync still under way stops here
+    if (locked) throw new SyErr('locked');
     if (SYKEY && SYKEY[0] === key.raw) return SYKEY[1];
     const k = await dataKey(fromB64(key.raw));
     SYKEY = [key.raw, k];
@@ -9429,15 +9475,17 @@ try {
     const v = j && j.app === 'one-day' && j.vault;
     return v && typeof v.kid === 'string' && okVault({ ...v, v: 1, bio: null, sync: null }) ? j : null;
   }
+  // A copy's place in the line of copies: its id, the ids of the copies before it (the last 64), how many came before
+  // it (rev), and the line it belongs to (epoch: a copy made anew, after the file was gone, starts a new line).
+  const syLine = p => ({
+    pid: typeof p.pid === 'string' && IDRE.test(p.pid) ? p.pid : '',
+    hist: Array.isArray(p.hist) ? p.hist.filter(x => typeof x === 'string' && IDRE.test(x)).slice(0, 64) : [],
+    rev: Number.isInteger(p.rev) && p.rev > 0 ? p.rev : 0,
+    epoch: typeof p.epoch === 'string' && IDRE.test(p.epoch) ? p.epoch : '',
+  });
   function syClean(p) {
     p = p && typeof p === 'object' ? p : {};
-    return {
-      pid: typeof p.pid === 'string' && IDRE.test(p.pid) ? p.pid : '',
-      hist: Array.isArray(p.hist) ? p.hist.filter(x => typeof x === 'string' && IDRE.test(x)).slice(0, 64) : [],
-      days: cleanDays(p.days),
-      rules: cleanRules(p.rules),
-      tags: cleanTags(p.tags),
-    };
+    return { ...syLine(p), days: cleanDays(p.days), rules: cleanRules(p.rules), tags: cleanTags(p.tags) };
   }
   async function syOpen(env, key) {
     try {
@@ -9445,7 +9493,7 @@ try {
       if (env.vault.z) u8 = await through(u8, new DecompressionStream('deflate-raw'), 64e6);
       return syClean(JSON.parse(TD.decode(u8)));
     } catch (e) {
-      throw new SyErr('alien');
+      throw e && e.kind === 'locked' ? e : new SyErr('alien');
     }
   }
   // the copy as it goes up: an encrypted One Day backup, its tasks compressed, then sealed
@@ -9476,18 +9524,16 @@ try {
     await syOpen(env, key);
     return { v: 1, cloud: c, key, file: null, base: null, lh: '' };
   }
-  // the base, small: compressed, as the browser keeps it with the tasks
+  // a copy kept here (the base, the one before it), small: compressed, as the browser keeps it with the tasks
   async function syPackBase(P) {
-    const j = JSON.stringify({ pid: P.pid, hist: P.hist, days: P.days, rules: P.rules, tags: P.tags });
+    const j = JSON.stringify({ ...syLine(P), days: P.days, rules: P.rules, tags: P.tags });
     return b64.enc(await through(TE.encode(j), new CompressionStream('deflate-raw'), 64e6));
   }
-  async function syBase(sys) {
-    if (!sys.base) return null;
+  async function syBase(s) {
+    if (!s) return null;
     try {
-      const p = JSON.parse(TD.decode(await through(b64.dec(sys.base), new DecompressionStream('deflate-raw'), 64e6)));
-      return p && typeof p.pid === 'string' && p.days && p.rules
-        ? { pid: p.pid, hist: Array.isArray(p.hist) ? p.hist : [], days: p.days, rules: p.rules, tags: p.tags || {} }
-        : null;
+      const p = JSON.parse(TD.decode(await through(b64.dec(s), new DecompressionStream('deflate-raw'), 64e6)));
+      return p && typeof p.pid === 'string' && p.days && p.rules ? { ...syLine(p), days: p.days, rules: p.rules, tags: p.tags || {} } : null;
     } catch (e) {
       return null;
     }
@@ -9539,15 +9585,18 @@ try {
   }
   // which side's order leads: the one that reordered since the base, else the one that wins
   const syLead = (lo, ro, bo, lw) => (bo && syArr(lo, bo) ? [ro, lo] : bo && syArr(ro, bo) ? [lo, ro] : lw ? [lo, ro] : [ro, lo]);
-  // A task's sub-tasks, merged like tasks: by id, words and done each from the side that changed them. A task made on
-  // both sides at once (a repeat's occurrence, made on each device) has sub-tasks of different ids: one side's stay,
-  // ticked where the other had them ticked.
+  // A task's sub-tasks, merged like tasks: by id, words and done each from the side that changed them. With nothing to
+  // tell who changed what (no base, or a repeat's occurrence made on each device, its sub-tasks of different ids),
+  // every sub-task stays, the same words once, ticked where either side ticked it.
   function sySubs(B, L, R, lw, has) {
     if (!has) {
-      const keep = lw ? L : R,
-        other = lw ? R : L;
-      if (!keep.length) return other.map(s => ({ ...s }));
-      return keep.map(s => (!s.done && other.some(o => o.done && o.text === s.text) ? { ...s, done: true } : { ...s }));
+      const out = (lw ? L : R).map(s => ({ ...s }));
+      for (const o of lw ? R : L) {
+        const same = out.find(s => s.id === o.id || s.text === o.text);
+        if (!same) out.push({ ...o });
+        else if (o.done) same.done = true;
+      }
+      return out.slice(0, 100);
     }
     const bm = new Map((B || []).map(s => [s.id, s])),
       lm = new Map(L.map(s => [s.id, s])),
@@ -9570,8 +9619,33 @@ try {
       .map(id => got.get(id))
       .slice(0, 100);
   }
+  // The same id on two days (an old backup imported after a task moved): the copies after the first day take ids of
+  // their own, made from their day, so every device names them alike and no copy is lost.
+  function syIds(st) {
+    const seen = new Set();
+    let days = null;
+    for (const k of Object.keys(st.days).sort()) {
+      const ts = st.days[k].tasks;
+      let out = null;
+      ts.forEach((t, i) => {
+        if (!seen.has(t.id)) {
+          seen.add(t.id);
+          return;
+        }
+        let id = t.id.slice(0, 30) + '-' + k.replace(/-/g, '');
+        for (let n = 1; seen.has(id); n++) id = t.id.slice(0, 29 - String(n).length) + n + '-' + k.replace(/-/g, '');
+        seen.add(id);
+        (out || (out = ts.slice()))[i] = { ...t, id };
+      });
+      if (out) (days || (days = { ...st.days }))[k] = { ...st.days[k], tasks: out };
+    }
+    return days ? { ...st, days } : st;
+  }
   // Two versions of the tasks, and the one they both came from (null when there is none): one that holds both.
   function syMerge(B, L, R) {
+    B = B && syIds(B);
+    L = syIds(L);
+    R = syIds(R);
     const uOf = (st, k) => (st.days[k] && +st.days[k].u) || 0,
       where = st => {
         const m = new Map();
@@ -9589,20 +9663,28 @@ try {
         r = rm.get(id),
         b = bm && bm.get(id);
       if (l && r) {
-        const lw = uOf(L, l.k) >= uOf(R, r.k),
-          has = !!b,
-          bt = b ? b.t : {},
+        // A repeat's occurrence made on each device before either synced has no base of its own: its repeat is one,
+        // since both were made from it.
+        const rr = !b && l.t.rule && l.t.rule === r.t.rule && l.k === r.k && id === occId({ id: l.t.rule }, l.k) && (L.rules[l.t.rule] || R.rules[l.t.rule]),
+          lw = uOf(L, l.k) >= uOf(R, r.k),
+          has = !!b || !!rr,
+          bt = b ? b.t : rr ? { text: rr.text, done: false, note: rr.note || '', rule: l.t.rule } : {},
           t = { id, text: pick(bt.text, l.t.text, r.t.text, lw, has) },
-          dn = pick(b ? [!!bt.done, bt.at || 0] : null, [!!l.t.done, l.t.at || 0], [!!r.t.done, r.t.at || 0], lw, has);
+          // with nothing to tell who changed it, a tick wins
+          dn = has
+            ? pick([!!bt.done, bt.at || 0], [!!l.t.done, l.t.at || 0], [!!r.t.done, r.t.at || 0], lw, true)
+            : l.t.done || r.t.done
+              ? [true, Math.max(l.t.done ? l.t.at || 0 : 0, r.t.done ? r.t.at || 0 : 0)]
+              : [false, 0];
         t.done = dn[0];
         if (dn[0] && dn[1]) t.at = dn[1];
         const note = pick(bt.note || '', l.t.note || '', r.t.note || '', lw, has),
-          subs = sySubs(b ? bt.subs : null, l.t.subs || [], r.t.subs || [], lw, has),
+          subs = sySubs(b ? bt.subs : null, l.t.subs || [], r.t.subs || [], lw, !!b),
           rule = pick(bt.rule || '', l.t.rule || '', r.t.rule || '', lw, has);
         if (note) t.note = note;
         if (subs.length) t.subs = subs;
         if (rule) t.rule = rule;
-        out.set(id, { k: pick(b && b.k, l.k, r.k, lw, has), t });
+        out.set(id, { k: pick(b && b.k, l.k, r.k, lw, !!b), t });
       } else {
         const x = l || r;
         // gone from the other side: deleted there, unless it changed here since (an edit beats a deletion)
@@ -9662,7 +9744,9 @@ try {
     return M;
   }
   // An occurrence still to come that nobody touched follows its repeat as it now is: gone with it or off its new days,
-  // its words its words. One that was ticked or changed stays, a task of its own once its repeat is gone.
+  // its words its words, on the days after the repeat starts (or starts again: a repeat changed from a task's card
+  // starts on that day, which keeps its task, as it does on the device it was changed on). One that was ticked or
+  // changed stays, a task of its own once its repeat is gone.
   const syLike = (t, r) =>
     t.text === r.text &&
     (t.note || '') === (r.note || '') &&
@@ -9680,7 +9764,8 @@ try {
         const r = M.rules[t.rule],
           plain = k >= tk && !t.done && t.id === occId({ id: t.rule }, k) && from.some(st => st && st.rules[t.rule] && syLike(t, st.rules[t.rule]));
         if (plain) {
-          if (r && occurs(r, k)) next.push(syLike(t, r) ? t : fromRule(r, k));
+          if (r && k <= r.start) next.push(t);
+          else if (r && occurs(r, k)) next.push(syLike(t, r) ? t : fromRule(r, k));
           continue;
         }
         if (r) next.push(t);
@@ -9724,9 +9809,10 @@ try {
     })();
     return SYBUSY;
   }
-  function syState(s, why = '') {
+  function syState(s, why = '', k = '') {
     SYST.s = s;
     SYST.why = why;
+    SYST.k = k;
     if (s === 'idle') SYST.at = Date.now();
     syUI();
   }
@@ -9747,7 +9833,9 @@ try {
       E = { days: {}, rules: {}, tags: {} };
     if (!navigator.onLine) return syState('offline');
     let dirty = false;
-    syState('busy');
+    const was = SYST.s,
+      wasWhy = SYST.why,
+      slow = setTimeout(() => SYS === sys && !locked && syState('busy'), 400);
     try {
       for (let n = 0; n < 4; n++) {
         const L0 = syNow(),
@@ -9757,13 +9845,14 @@ try {
         const files = await c.list();
         if (!live()) return;
         const f = files[0] || null,
-          B0 = await syBase(sys);
-        let B = B0,
-          R = null;
-        if (f && B && files.length === 1 && sys.file && f.id === sys.file.id && f.ver === sys.file.ver) {
+          B0 = await syBase(sys.base),
+          A0 = sys.anc ? await syBase(sys.anc) : null;
+        let R = null;
+        if (f && B0 && files.length === 1 && sys.file && f.id === sys.file.id && f.ver === sys.file.ver) {
           // the cloud holds what was agreed last time
+          sys.anc = null;
           if (!dirty) return syDone(sys, false);
-          R = B;
+          R = B0;
         } else if (f) {
           const got = [];
           for (const x of files) {
@@ -9783,24 +9872,45 @@ try {
           if (!got.length) throw new SyErr('alien');
           R = got[0];
           // two devices each made a copy at the same moment: both stay whole
-          for (const g of got.slice(1)) R = { ...syMerge(null, R, g), pid: R.pid, hist: [...new Set([...R.hist, g.pid, ...g.hist])].slice(0, 64) };
+          for (const g of got.slice(1))
+            R = { ...syMerge(null, R, g), pid: R.pid, rev: Math.max(R.rev, g.rev), epoch: R.epoch, hist: [...new Set([...R.hist, g.pid, ...g.hist])].slice(0, 64) };
         }
-        // a copy there that doesn't come from the one agreed last (or none): nothing is deleted, both sides stay
-        if (!R || (B && R.pid !== B.pid && !R.hist.includes(B.pid))) B = null;
+        // What both sides came from. The copy agreed last, if the cloud's comes from it; else the copy this device's
+        // last write came from, if that write was written over; else, on the same line and further along, the latest
+        // copy known to have been in the cloud. Anything else (a first sync, a copy made anew): none, and nothing is
+        // deleted.
+        const from = x => !!x && !!R && (R.pid === x.pid || R.hist.includes(x.pid));
+        let B = null;
+        if (from(B0)) B = B0;
+        else if (from(A0)) B = A0;
+        else if (R && B0 && R.epoch && R.epoch === B0.epoch && R.rev > B0.rev) B = A0 || B0;
         const L = R && !B && !sys.file && syFresh(L0) ? E : L0,
           M = syMerge(B, L, R || E);
-        if (syEditing()) return syncSoon(1500);
+        if (syEditing()) {
+          if (SYST.s === 'busy' && was !== 'busy') syState(was, wasWhy);
+          return syncSoon(1500);
+        }
         syApply(L0, M);
         if (R && R !== B0) {
           // what came down is here now: it is what this device has agreed with the cloud
           sys.base = await syPackBase(R);
+          sys.anc = null;
           sys.lh = await syHash(R);
           sys.file = { id: f.id, ver: f.ver };
           if (!live()) return;
           syQuiet();
         }
         if (R && files.length === 1 && syCanon(M) === syCanon(R)) return syDone(sys, false);
-        const Pk = { pid: uid(), hist: R ? [R.pid, ...R.hist].filter(Boolean).slice(0, 64) : [], days: M.days, rules: M.rules, tags: M.tags };
+        const Pk = {
+          pid: uid(),
+          rev: (R ? R.rev : B0 ? B0.rev : 0) + 1,
+          // the line goes on; a copy made anew (none there) starts one of its own
+          epoch: (R && R.epoch) || uid(),
+          hist: (R ? [R.pid, ...R.hist] : B0 ? [B0.pid, ...B0.hist] : []).filter(Boolean).slice(0, 64),
+          days: M.days,
+          rules: M.rules,
+          tags: M.tags,
+        };
         let nf;
         try {
           nf = await c.write(f, await syPack(Pk, sys.key));
@@ -9812,6 +9922,9 @@ try {
         if (!live()) return;
         for (const x of files.slice(1)) await c.remove(x).catch(() => {});
         sys.file = nf;
+        // Where the cloud refuses a write over another (Dropbox), this one is now the copy agreed. Elsewhere another
+        // device may still write over it unseen: the copy it came from is kept, to fall back on until it shows up.
+        sys.anc = !c.cas && R ? await syPackBase(R) : null;
         sys.base = await syPackBase(Pk);
         sys.lh = await syHash(Pk);
         return syDone(sys, true);
@@ -9826,9 +9939,11 @@ try {
         syState('auth');
         if (dirty) syTell();
       } else {
-        syState('error', syWhy(e, sys.cloud));
+        syState('error', syWhy(e, sys.cloud), k);
         syncSoon(k === 'slow' ? 60e3 : 120e3);
       }
+    } finally {
+      clearTimeout(slow);
     }
   }
   function syDone(sys, wrote) {
@@ -9886,6 +10001,8 @@ try {
     switch (e && e.kind) {
       case 'offline':
         return `No connection to ${n}. Try again once you’re online.`;
+      case 'unreachable':
+        return `${n} couldn’t be reached. One Day tries again in a moment.`;
       case 'popup':
         return 'Your browser blocked the sign-in window. Allow pop-ups for One Day, then try again.';
       case 'denied':
@@ -9940,7 +10057,13 @@ try {
     if (SYD && SYD.step === 'on') syDraw();
     if (lab === syLast) return;
     syLast = lab;
-    if ($.srch.classList.contains('on') && !$.sq.value.trim()) renderSearch();
+    const chip = $.slist.querySelector('.sdata [data-act="sync"]');
+    if (chip) {
+      chip.lastChild.textContent = lab;
+      chip.classList.toggle('att', syAtt());
+      const hint = $.slist.querySelector('.sdata .shint');
+      if (hint) hint.textContent = dataHint();
+    }
     const mb = moreOpen && $.moreList.querySelector('[data-act="sync"]');
     if (mb) {
       mb.querySelector('span').textContent = lab;
@@ -9999,7 +10122,7 @@ try {
     unguard('syncd');
     if (SYW) SYW.cancel();
     // signed in, but sync never turned on: that sign-in is of no use
-    if (!SYS && ['new', 'join', 'reset'].includes(m.step)) syKeepAuth(null);
+    if (!SYS) SYPEND = null;
     modalOut(SY.syncd, SY.syForm);
     for (const i of [SY.syPass, SY.syPass2]) i.value = '';
     if (!locked) home.inert = false;
@@ -10032,7 +10155,8 @@ try {
       case 'pass':
         return ['Your sync passphrase was changed on another device.', 'rekey', 'Enter it'];
       case 'error':
-        return [SYST.why || syWhy(null, SYS.cloud), 'now', 'Try again'];
+        // a copy there that can't be read is no use: the way out is to start it again from here
+        return SYST.k === 'alien' ? [SYST.why, 'forgot', 'Start over'] : [SYST.why || syWhy(null, SYS.cloud), 'now', 'Try again'];
       default:
         return [SYST.at ? `Up to date. Synced at ${CLF.format(SYST.at)}.` : 'Up to date.', 'now', 'Sync now'];
     }
@@ -10074,7 +10198,6 @@ try {
     } else if (st === 'go') {
       t = `Opening ${n}…`;
       sub = 'Sign in there, and you’ll come straight back to One Day.';
-      no = '';
     } else if (st === 'new') {
       t = 'Choose a sync passphrase';
       sub = `It encrypts your tasks here, before they go to your ${n}. You’ll type it once on each device you sync.`;
@@ -10163,6 +10286,11 @@ try {
           m.step = 'pick';
           syDraw();
           wrong(SY.syForm, SY.syErr, null, syWhy(e, c));
+          // a file there that One Day can't read: the way out is to start it again
+          if (e && e.kind === 'alien') {
+            SY.syHint.innerHTML = `<button class="lnk" type="button" data-sy="forgot">Start over in your ${esc(CL[c].name)}</button>`;
+            SY.syHint.hidden = false;
+          }
         },
       );
   }
@@ -10176,7 +10304,7 @@ try {
       syDraw();
     }
     const m = SYD;
-    sySignIn(c, win)
+    sySignIn(c, win, true)
       .then(tok => syGot(c, tok))
       .then(
         () => {
@@ -10232,15 +10360,23 @@ try {
       // the new key, and no base: the copy there and this device's tasks are both kept
       SYS.key = sys.key;
       SYS.base = null;
+      SYS.anc = null;
       SYS.file = null;
       SYS.lh = '';
-    } else SYS = sys;
+    } else {
+      // the sign-in held meanwhile goes with the key, kept with the tasks from now on
+      const p = SYPEND && SYPEND.cloud === sys.cloud ? SYPEND : null;
+      if (p) sys.auth = { a: p.a, ax: p.ax, r: p.r, rx: p.rx };
+      SYS = sys;
+    }
+    SYPEND = null;
     SYKEY = null;
     SYENV = null;
     syTold = '';
     SYST.s = 'busy';
     syQuiet();
     syUI();
+    syTabs();
     if (SYD) {
       SYD.step = 'on';
       syDraw();
@@ -10248,14 +10384,78 @@ try {
     }
     syncNow();
   }
+  // Other tabs of this browser hold the tasks and sync's state as they read them. Turned on, off or given a new key
+  // here, sync tells them: each takes both again as stored, together, once nothing is being edited there.
+  const SYBC = 'BroadcastChannel' in window ? new BroadcastChannel('one-day-sync') : null;
+  async function syTabs() {
+    if (!SYBC) return;
+    await flush();
+    try {
+      SYBC.postMessage('changed');
+    } catch (e) {}
+  }
+  let syAdoptT = null;
+  function syAdopt() {
+    clearTimeout(syAdoptT);
+    syAdoptT = null;
+    // locked, there is nothing to take: the next unlock reads it all anyway
+    if (locked) return;
+    if (syEditing() || SYD || IMP || P) {
+      syAdoptT = setTimeout(syAdopt, 1000);
+      return;
+    }
+    (async () => {
+      let st = null,
+        sys = null;
+      if (vault) {
+        await flush();
+        const v = storedVault();
+        if (!v || (v.kid || '') !== KID || !DEK) return;
+        try {
+          const j = JSON.parse(TD.decode(await unseal(DEK, v.data)));
+          st = { days: cleanDays(j && j.days), rules: cleanRules(j && j.rules), tags: cleanTags(j && j.tags) };
+          sys = await openSys(DEK, v);
+        } catch (e) {
+          return;
+        }
+      } else {
+        let j = null;
+        try {
+          j = JSON.parse(localStorage.getItem(LS));
+        } catch (e) {}
+        if (!j || !j.days) return;
+        st = { days: cleanDays(j.days), rules: cleanRules(j.rules), tags: cleanTags(j.tags) };
+        sys = cleanSys(j.sync);
+      }
+      if (locked || syEditing() || SYD) return syAdopt();
+      S = st;
+      SYS = sys;
+      SYPEND = null;
+      SYKEY = null;
+      SYENV = null;
+      IDX = null;
+      TAGC = null;
+      UN.length = 0;
+      RE.length = 0;
+      SYST.s = !SYS ? 'off' : SYS.auth ? 'idle' : 'auth';
+      ensure(cur);
+      repaint();
+      renderChip();
+      syUI();
+      if (SYS) syncSoon(800);
+    })();
+  }
+  if (SYBC) SYBC.onmessage = e => e.data === 'changed' && syAdopt();
   // Off here: the sign-in and the key leave this browser, the tasks stay. With `erase`, One Day's copy in the cloud
   // goes first; if that fails, sync stays on and says why.
-  async function syStop(erase) {
+  // With `keep`, the sign-in stays in this page: to start over in the same cloud.
+  async function syStop(erase, keep) {
     const sys = SYS;
     if (!sys) return '';
-    const c = CL[sys.cloud],
-      a = syAuth();
+    const c = CL[sys.cloud];
     SYS = null;
+    // the sign-in, held in this page meanwhile, to erase the copy with
+    SYPEND = sys.auth ? { cloud: sys.cloud, ...sys.auth } : null;
     clearTimeout(syT);
     syT = null;
     if (SYBUSY) await SYBUSY.catch(() => {});
@@ -10263,16 +10463,18 @@ try {
       try {
         for (const f of await c.list()) await c.remove(f);
       } catch (e) {
+        SYPEND = null;
         if (!locked) SYS = sys;
         return syWhy(e, sys.cloud);
       }
-    if (erase || sys.cloud === 'dropbox') c.revoke(a);
+    if (!keep && (erase || sys.cloud === 'dropbox')) c.revoke(syAuth());
+    if (!keep) SYPEND = null;
     SYKEY = null;
     SYENV = null;
-    syKeepAuth(null);
     SYST.s = 'off';
     syQuiet();
     syUI();
+    syTabs();
     return '';
   }
   SY.syCh.addEventListener('click', e => {
@@ -10380,7 +10582,7 @@ try {
       let why = '';
       try {
         // this device's own sync, if any, stops first: it would put the copy back
-        if (SYS) why = await syStop(false);
+        if (SYS) why = await syStop(false, true);
         for (const f of await CL[m.c].list()) await CL[m.c].remove(f);
       } catch (err) {
         why = syWhy(err, m.c);
