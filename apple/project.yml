@@ -20,6 +20,9 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     DEAD_CODE_STRIPPING: YES
     CODE_SIGN_STYLE: Automatic
+    # Whether the build carries iCloud (Info.plist OneDayICloud): only a signed build has the container in its
+    # entitlements, and CloudKit stops an app that asks for one it lacks. The unsigned builds on GitHub say NO.
+    ONEDAY_ICLOUD: YES
     # The team that signs the app (its Team ID): empty here, given by whoever builds a signed copy.
     DEVELOPMENT_TEAM: ""
 

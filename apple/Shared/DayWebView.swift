@@ -13,12 +13,14 @@ struct DayWebView {
 
   final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
     let bridge: Bridge
+    let cloud: CloudBridge
     private weak var web: WKWebView?
     private var downloads: [ObjectIdentifier: URL] = [:]
     private let log = Logger(subsystem: "com.bemorin.oneday", category: "web")
 
     init(saved: SavedState) {
       bridge = Bridge(saved: saved)
+      cloud = CloudBridge(store: CloudStore.live())
     }
 
     func makeWebView() -> WKWebView {
@@ -26,7 +28,7 @@ struct DayWebView {
         log.fault("The app carries no site")
         return WKWebView()
       }
-      let web = WebHost.makeWebView(site: site, bridge: bridge)
+      let web = WebHost.makeWebView(site: site, bridge: bridge, cloud: cloud)
       web.navigationDelegate = self
       web.uiDelegate = self
       self.web = web

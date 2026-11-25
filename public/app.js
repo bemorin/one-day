@@ -8947,6 +8947,11 @@ try {
      - with no base (a first sync, or a copy there that doesn't come from this device's last one), nothing is deleted:
        both sides are kept, and a mark on either side stays.
      Offline, changes wait here, and go up once the connection is back. While locked, nothing syncs: the key is sealed. */
+  // One Day's app for iPhone, iPad and Mac (apple/ in the repository) serves this page from inside itself, where no cloud
+  // can send a sign-in back. It tells the page so before the page's own code runs (oneDayApp), and syncs through the
+  // person's iCloud instead, which the page reaches through the app (see "iCloud" below).
+  const APP = window.oneDayApp || null,
+    APPCL = (APP && window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.onedayCloud) || null;
   const SYF = 'one-day.json',
     SYCH = 'one-day-oauth',
     // One Day's public id at each cloud, from the app registered there for One Day's own addresses (a copy published
@@ -8958,7 +8963,7 @@ try {
       dropbox: 'j77qztjuwc2el8m',
       onedrive: '7a934264-2185-4d42-adb0-7fedeca442a7',
     },
-    SYON = !!(CAN_LOCK && WEB && window.fetch && window.CompressionStream && window.DecompressionStream),
+    SYON = !!(CAN_LOCK && (WEB || APPCL) && window.fetch && window.CompressionStream && window.DecompressionStream),
     CL = {
       // logo: the cloud's own artwork, as its owner publishes it for apps that work with it (public/clouds/)
       google: {
@@ -9001,7 +9006,10 @@ try {
   }
   // sync's key and base as kept with the tasks, checked; anything else is no sync at all
   function cleanSys(o) {
-    if (!o || typeof o !== 'object' || o.v !== 1 || !['google', 'dropbox', 'onedrive'].includes(o.cloud)) return null;
+    // iCloud only in the app, the others only on the web (this runs before the clouds below are set up)
+    const inApp = !!window.oneDayApp;
+    if (!o || typeof o !== 'object' || o.v !== 1 || !(inApp ? o.cloud === 'icloud' : ['google', 'dropbox', 'onedrive'].includes(o.cloud)))
+      return null;
     const k = o.key;
     if (
       !k ||
@@ -9437,6 +9445,71 @@ try {
     // a page has no way to give Microsoft its tokens back: they are forgotten here, and run out
     revoke() {},
   });
+
+  /* iCloud, in One Day's app for iPhone, iPad and Mac: the copy is one record of your own iCloud (the private database of
+     One Day's container), which the app reads and writes through CloudKit, with the account the device is signed in
+     to. No sign-in page and no token: that account is the one. Apple lets a website reach iCloud only once its app is
+     on the App Store, so for now iCloud is the app's alone. Its name stands alone, without Apple's icon. */
+  const ICK = ['offline', 'unreachable', 'auth', 'full', 'slow', 'conflict', 'gone', 'big', 'restricted', 'noaccount', 'unavailable'];
+  if (APPCL) {
+    // the copy as last read or written there (its tag and its words): a sync reads it once
+    let icLast = null;
+    const ic = async (op, o = {}) => {
+      try {
+        return await APPCL.postMessage({ op, ...o });
+      } catch (e) {
+        const k = String((e && e.message) || '');
+        throw new SyErr(ICK.includes(k) ? k : 'http');
+      }
+    };
+    CL.icloud = {
+      name: 'iCloud',
+      co: 'Apple',
+      native: true,
+      // CloudKit never writes over a copy changed meanwhile
+      cas: true,
+      where: 'in your own iCloud, in a space only One Day opens',
+      sub: 'Your own iCloud: a space only One Day opens',
+      // the account the device is signed in to, as One Day's container names it (the same on all its devices)
+      async signIn() {
+        const a = (await ic('account')) || {};
+        if (a.status !== 'available') throw new SyErr(a.status === 'noaccount' || a.status === 'restricted' ? a.status : 'icloudoff');
+        return { a: 'icloud', ax: 8.64e15, acct: typeof a.user === 'string' ? a.user.slice(0, 200) : '' };
+      },
+      async list() {
+        // The device may have changed accounts since (in its settings, with no word to One Day): another account holds
+        // another copy, or none, and syncing there would leave the other devices behind. Nothing goes then.
+        const a = (await ic('account')) || {};
+        if (a.status !== 'available') throw new SyErr(a.status === 'noaccount' || a.status === 'restricted' ? a.status : 'icloudoff');
+        if (SYS && SYS.cloud === 'icloud' && SYS.acct && a.user && a.user !== SYS.acct) throw new SyErr('account');
+        const x = await ic('fetch');
+        icLast = x && typeof x.tag === 'string' && typeof x.text === 'string' ? x : null;
+        return icLast ? [{ id: 'one-day', ver: icLast.tag }] : [];
+      },
+      async read(f) {
+        if (!icLast || icLast.tag !== f.ver) {
+          const x = await ic('fetch');
+          if (!x || typeof x.text !== 'string') throw new SyErr('gone');
+          icLast = x;
+        }
+        return icLast.text;
+      },
+      async write(f, text) {
+        const r = await ic('save', { text, tag: f ? f.ver : null });
+        if (!r || typeof r.tag !== 'string') throw new SyErr('http');
+        icLast = { tag: r.tag, text };
+        return { id: 'one-day', ver: r.tag };
+      },
+      async remove() {
+        await ic('delete');
+        icLast = null;
+      },
+      revoke() {},
+    };
+  }
+  // the clouds this page offers (iCloud in the app, the others on the web), and whether one is set up here
+  const syClouds = () => Object.keys(CL).filter(k => !!CL[k].native === !!APPCL),
+    syOk = c => (CL[c] && CL[c].native ? !!(APP && APP.icloud) : !!CLOUD_IDS[c]);
 
   /* Signing in, on the cloud's own page. On a computer it opens in a window of its own, opened by the click itself
      (browsers block one opened later), and its answer comes back on a channel only this site's pages hear. On a phone
@@ -10107,8 +10180,19 @@ try {
     if (gone && (toastAct === 'undo' || toastAct === 'redo')) hideToast();
   }
   function syWhy(e, c) {
-    const n = c ? CL[c].name : 'your cloud';
+    const n = c ? CL[c].name : 'your cloud',
+      // where the device's iCloud account is, as it reads on screen there
+      settings = APP && APP.platform === 'macos' ? 'System Settings' : 'Settings';
+    if (c && CL[c].native && e && e.kind === 'auth') e = { kind: 'noaccount' };
     switch (e && e.kind) {
+      case 'noaccount':
+        return `Sign in to ${n} in ${settings} on this device, then try again.`;
+      case 'icloudoff':
+        return `${n} isn’t ready on this device. Check it in ${settings}, then try again.`;
+      case 'restricted':
+        return `${n} is turned off for One Day on this device (restrictions, or Screen Time).`;
+      case 'unavailable':
+        return `This copy of the app can’t use ${n}.`;
       case 'offline':
         return `No connection to ${n}. Try again once you’re online.`;
       case 'unreachable':
@@ -10301,16 +10385,20 @@ try {
       sub = 'The same tasks on your phone and your computer, kept in your own cloud. They’re encrypted here with a passphrase before they leave, so neither your cloud nor One Day can read them.';
       hint = 'One Day keeps one small file there, and nothing else. Stop whenever you like.';
       SY.syCh.innerHTML =
-        Object.keys(CL)
+        syClouds()
           .map(k => {
-            const on = !!CLOUD_IDS[k],
+            const on = syOk(k),
               logo = CL[k].logo ? `<img src="${CL[k].logo}" alt="" width="28" height="28" decoding="async">` : '';
             return `<button type="button" class="syc" data-c="${k}"${on ? '' : ' disabled'}><i class="syl syl-${k}" aria-hidden="true">${logo}</i><b>${esc(CL[k].label || CL[k].name)}</b><span>${esc(on ? CL[k].sub : 'Not set up yet')}</span></button>`;
           })
           .join('') +
-        // iCloud is on its way: Apple lets a website use it only as the web version of an App Store app. Until then it is
-        // named and can't be chosen, with no logo, since Apple lets no one else show its icons.
-        '<button type="button" class="syc" data-c="icloud" disabled><i class="syl" aria-hidden="true"></i><b>iCloud</b><span>Coming soon</span></button>';
+        // On the website iCloud is on its way: Apple lets a website use it only as the web version of an App Store app.
+        // Until then it is named and can't be chosen, with no logo, since Apple lets no one else show its icons. In the
+        // app it is a cloud of its own above (CL.icloud).
+        (CL.icloud ? '' : '<button type="button" class="syc" data-c="icloud" disabled><i class="syl" aria-hidden="true"></i><b>iCloud</b><span>Coming soon</span></button>');
+    } else if (st === 'check') {
+      t = `Opening ${n}…`;
+      sub = `One Day uses the ${CL[c].co} account this device is signed in to.`;
     } else if (st === 'wait') {
       t = `Signing in to ${n}`;
       sub = `Finish in the window that opened. ${CL[c].co} asks you to let One Day use its own folder there, and nothing else.`;
@@ -10378,15 +10466,17 @@ try {
   }
   // a cloud picked: its sign-in opens from this very click
   function syPick(c) {
-    if (!SYD || !CLOUD_IDS[c]) return;
-    const win = syWin();
+    if (!SYD || !syOk(c)) return;
+    // iCloud has no sign-in page: the app asks the device for its account
+    const nat = !!CL[c].native,
+      win = nat ? null : syWin();
     SYD.c = c;
-    SYD.step = win ? 'wait' : 'go';
+    SYD.step = nat ? 'check' : win ? 'wait' : 'go';
     say(SY.syForm, SY.syErr, '');
     syDraw();
     syFocus();
     const m = SYD;
-    sySignIn(c, win)
+    (nat ? CL[c].signIn() : sySignIn(c, win))
       .then(tok => syGot(c, tok))
       .then(
         got => {
@@ -10418,13 +10508,14 @@ try {
   function syAgain() {
     if (!SYS) return;
     const c = SYS.cloud,
-      win = syWin();
+      nat = !!CL[c].native,
+      win = nat ? null : syWin();
     if (SYD) {
-      SYD.step = win ? 'wait' : 'go';
+      SYD.step = nat ? 'check' : win ? 'wait' : 'go';
       syDraw();
     }
     const m = SYD;
-    sySignIn(c, win, true)
+    (nat ? CL[c].signIn() : sySignIn(c, win, true))
       .then(tok => syGot(c, tok))
       .then(
         () => {

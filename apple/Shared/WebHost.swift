@@ -1,7 +1,7 @@
 import Foundation
 import WebKit
 
-/// One Day's web view: the site served by the app, the bridge to the app, and what the page finds before its own code.
+/// One Day's web view: the site served by the app, the bridges to the app, and what the page finds before its own code.
 enum WebHost {
   #if os(iOS)
     static let platform = "ios"
@@ -16,17 +16,20 @@ enum WebHost {
     return "\(short) (\(build))"
   }
 
-  /// A web view for the app's pages. Tests give their own data store, so they never touch the app's.
-  static func makeWebView(site: SiteFiles, bridge: Bridge, store: WKWebsiteDataStore = .default()) -> WKWebView {
+  /// A web view for the app's pages. Tests give their own data store, so they never touch the app's, and their own
+  /// stand-in for iCloud.
+  static func makeWebView(site: SiteFiles, bridge: Bridge, cloud: CloudBridge, store: WKWebsiteDataStore = .default()) -> WKWebView {
     let config = WKWebViewConfiguration()
     config.websiteDataStore = store
     config.setURLSchemeHandler(SiteHandler(site: site), forURLScheme: SiteFiles.scheme)
     config.userContentController.add(bridge, name: Bridge.name)
+    config.userContentController.addScriptMessageHandler(cloud, contentWorld: .page, name: CloudBridge.name)
     #if os(iOS)
       config.dataDetectorTypes = []
       config.allowsInlineMediaPlayback = true
     #endif
     let web = WKWebView(frame: .zero, configuration: config)
+    bridge.icloud = cloud.store != nil
     refreshBoot(of: web, bridge: bridge)
     #if DEBUG
       web.isInspectable = true
@@ -49,7 +52,8 @@ enum WebHost {
     guard let url = Bundle.main.url(forResource: "bridge", withExtension: "js"),
       let script = try? String(contentsOf: url, encoding: .utf8)
     else { return }
-    let source = script.replacingOccurrences(of: "/*BOOT*/null", with: bridge.saved.boot(platform: platform, version: version))
+    let boot = bridge.saved.boot(platform: platform, version: version, icloud: bridge.icloud)
+    let source = script.replacingOccurrences(of: "/*BOOT*/null", with: boot)
     content.addUserScript(WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true))
   }
 }

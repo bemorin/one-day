@@ -8,7 +8,8 @@
      when the app missed its last changes (it was closed before it wrote them), and then they all go to the app.
    - The app has no service worker (its files are in the app already) and no passkeys (a passkey belongs to a website:
      the app will unlock with Face ID or Touch ID instead).
-   The app puts what it holds, { platform, version, seq, items }, in place of the BOOT mark on the last line. */
+   The app puts what it holds, { platform, version, icloud, seq, items }, in place of the BOOT mark on the last line.
+   iCloud itself has a bridge of its own, which answers (webkit.messageHandlers.onedayCloud; see CloudBridge.swift). */
 (function (boot) {
   'use strict';
   const host = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.oneday;
@@ -27,7 +28,7 @@
   } catch (e) {}
   try {
     Object.defineProperty(window, 'oneDayApp', {
-      value: Object.freeze({ platform: String(boot.platform || ''), version: String(boot.version || '') }),
+      value: Object.freeze({ platform: String(boot.platform || ''), version: String(boot.version || ''), icloud: boot.icloud === true }),
     });
   } catch (e) {}
 

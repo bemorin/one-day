@@ -83,7 +83,7 @@ test('app: only the listed keys go (never a sign-in answer); no service worker, 
     });
     return ['serviceWorker' in navigator, 'PublicKeyCredential' in window, JSON.stringify(window.oneDayApp)];
   });
-  expect(env).toEqual([false, false, '{"platform":"ios","version":"1.0 (1)"}']);
+  expect(env).toEqual([false, false, '{"platform":"ios","version":"1.0 (1)","icloud":false}']);
   await expect.poll(async () => (await sent(page)).some(m => m.op === 'error' && m.message.includes('boom'))).toBe(true);
   const keys = (await sent(page)).filter(m => m.op === 'store.set').map(m => m.key);
   expect(keys).not.toContain('oneday.signin');

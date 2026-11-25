@@ -7,6 +7,8 @@ import os
 final class Bridge: NSObject, WKScriptMessageHandler {
   static let name = "oneday"
   let saved: SavedState
+  /// Whether this build carries iCloud: the page is told before its own code runs (oneDayApp.icloud).
+  var icloud = false
   /// The page's uncaught errors, the last few (the tests read them).
   private(set) var errors: [String] = []
   private let log = Logger(subsystem: "com.bemorin.oneday", category: "page")

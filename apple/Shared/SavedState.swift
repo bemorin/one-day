@@ -57,9 +57,10 @@ final class SavedState {
     if dirty { save() }
   }
 
-  /// What the page needs before its own code runs (bridge.js reads it): this file's number and keys, and the app.
-  func boot(platform: String, version: String) -> String {
-    let boot = Boot(platform: platform, version: version, seq: seq, items: items)
+  /// What the page needs before its own code runs (bridge.js reads it): this file's number and keys, and the app
+  /// (its platform, its version, whether it carries iCloud).
+  func boot(platform: String, version: String, icloud: Bool = false) -> String {
+    let boot = Boot(platform: platform, version: version, icloud: icloud, seq: seq, items: items)
     guard let data = try? JSONEncoder().encode(boot), let json = String(data: data, encoding: .utf8) else { return "null" }
     return json
   }
@@ -112,6 +113,7 @@ final class SavedState {
   private nonisolated struct Boot: Encodable, Sendable {
     var platform: String
     var version: String
+    var icloud: Bool
     var seq: Int
     var items: [String: String]
   }
