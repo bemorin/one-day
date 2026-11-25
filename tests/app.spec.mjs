@@ -3156,29 +3156,35 @@ test.describe('full days', () => {
     expect(days[today()].moved).toBeUndefined();
   });
 
-  test('carried on with its arrow, a task keeps its day out of the count; ahead it is only planning, and undo takes the mark back', async ({ page }) => {
+  test('put off on its own day, a task leaves the day countable; carried with its arrow from a day gone by, it keeps that day out; ahead it is only planning', async ({ page }) => {
+    const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('oneday.v1')).days);
     await openDone(page);
     await expect(page.locator('#ddsr')).toHaveText('3 full days');
-    // today's last open task goes to tomorrow: what is left is done, but the day is not full, and nothing is sealed
+    // today's last open task goes to tomorrow, even in the evening: what is left is done, and today counts, quietly
     await row(page, 'Last one').hover();
     await row(page, 'Last one').locator('.mv').click();
     await expect(row(page, 'Last one')).toHaveCount(0);
     await expect(page.locator('#rel')).toHaveText('Today, all done');
-    await expect(page.locator('#ddsr')).toHaveText('3 full days');
+    await expect(page.locator('#ddsr')).toHaveText('4 full days');
     await expect(page.locator(SHOW)).toHaveCount(0);
-    // undone, the task and the day are as they were, without the mark
+    expect((await stored())[today()].moved).toBeUndefined();
+    // from a day gone by, the arrow carries what it left undone: that day keeps out of the count
+    for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowLeft');
+    await row(page, 'Left open').hover();
+    await row(page, 'Left open').locator('.mv').click();
+    await expect(row(page, 'Left open')).toHaveCount(0);
+    await expect(page.locator('#ddsr')).toHaveText('4 full days');
+    expect((await stored())[key(plus(-3))].moved).toBe(1);
+    // undone, the task and that day are as they were, without the mark
     await page.keyboard.press('Control+z');
-    await expect(row(page, 'Last one')).toBeVisible();
-    expect((await page.evaluate(() => JSON.parse(localStorage.getItem('oneday.v1')).days))[today()].moved).toBeUndefined();
+    await expect(row(page, 'Left open')).toBeVisible();
+    expect((await stored())[key(plus(-3))].moved).toBeUndefined();
     // moved on from a day still to come, it leaves no mark there
-    await row(page, 'Last one').hover();
-    await row(page, 'Last one').locator('.mv').click();
-    await page.keyboard.press('ArrowRight');
+    for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowRight');
     await row(page, 'Last one').hover();
     await row(page, 'Last one').locator('.mv').click();
     await expect(row(page, 'Last one')).toHaveCount(0);
-    const days = await page.evaluate(() => JSON.parse(localStorage.getItem('oneday.v1')).days);
-    expect(days[today()].moved).toBe(1);
+    const days = await stored();
     expect(days[key(plus(1))].moved).toBeUndefined();
     expect(days[key(plus(2))].tasks.map(t => t.text)).toContain('Last one');
   });

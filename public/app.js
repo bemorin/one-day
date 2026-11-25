@@ -995,8 +995,9 @@ try {
     const rr = t.rule && S.rules[t.rule];
     if (rr) (rr.skip || (rr.skip = [])).push(k);
     if (how === 'mv') {
-      // carried on from a day that has come: that day was not done in full (ahead, it is only planning)
-      if (!t.done && k <= todayKey()) day(k).moved = 1;
+      // carried on from a day gone by: that day was not done in full. On its own day, even in the evening, putting a
+      // task off is the person's call, and ahead it is only planning: neither leaves a mark.
+      if (!t.done && k < todayKey()) day(k).moved = 1;
       t.done = false;
       delete t.at;
       delete t.rule;
@@ -7943,9 +7944,9 @@ try {
   }, 60e3 - (Date.now() % 60e3) + 30);
 
   /* full days: the days that had tasks and saw every one of them ticked, today and before. They are counted from the
-     tasks themselves, and a day missed takes nothing away: the count never starts again. A day whose open tasks were
-     carried to another (Bring here, or the arrow, once the day had come) keeps a mark, moved, and never counts: what
-     it left undone went elsewhere. A task deleted is not carried: the day can still be full. The count sits in the
+     tasks themselves, and a day missed takes nothing away: the count never starts again. A day gone by whose open
+     tasks were carried to another (Bring here, or a task's arrow) keeps a mark, moved, and never counts: what it left
+     undone went elsewhere. Putting a task off on its own day, or deleting it, leaves no mark. The count sits in the
      middle of the bar. Where the time sits there (a narrower window), it takes the time's place for five seconds: on
      opening, when it counts one more, and every ten minutes. */
   function doneDays() {
