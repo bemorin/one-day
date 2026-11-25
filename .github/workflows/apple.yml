@@ -40,6 +40,7 @@ jobs:
       - uses: actions/checkout@v5
       - name: Tools
         run: |
+          sudo xcode-select -s /Applications/Xcode_26.6.app
           xcodebuild -version
           HOMEBREW_NO_AUTO_UPDATE=1 brew install xcodegen
       - name: Project
@@ -58,9 +59,11 @@ jobs:
         working-directory: apple
         run: |
           set -o pipefail
-          xcodebuild test -project OneDay.xcodeproj -scheme OneDay-macOS -destination "platform=macOS" \
+          xcodebuild test -project OneDay.xcodeproj -scheme OneDay-macOS -destination "platform=macOS,arch=arm64" \
             -derivedDataPath build/dd -resultBundlePath build/mac.xcresult -quiet CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/mac.log
       - name: Pictures (iPhone, light and dark)
+        # the tests above decide whether the build is good; a picture that fails doesn't
+        continue-on-error: true
         working-directory: apple
         run: |
           APP="build/dd/Build/Products/Debug-iphonesimulator/One Day.app"

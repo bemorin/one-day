@@ -14,9 +14,10 @@ struct WebViewTests {
     let site = try #require(SiteFiles.bundled())
     let web = WebHost.makeWebView(site: site, bridge: bridge, store: .nonPersistent())
     web.load(URLRequest(url: SiteFiles.home))
+    // a call that lands while the page is still loading fails: it is simply asked again
     try await eventually {
-      try await web.callAsyncJavaScript(
-        "return document.readyState === 'complete' && !!document.getElementById('app')", contentWorld: .page) as? Bool == true
+      (try? await web.callAsyncJavaScript(
+        "return document.readyState === 'complete' && !!document.getElementById('app')", contentWorld: .page)) as? Bool == true
     }
 
     let found = try await web.callAsyncJavaScript(
