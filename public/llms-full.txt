@@ -323,9 +323,9 @@ For the legal details, read the [privacy policy](https://bemorin.com/privacy#one
 
 ### Sync with your cloud
 
-To have the same tasks on your phone and your computer, One Day can keep them in your own **Google Drive**, **Dropbox** or **OneDrive**, one at a time. There is still no account and no server: each device talks to your cloud directly, and your tasks are **encrypted with a passphrase** before they leave it. Your cloud sees one file and when it changes, never a task, and nothing reaches One Day.
+To have the same tasks on your phone and your computer, One Day can keep them in your own **Google Drive**, **Dropbox** or **OneDrive**, one at a time. There is still no account and no server: each device talks to your cloud directly, and your tasks are **encrypted with a passphrase** before they leave it. Your cloud sees one file and when it changes, never a task, and nothing reaches One Day. **iCloud** is coming soon.
 
-![Sync with your cloud: the same tasks on your phone and your computer, encrypted before they leave, with Google Drive, Dropbox and Microsoft OneDrive to pick from, each with its logo.](https://day.bemorin.com/guide/shots/sync-pick-light.webp)
+![Sync with your cloud: the same tasks on your phone and your computer, encrypted before they leave, with Google Drive, Dropbox and Microsoft OneDrive to pick from, each with its logo, and iCloud, coming soon.](https://day.bemorin.com/guide/shots/sync-pick-light.webp)
 ![Sync is on: up to date, synced at 09:41, with Sync now, what Google sees, how to add another device, then Stop syncing and Done.](https://day.bemorin.com/guide/shots/sync-on-light.webp)
 
 *Pick your cloud, sign in there and choose a passphrase. Then sync says where it stands.*

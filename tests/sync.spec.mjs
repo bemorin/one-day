@@ -207,6 +207,15 @@ test.describe('sync with your cloud', () => {
       await expect.poll(() => img.evaluate(n => n.complete && n.naturalWidth > 0)).toBe(true);
       await expect(A.page.locator(`#syCh [data-c="${c}"] b`)).toHaveText(name);
     }
+    // iCloud last, named but not yet to choose, and with no logo: Apple lets no one else show its icons
+    const ic = A.page.locator('#syCh .syc').last();
+    await expect(ic).toHaveAttribute('data-c', 'icloud');
+    await expect(ic).toBeDisabled();
+    await expect(ic.locator('b')).toHaveText('iCloud');
+    await expect(ic.locator('span')).toHaveText('Coming soon');
+    await expect(ic.locator('img')).toHaveCount(0);
+    await ic.click({ force: true });
+    await expect(A.page.locator('#syT')).toHaveText('Sync with your cloud');
     await A.page.keyboard.press('Escape');
     await expect(A.page.locator('#syncd')).toBeHidden();
     expect(A.errors).toEqual([]);

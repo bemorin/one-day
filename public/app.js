@@ -10300,13 +10300,17 @@ try {
       t = 'Sync with your cloud';
       sub = 'The same tasks on your phone and your computer, kept in your own cloud. They’re encrypted here with a passphrase before they leave, so neither your cloud nor One Day can read them.';
       hint = 'One Day keeps one small file there, and nothing else. Stop whenever you like.';
-      SY.syCh.innerHTML = Object.keys(CL)
-        .map(k => {
-          const on = !!CLOUD_IDS[k],
-            logo = CL[k].logo ? `<img src="${CL[k].logo}" alt="" width="28" height="28" decoding="async">` : '';
-          return `<button type="button" class="syc" data-c="${k}"${on ? '' : ' disabled'}><i class="syl syl-${k}" aria-hidden="true">${logo}</i><b>${esc(CL[k].label || CL[k].name)}</b><span>${esc(on ? CL[k].sub : 'Not set up yet')}</span></button>`;
-        })
-        .join('');
+      SY.syCh.innerHTML =
+        Object.keys(CL)
+          .map(k => {
+            const on = !!CLOUD_IDS[k],
+              logo = CL[k].logo ? `<img src="${CL[k].logo}" alt="" width="28" height="28" decoding="async">` : '';
+            return `<button type="button" class="syc" data-c="${k}"${on ? '' : ' disabled'}><i class="syl syl-${k}" aria-hidden="true">${logo}</i><b>${esc(CL[k].label || CL[k].name)}</b><span>${esc(on ? CL[k].sub : 'Not set up yet')}</span></button>`;
+          })
+          .join('') +
+        // iCloud is on its way: Apple lets a website use it only as the web version of an App Store app. Until then it is
+        // named and can't be chosen, with no logo, since Apple lets no one else show its icons.
+        '<button type="button" class="syc" data-c="icloud" disabled><i class="syl" aria-hidden="true"></i><b>iCloud</b><span>Coming soon</span></button>';
     } else if (st === 'wait') {
       t = `Signing in to ${n}`;
       sub = `Finish in the window that opened. ${CL[c].co} asks you to let One Day use its own folder there, and nothing else.`;
