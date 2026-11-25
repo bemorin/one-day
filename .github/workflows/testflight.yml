@@ -1,0 +1,80 @@
+name: TestFlight
+
+# One Day for iPhone and iPad, signed and sent to TestFlight (App Store Connect), from GitHub's Macs. Run by hand only
+# (Actions → TestFlight → Run workflow), once the repository holds these secrets, all from the Apple Developer account:
+#   APPLE_TEAM_ID   the Team ID
+#   ASC_KEY_ID      an App Store Connect API key's ID (a Team key with the Admin role: Xcode makes the signing
+#                   certificate and profile with it)
+#   ASC_ISSUER_ID   the Issuer ID shown above the keys
+#   ASC_KEY         the key's file (AuthKey_….p8), its whole text
+# The build number is the run's number, so each upload is a new build. Nothing here is published: TestFlight builds
+# reach only the testers chosen in App Store Connect.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    name: Archive, sign and upload (iPhone and iPad)
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY: ${{ secrets.ASC_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: The key, from the secrets
+        run: |
+          for v in TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY; do
+            if [ -z "${!v}" ]; then echo "::error::The repository has no secret for $v (see the top of testflight.yml)"; exit 1; fi
+          done
+          mkdir -p ~/.appstoreconnect/private_keys
+          printf '%s\n' "$ASC_KEY" > ~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8
+      - name: Tools
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install xcodegen
+      - name: Project
+        working-directory: apple
+        run: xcodegen generate
+      - name: Archive and export
+        working-directory: apple
+        run: |
+          set -o pipefail
+          KEY=~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8
+          AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEY -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID"
+          mkdir -p build
+          xcodebuild archive -project OneDay.xcodeproj -scheme OneDay-iOS -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath build/OneDay-iOS.xcarchive \
+            DEVELOPMENT_TEAM="$TEAM_ID" CURRENT_PROJECT_VERSION="${{ github.run_number }}" $AUTH -quiet 2>&1 | tee build/archive.log
+          cat > build/export.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>export</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive -archivePath build/OneDay-iOS.xcarchive -exportPath build/ipa \
+            -exportOptionsPlist build/export.plist $AUTH 2>&1 | tee build/export.log
+          ls -la build/ipa
+      - name: Upload to App Store Connect
+        working-directory: apple
+        run: |
+          IPA=$(ls build/ipa/*.ipa | head -1)
+          xcrun altool --upload-app -f "$IPA" -t ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: testflight-${{ github.run_number }}
+          path: apple/build/*.log
+          retention-days: 14
