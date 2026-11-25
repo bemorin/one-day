@@ -15,9 +15,11 @@ final class Bridge: NSObject, WKScriptMessageHandler {
     self.saved = saved
   }
 
-  /// The keys bridge.js sends: One Day's own (`oneday.…`), never its line number (`oneday.app`).
+  /// The keys bridge.js sends, and the only ones the app keeps: the tasks, the lock's vault, the timer, the theme.
+  static let keys: Set<String> = ["oneday.v1", "oneday.vault", "oneday.timer", "oneday.theme"]
+
   static func isKept(_ key: String) -> Bool {
-    key.hasPrefix("oneday.") && key != "oneday.app" && key.count <= 64
+    keys.contains(key)
   }
 
   func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {

@@ -1,8 +1,9 @@
 /* One Day's app for iPhone, iPad and Mac: this runs in each page of the app, before the page's own code.
    The app serves the site from inside itself (oneday://localhost/) and keeps what the page saves in a file of its own,
    because a web view's storage is not the app's to keep: iOS may empty it when the device runs short of space.
-   - Every change to a key the page keeps (localStorage, the `oneday.*` keys) goes to the app, numbered in one line:
-     `oneday.app` holds the last number here, and the app's file holds the last one it got.
+   - Every change to a key the page keeps goes to the app, numbered in one line: `oneday.app` holds the last number
+     here, and the app's file holds the last one it got. The keys are listed (KEYS): the tasks, the lock's vault, the
+     timer, the theme. Nothing else, a cloud's sign-in answer least of all.
    - When a page opens, the newer copy wins: the app's file when the web view's copy is older or gone; the web view's
      when the app missed its last changes (it was closed before it wrote them), and then they all go to the app.
    - The app has no service worker (its files are in the app already) and no passkeys (a passkey belongs to a website:
@@ -51,7 +52,8 @@
     clear = P.clear,
     keyAt = P.key,
     SEQ = 'oneday.app',
-    kept = k => typeof k === 'string' && k.startsWith('oneday.') && k !== SEQ,
+    KEYS = new Set(['oneday.v1', 'oneday.vault', 'oneday.timer', 'oneday.theme']),
+    kept = k => KEYS.has(k),
     items = boot.items && typeof boot.items === 'object' ? boot.items : {},
     ours = () => {
       const o = {};

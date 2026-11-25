@@ -59,7 +59,10 @@ struct SavedStateTests {
 
   @Test(
     "Only One Day's own keys are kept",
-    arguments: [("oneday.v1", true), ("oneday.vault", true), ("oneday.theme", true), ("oneday.app", false), ("other", false)])
+    arguments: [
+      ("oneday.v1", true), ("oneday.vault", true), ("oneday.timer", true), ("oneday.theme", true), ("oneday.app", false),
+      ("oneday.signedin", false), ("oneday.install", false), ("other", false),
+    ])
   func kept(key: String, kept: Bool) {
     #expect(Bridge.isKept(key) == kept)
   }

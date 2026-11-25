@@ -72,10 +72,11 @@ test('app: a key the app no longer holds leaves the web view too', async ({ page
   await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'dark');
 });
 
-test('app: only the oneday keys of localStorage go; no service worker, no passkeys; errors reach the app', async ({ page }) => {
+test('app: only the listed keys go (never a sign-in answer); no service worker, no passkeys; errors reach the app', async ({ page }) => {
   await inApp(page, { seq: 0, items: {} });
   const env = await page.evaluate(() => {
     sessionStorage.setItem('oneday.signin', 'x');
+    localStorage.setItem('oneday.signedin', '{"state":"s","access_token":"t"}');
     localStorage.setItem('other', 'y');
     setTimeout(() => {
       throw new Error('boom');
@@ -86,6 +87,7 @@ test('app: only the oneday keys of localStorage go; no service worker, no passke
   await expect.poll(async () => (await sent(page)).some(m => m.op === 'error' && m.message.includes('boom'))).toBe(true);
   const keys = (await sent(page)).filter(m => m.op === 'store.set').map(m => m.key);
   expect(keys).not.toContain('oneday.signin');
+  expect(keys).not.toContain('oneday.signedin');
   expect(keys).not.toContain('other');
 });
 
