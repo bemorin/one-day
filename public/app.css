@@ -2992,9 +2992,6 @@ mark {
   .acts::before {
     opacity: 1;
   }
-  .acts .ex {
-    order: 1;
-  }
   .acts .mv,
   .acts .rm {
     display: none;

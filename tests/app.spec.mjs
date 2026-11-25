@@ -147,6 +147,17 @@ test('adds, ticks, keeps, deletes and restores a task', async ({ page }) => {
   await expect(row(page, 'Buy bread')).toBeVisible();
 });
 
+test('a task’s buttons read as on a phone: the arrow, the cross, then the chevron at the right, in that order for the keyboard too', async ({ page }) => {
+  await open(page);
+  const r = row(page, 'Write the report');
+  await r.hover();
+  const btns = r.locator('.in .acts .ib');
+  expect(await btns.evaluateAll(bs => bs.map(b => b.classList[1]))).toEqual(['mv', 'rm', 'ex']);
+  const [mv, rm, ex] = await Promise.all(['.mv', '.rm', '.ex'].map(s => r.locator('.in .acts ' + s).boundingBox()));
+  expect(mv.x).toBeLessThan(rm.x);
+  expect(rm.x).toBeLessThan(ex.x);
+});
+
 test('a click opens the card, the title of an open card edits, a double-click edits at once', async ({ page }) => {
   await open(page);
   const b = row(page, 'Plan the trip');
