@@ -32,15 +32,22 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npx playwright test tests/apple-bridge.spec.mjs
 
+  # Two kinds of Mac at once: GitHub sometimes has no free Mac of one kind for a while. Each takes the newest Xcode 26 it
+  # carries (Xcode 26 or later is what the App Store asks for since April 2026).
   build:
-    name: Build and test (iPhone simulator, Mac)
-    runs-on: macos-26
+    name: Build and test on ${{ matrix.os }} (iPhone simulator, Mac)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-26, macos-15]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - name: Tools
         run: |
-          sudo xcode-select -s /Applications/Xcode_26.6.app
+          XCODE=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
           xcodebuild -version
           HOMEBREW_NO_AUTO_UPDATE=1 brew install xcodegen
       - name: Project
@@ -54,13 +61,13 @@ jobs:
           SIM=$(sh ci/iphone.sh)
           echo "SIM=$SIM" >> "$GITHUB_ENV"
           xcodebuild test -project OneDay.xcodeproj -scheme OneDay-iOS -destination "id=$SIM" \
-            -derivedDataPath build/dd -resultBundlePath build/ios.xcresult -quiet CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/ios.log
+            -derivedDataPath build/dd -resultBundlePath build/ios.xcresult -quiet CODE_SIGNING_ALLOWED=NO ONEDAY_ICLOUD=NO 2>&1 | tee build/ios.log
       - name: Mac
         working-directory: apple
         run: |
           set -o pipefail
           xcodebuild test -project OneDay.xcodeproj -scheme OneDay-macOS -destination "platform=macOS,arch=arm64" \
-            -derivedDataPath build/dd -resultBundlePath build/mac.xcresult -quiet CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/mac.log
+            -derivedDataPath build/dd -resultBundlePath build/mac.xcresult -quiet CODE_SIGNING_ALLOWED=NO ONEDAY_ICLOUD=NO 2>&1 | tee build/mac.log
       - name: Pictures (iPhone, light and dark)
         # the tests above decide whether the build is good; a picture that fails doesn't
         continue-on-error: true
@@ -80,7 +87,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: apple-${{ github.run_number }}
+          name: apple-${{ github.run_number }}-${{ matrix.os }}
           path: |
             apple/build/shots/
             apple/build/*.log
@@ -88,6 +95,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: apple-results-${{ github.run_number }}
+          name: apple-results-${{ github.run_number }}-${{ matrix.os }}
           path: apple/build/*.xcresult
           retention-days: 7
