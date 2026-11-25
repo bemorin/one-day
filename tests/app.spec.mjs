@@ -1016,6 +1016,47 @@ test('keep on top: no button to come back inside the window, and a narrow one ke
   await expect(page.locator('#kb')).toBeHidden();
 });
 
+test('keep on top: a wide floating window keeps the day’s column, centred, as tall as the window, with no card around it', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript(k => {
+    const tasks = Array.from({ length: 30 }, (_, i) => ({ id: 'w' + i, text: 'A long day, task ' + (i + 1), done: false }));
+    localStorage.setItem('oneday.v1', JSON.stringify({ days: { [k]: { u: 1, tasks } }, rules: {} }));
+  }, today());
+  await page.goto('/');
+  await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
+  await page.locator('#float').click();
+  await expect
+    .poll(() => page.evaluate(() => !!documentPictureInPicture.window?.document.getElementById('app')))
+    .toBe(true);
+  const look = await page.evaluate(() => {
+    const w = documentPictureInPicture.window,
+      d = w.document,
+      a = d.getElementById('app'),
+      cs = w.getComputedStyle(a),
+      r = a.getBoundingClientRect(),
+      sc = d.getElementById('sc'),
+      probe = d.createElement('i');
+    probe.style.background = 'var(--bg)';
+    d.body.append(probe);
+    const bg = w.getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return {
+      // the window this browser gives it is a wide one, where a page would show the card
+      wide: w.matchMedia('(min-width: 720px) and (min-height: 560px)').matches,
+      centred: Math.abs(r.left - (w.innerWidth - r.right)) < 2,
+      width: Math.round(r.width),
+      tall: Math.abs(r.height - w.innerHeight) < 2,
+      card: cs.borderTopLeftRadius !== '0px' || cs.boxShadow !== 'none' || w.getComputedStyle(a, '::before').display !== 'none',
+      // the window's ground is the app's own, not the grey page a card sits on
+      sameGround: w.getComputedStyle(d.body).backgroundColor === bg,
+      scrolls: sc.scrollHeight > sc.clientHeight,
+    };
+  });
+  expect(look).toEqual({ wide: true, centred: true, width: 660, tall: true, card: false, sameGround: true, scrolls: true });
+  await page.evaluate(() => documentPictureInPicture.window.close());
+  await expect(page.locator('#home > #app')).toBeVisible();
+});
+
 test('in a narrow window (a side panel, a page zoomed in) the bar folds like the floating one: the timer stays, the rest behind ⋮', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   await open(page);
@@ -3095,19 +3136,84 @@ test.describe('full days', () => {
     // what it counts, in words, under the pointer
     await page.locator('#dd').hover();
     await expect(page.locator('#tip')).toHaveText('Days with every task done');
-    // a day whose open tasks go elsewhere, or are deleted, is done too: counted quietly, without the show
+    // a day whose open tasks were carried on (Bring here) is not full: what it left undone went elsewhere
     await page.locator('#bring').click();
-    await expect(page.locator('#ddsr')).toHaveText('4 full days');
+    await expect(row(page, 'Left open')).toBeVisible();
+    await expect(page.locator('#ddsr')).toHaveText('3 full days');
+    // a day whose open tasks are deleted is done: counted quietly, without the show
     for (const t of ['Last one', 'Left open']) {
       await row(page, t).hover();
       await row(page, t).locator('.rm').click();
       await expect(row(page, t)).toHaveCount(0);
     }
     await expect(page.locator('#rel')).toHaveText('Today, all done');
-    await expect(page.locator('#ddsr')).toHaveText('5 full days');
+    await expect(page.locator('#ddsr')).toHaveText('4 full days');
     await expect(page.locator('#ddlive')).toHaveText('');
-    // nothing new is stored: the count comes from the tasks
+    // nothing new is stored beside the tasks: only a mark on the day they were carried from
     expect(await page.evaluate(() => Object.keys(localStorage).sort())).toEqual(['oneday.v1']);
+    const days = await page.evaluate(() => JSON.parse(localStorage.getItem('oneday.v1')).days);
+    expect(days[key(plus(-3))].moved).toBe(1);
+    expect(days[today()].moved).toBeUndefined();
+  });
+
+  test('carried on with its arrow, a task keeps its day out of the count; ahead it is only planning, and undo takes the mark back', async ({ page }) => {
+    await openDone(page);
+    await expect(page.locator('#ddsr')).toHaveText('3 full days');
+    // today's last open task goes to tomorrow: what is left is done, but the day is not full, and nothing is sealed
+    await row(page, 'Last one').hover();
+    await row(page, 'Last one').locator('.mv').click();
+    await expect(row(page, 'Last one')).toHaveCount(0);
+    await expect(page.locator('#rel')).toHaveText('Today, all done');
+    await expect(page.locator('#ddsr')).toHaveText('3 full days');
+    await expect(page.locator(SHOW)).toHaveCount(0);
+    // undone, the task and the day are as they were, without the mark
+    await page.keyboard.press('Control+z');
+    await expect(row(page, 'Last one')).toBeVisible();
+    expect((await page.evaluate(() => JSON.parse(localStorage.getItem('oneday.v1')).days))[today()].moved).toBeUndefined();
+    // moved on from a day still to come, it leaves no mark there
+    await row(page, 'Last one').hover();
+    await row(page, 'Last one').locator('.mv').click();
+    await page.keyboard.press('ArrowRight');
+    await row(page, 'Last one').hover();
+    await row(page, 'Last one').locator('.mv').click();
+    await expect(row(page, 'Last one')).toHaveCount(0);
+    const days = await page.evaluate(() => JSON.parse(localStorage.getItem('oneday.v1')).days);
+    expect(days[today()].moved).toBe(1);
+    expect(days[key(plus(1))].moved).toBeUndefined();
+    expect(days[key(plus(2))].tasks.map(t => t.text)).toContain('Last one');
+  });
+
+  test('Bring here moves the tasks the line counts and leaves a missed repeat on its day', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.addInitScript(([y, s]) => {
+      const occ = 'w-' + y.replace(/-/g, '');
+      localStorage.setItem(
+        'oneday.v1',
+        JSON.stringify({
+          days: {
+            [y]: {
+              u: 1,
+              tasks: [
+                { id: occ, text: 'Water the plants', done: false, rule: 'w' },
+                { id: 'o1', text: 'Call the plumber', done: false },
+              ],
+            },
+          },
+          rules: { w: { text: 'Water the plants', start: s, freq: 'day', every: 1 } },
+        }),
+      );
+    }, [key(plus(-1)), key(plus(-5))]);
+    await page.goto('/');
+    await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
+    await expect(page.locator('#carryTxt')).toHaveText('1 task left from before');
+    await page.locator('#bring').click();
+    await expect(page.locator('#toast')).toContainText('Moved 1 task to today');
+    await expect(row(page, 'Call the plumber')).toBeVisible();
+    // one watering today, its own; yesterday's stays on yesterday
+    await expect(row(page, 'Water the plants')).toHaveCount(1);
+    const y = (await page.evaluate(() => JSON.parse(localStorage.getItem('oneday.v1')).days))[key(plus(-1))];
+    expect(y.tasks.map(t => t.text)).toEqual(['Water the plants']);
+    expect(y.moved).toBe(1);
   });
 
   test('ticking the last task seals the day: a big check over it, the count one more under it, all of it folding into the bar', async ({ page }) => {

@@ -322,7 +322,8 @@ try {
     if (o && typeof o === 'object')
       for (const k of Object.keys(o)) {
         const v = o[k];
-        if (DAYRE.test(k) && v && typeof v === 'object') days[k] = { u: +v.u || 0, tasks: clean(v.tasks) };
+        // moved: open tasks were carried from this day to another once it had come (see doneDays)
+        if (DAYRE.test(k) && v && typeof v === 'object') days[k] = { u: +v.u || 0, tasks: clean(v.tasks), ...(v.moved && { moved: 1 }) };
       }
     return days;
   }
@@ -462,7 +463,7 @@ try {
     const was = S.rules,
       tk = todayKey();
     if (e.rules) S.rules = e.rules;
-    for (const k of keys) S.days[k] = { u: 0, tasks: e.days[k].tasks };
+    for (const k of keys) S.days[k] = { u: 0, tasks: e.days[k].tasks, ...(e.days[k].moved && { moved: 1 }) };
     // a day left empty (one an import made, undone) is not kept, unless sync has to carry the change
     if (!cloud.col) for (const k of keys) if (!S.days[k].tasks.length) delete S.days[k];
     commitMany(keys);
@@ -958,8 +959,9 @@ try {
     commit(cur);
     const li = rowOf(id);
     updateRow(li, t);
-    // the last task of a day that counts (today or before): the day is sealed, and its count waits for its moment
-    const seals = t.done && cur <= todayKey() && tasks(cur).every(x => x.done);
+    // the last task of a day that counts (today or before, nothing carried from it): the day is sealed, and its count
+    // waits for its moment
+    const seals = t.done && cur <= todayKey() && !(S.days[cur] && S.days[cur].moved) && tasks(cur).every(x => x.done);
     if (seals) DDHOLD++;
     const { n, dn } = status();
     if (t.done)
@@ -993,6 +995,8 @@ try {
     const rr = t.rule && S.rules[t.rule];
     if (rr) (rr.skip || (rr.skip = [])).push(k);
     if (how === 'mv') {
+      // carried on from a day that has come: that day was not done in full (ahead, it is only planning)
+      if (!t.done && k <= todayKey()) day(k).moved = 1;
       t.done = false;
       delete t.at;
       delete t.rule;
@@ -1046,8 +1050,11 @@ try {
     const moving = [];
     for (const k of keys) {
       const d = day(k);
-      moving.push(...d.tasks.filter(t => !t.done));
-      d.tasks = d.tasks.filter(t => t.done);
+      // what was left open comes here, as many as the line said; repeats stay on their day (a missed one never piles
+      // up), and the day keeps a mark: what it left undone went elsewhere, so it can't count as a full day
+      moving.push(...d.tasks.filter(t => !t.done && !t.rule));
+      d.tasks = d.tasks.filter(t => t.done || t.rule);
+      d.moved = 1;
       commit(k);
     }
     day(cur).tasks.unshift(...moving);
@@ -7376,6 +7383,7 @@ try {
           have.add(t.id);
         }
         a.u = Math.max(a.u || 0, b.u);
+        if (b.moved) a.moved = 1;
       }
       for (const id of Object.keys(rules)) if (!S.rules[id]) S.rules[id] = rules[id];
       const tags = cleanTags(p.tags);
@@ -7935,14 +7943,16 @@ try {
   }, 60e3 - (Date.now() % 60e3) + 30);
 
   /* full days: the days that had tasks and saw every one of them ticked, today and before. They are counted from the
-     tasks themselves, so nothing new is kept, and a day missed takes nothing away: the count never starts again. It
-     sits in the middle of the bar. Where the time sits there (a narrower window), it takes the time's place for five
-     seconds: on opening, when it counts one more, and every ten minutes. */
+     tasks themselves, and a day missed takes nothing away: the count never starts again. A day whose open tasks were
+     carried to another (Bring here, or the arrow, once the day had come) keeps a mark, moved, and never counts: what
+     it left undone went elsewhere. A task deleted is not carried: the day can still be full. The count sits in the
+     middle of the bar. Where the time sits there (a narrower window), it takes the time's place for five seconds: on
+     opening, when it counts one more, and every ten minutes. */
   function doneDays() {
     const tk = todayKey();
     let n = 0;
     for (const k in S.days) {
-      if (k > tk) continue;
+      if (k > tk || S.days[k].moved) continue;
       const t = S.days[k].tasks;
       if (t.length && t.every(x => x.done)) n++;
     }
@@ -8767,7 +8777,7 @@ try {
         this.remote[k] = u;
         const loc = S.days[k];
         if (!loc || u > loc.u) {
-          S.days[k] = { u, tasks: clean(v.tasks) };
+          S.days[k] = { u, tasks: clean(v.tasks), ...(v.moved && { moved: 1 }) };
           ch = true;
           if (k === cur) chCur = true;
         }
@@ -8796,7 +8806,7 @@ try {
       this.busy.add(k);
       const v = S.days[k];
       try {
-        await this.col.doc('day-' + k).set({ u: v.u, tasks: clean(v.tasks) });
+        await this.col.doc('day-' + k).set({ u: v.u, tasks: clean(v.tasks), ...(v.moved && { moved: 1 }) });
         this.remote[k] = v.u;
       } catch (e) {
         if (e && e.code === 'unavailable') setTimeout(() => this.push(k), 1200 + Math.random() * 1200);

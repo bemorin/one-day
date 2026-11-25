@@ -4556,6 +4556,37 @@ mark {
     display: none;
   }
 }
+/* The floating window is a window of its own, not a page: however wide it is pulled, the day keeps its column, centred
+   on the app's own background and as tall as the window (its list scrolls), with no card or frame around it. */
+body:has(> #app.inpip) {
+  background: var(--bg);
+}
+@media (min-width: 720px) and (min-height: 560px) {
+  #app.inpip {
+    width: 100%;
+    max-width: 660px;
+    height: 100%;
+    margin: 0 auto;
+    background: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  #app.inpip::before,
+  #app.inpip::after {
+    display: none;
+  }
+  #app.inpip .vp,
+  #app.inpip .sl-s,
+  #app.inpip .srch {
+    border-radius: 0;
+  }
+  #app.inpip #slist {
+    flex-grow: 1;
+  }
+  #app.inpip .about {
+    display: flex;
+  }
+}
 @supports (corner-shape: squircle) {
   :root {
     --r: 46px;

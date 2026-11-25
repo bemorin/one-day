@@ -54,6 +54,8 @@ Unfinished tasks stay on their day: they don’t move by themselves. When earlie
 
 When every task of a day is ticked, the day is full. Tick the last one and its circle rises into a big check over the day, with the count under it going up by one; then it all folds into the middle of the bar, where One Day keeps the **full days**, today and before. A day you miss takes nothing away: the count never starts again. Untick a task, or undo, and the day leaves the count.
 
+A day whose unfinished tasks you carried to another day, with **Bring here** or a task’s arrow, isn’t full: what it left undone went elsewhere. Moving tasks between days still to come is only planning, and deleting a task you no longer need doesn’t count against a day.
+
 In a narrower window, where the time sits in the bar, the count takes its place for five seconds when One Day opens, every ten minutes, and when it counts one more. If your device asks for less motion, the check and the count just show for a moment, without moving.
 
 ![The last task of the day just ticked: a big red check in the middle of the day, 13 full days under it, and the same count in the bar, in red.](https://day.bemorin.com/guide/shots/seal-light.webp)
