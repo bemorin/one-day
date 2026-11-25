@@ -109,7 +109,7 @@ async function connect(page, { join = false } = {}) {
 test.describe('iCloud in the app', () => {
   test.describe.configure({ timeout: 90000 });
 
-  test('the app offers iCloud alone, by its name and without a logo; the website keeps its three clouds', async ({ browser, baseURL, page }) => {
+  test('the app offers iCloud alone, by its name and without a logo; the website keeps its three clouds, iCloud coming soon', async ({ browser, baseURL, page }) => {
     const A = await appDevice(browser, baseURL, new ICloud());
     await openDialog(A.page);
     const clouds = A.page.locator('#syCh .syc');
@@ -124,8 +124,11 @@ test.describe('iCloud in the app', () => {
     await page.goto(baseURL + '/');
     await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
     await openDialog(page);
-    await expect(page.locator('#syCh .syc')).toHaveCount(3);
-    await expect(page.locator('#syCh [data-c="icloud"]')).toHaveCount(0);
+    await expect(page.locator('#syCh .syc:not([disabled])')).toHaveCount(3);
+    const soon = page.locator('#syCh [data-c="icloud"]');
+    await expect(soon).toHaveCount(1);
+    await expect(soon).toBeDisabled();
+    await expect(soon.locator('span')).toHaveText('Coming soon');
   });
 
   test('iCloud on: only a sealed copy goes, and a second device joins with the passphrase and gets the tasks', async ({ browser, baseURL }) => {
