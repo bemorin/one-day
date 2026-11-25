@@ -128,6 +128,8 @@ test.describe('sync with your cloud', () => {
     expect([...A.hosts].filter(h => !h.startsWith('localhost'))).toEqual([]);
     await connect(A.page, 'google');
     await expect(A.page.locator('#syLi')).toContainText('Google sees one file and when it changes, never a task.');
+    // what to choose on the other devices, in bold, as it reads there
+    await expect(A.page.locator('#syLi b')).toHaveText(['One Day', 'Sync with your cloud', 'Google Drive']);
     await done(A.page);
     expect(drive.files.map(f => f.name)).toEqual(['one-day.json']);
     const text = drive.files[0].content;
@@ -155,6 +157,12 @@ test.describe('sync with your cloud', () => {
     expect(t.x < sp.x && sp.x < l.x).toBe(true);
     await A.page.keyboard.press('/');
     await expect(A.page.locator('#slist .sdata .shint')).toHaveText('Your tasks are stored in this browser, and encrypted in your Google Drive.');
+    await A.page.keyboard.press('Escape');
+    // the lock, with sync on, says which passphrase opens what
+    await A.page.locator('#lpill').click();
+    await expect(A.page.locator('#lsSub')).toContainText('Your sync passphrase opens your tasks in your cloud; this one opens One Day on this device.');
+    await A.page.locator('#lsCancel').click();
+    await expect(A.page.locator('#lockset')).toBeHidden();
     expect(A.errors).toEqual([]);
     await A.ctx.close();
   });
@@ -560,12 +568,20 @@ test.describe('sync with your cloud', () => {
     await C.ctx.close();
   });
 
-  test('on a phone: in More, and the cloud’s page opens in One Day’s own window, then comes back', async ({ browser, baseURL }) => {
+  test('on a phone: the cloud before the sun, and the cloud’s page opens in One Day’s own window, then comes back', async ({ browser, baseURL }) => {
     const drive = new Drive(),
-      A = await device(browser, baseURL, drive, { phone: true });
+      A = await device(browser, baseURL, drive, { phone: true }),
+      b = A.page.locator('#syncb');
+    // top right, the cloud and the lock come before the sun; More doesn't repeat the cloud
+    const [s, l, t] = await Promise.all(['#syncb', '#lockb', '.bar #theme'].map(x => A.page.locator(x).boundingBox()));
+    expect(s.x < l.x && l.x < t.x).toBe(true);
+    await expect(b).toHaveAttribute('aria-label', 'Sync with your cloud');
     await A.page.locator('#mbMore').tap();
-    await expect(A.page.locator('#more [data-act="sync"]')).toHaveText('Sync with your cloud');
-    await A.page.locator('#more [data-act="sync"]').tap();
+    await expect(A.page.locator('#more .sbk:not(.sun)').first()).toBeVisible();
+    await expect(A.page.locator('#more [data-act="sync"]')).toHaveCount(0);
+    await A.page.locator('#mbMore').tap();
+    await expect(A.page.locator('#more')).toBeHidden();
+    await b.tap();
     await expect(A.page.locator('#syncd')).toBeVisible();
     await A.page.locator('#syCh [data-c="google"]').tap();
     // away to Google, and back to One Day with the answer
@@ -580,8 +596,8 @@ test.describe('sync with your cloud', () => {
     await idle(A.page);
     await A.page.locator('#syGo').tap();
     expect(texts(await openCopy(drive.files[0].content)).sort()).toEqual(['Plan the trip', 'Water the plants', 'Write the report #work']);
-    await A.page.locator('#mbMore').tap();
-    await expect(A.page.locator('#more [data-act="sync"]')).toHaveText('Synced with Google Drive');
+    await expect(b).toHaveAttribute('aria-label', 'Synced with Google Drive');
+    await expect(b).toHaveAttribute('data-s', 'idle');
     // a sign-in answer that isn't the one this tab asked for is left alone
     await A.page.evaluate(() => sessionStorage.setItem('oneday.signedin', JSON.stringify({ type: 'one-day-oauth', state: 'made-up.r', token: 'stolen' })));
     await A.page.reload();
@@ -972,9 +988,9 @@ test.describe('sync, scanned (axe, WCAG 2.2 AA)', () => {
         expect(violations.map(v => `${v.id}: ${v.nodes.map(n => n.target.join(' ')).join(', ')}`)).toEqual([]);
         await A.ctx.close();
       });
-  test('More on a phone with sync on, light', async ({ browser, baseURL }) => {
+  test('the day on a phone, the cloud and the lock before the sun, light', async ({ browser, baseURL }) => {
     const A = await device(browser, baseURL, new Drive(), { phone: true });
-    await A.page.locator('#mbMore').tap();
+    await expect(A.page.locator('#syncb')).toBeVisible();
     await A.page.waitForTimeout(450);
     const { violations } = await scan(A.page);
     expect(violations.map(v => `${v.id}: ${v.nodes.map(n => n.target.join(' ')).join(', ')}`)).toEqual([]);

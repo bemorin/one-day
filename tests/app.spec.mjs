@@ -2703,18 +2703,20 @@ test.describe('the lock', () => {
 
   test.describe('on a phone', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
-    test('the lock lives in More; the top right keeps the theme alone', async ({ page }) => {
+    test('the cloud and the lock sit before the sun, top right; More keeps what the lock’s button doesn’t do', async ({ page }) => {
       await openLock(page);
+      const order = () =>
+        page.evaluate(() => [...document.querySelector('.bar').children].filter(e => e.getClientRects().length).map(e => e.id || e.className));
+      expect((await order()).slice(-3)).toEqual(['syncb', 'lockb', 'theme']);
+      await expect(page.locator('#lockb')).toHaveAttribute('aria-label', 'Protect with a passphrase');
+      // More doesn't repeat them
       await page.locator('#mbMore').tap();
-      // a button like the backups', across the sheet, its words in the middle
-      const centre = sel => page.locator(sel).evaluate(n => { const r = n.getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.width)]; });
-      await expect(page.locator('#more [data-act="lock"]')).toHaveClass(/sbk-b/);
-      const [lx, lw] = await centre('#more [data-act="lock"]'), [sx, sw] = await centre('#more .sbk:not(.sun)');
-      expect(Math.abs(lx - sx)).toBeLessThan(2);
-      expect(Math.abs(lw - sw)).toBeLessThan(6);
-      const [tx] = await centre('#more [data-act="lock"] span');
-      expect(Math.abs(tx - lx)).toBeLessThan(16);
-      await page.locator('#more [data-act="lock"]').tap();
+      await expect(page.locator('#more .sbk:not(.sun)').first()).toBeVisible();
+      await expect(page.locator('#more [data-act="lock"]')).toHaveCount(0);
+      await expect(page.locator('#more [data-act="sync"]')).toHaveCount(0);
+      await page.locator('#mbMore').tap();
+      await expect(page.locator('#more')).toBeHidden();
+      await page.locator('#lockb').tap();
       // a sheet from the bottom of the screen, its two buttons side by side
       await expect.poll(() => page.locator('#lsForm').evaluate(n => Math.round(innerHeight - n.getBoundingClientRect().bottom))).toBe(0);
       const [c, g] = await Promise.all([page.locator('#lsCancel').boundingBox(), page.locator('#lsGo').boundingBox()]);
@@ -2723,16 +2725,24 @@ test.describe('the lock', () => {
       await fillOn(page);
       await page.locator('#lsGo').tap();
       await expect(page.locator('#lockset')).toBeHidden({ timeout: 20000 });
-      await expect(page.locator('#lockb')).toBeHidden();
+      await expect(page.locator('#lockb')).toHaveAttribute('aria-label', 'Lock now');
       await expect(page.locator('#clock')).toBeHidden();
       await page.locator('#mbMore').tap();
       await expect(page.locator('#more [data-act="lockoff"]')).toBeVisible();
-      // protected: one group of centred buttons, lock now first, turning it off last
+      // protected: one group of centred buttons like the backups', changing the passphrase first, turning it off last
       await expect(page.locator('#more .slk')).toHaveClass(/grp/);
       expect(await page.locator('#more .slk > *').evaluateAll(a => a.every(n => n.classList.contains('sbk-b')))).toBe(true);
-      expect(await page.locator('#more .slk > :first-child').getAttribute('data-act')).toBe('locknow');
+      expect(await page.locator('#more .slk > :first-child').getAttribute('data-act')).toBe('lockchange');
       expect(await page.locator('#more .slk > :last-child').getAttribute('data-act')).toBe('lockoff');
-      await page.locator('#more [data-act="locknow"]').tap();
+      await expect(page.locator('#more [data-act="locknow"]')).toHaveCount(0);
+      const centre = sel => page.locator(sel).evaluate(n => { const r = n.getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.width)]; });
+      const [lx, lw] = await centre('#more [data-act="lockchange"]'), [sx, sw] = await centre('#more .sbk:not(.sun)');
+      expect(Math.abs(lx - sx)).toBeLessThan(2);
+      expect(Math.abs(lw - sw)).toBeLessThan(6);
+      await page.locator('#mbMore').tap();
+      await expect(page.locator('#more')).toBeHidden();
+      // the lock's button locks at once
+      await page.locator('#lockb').tap();
       await expect(page.locator('#lock')).toBeVisible();
       await expect(page.locator('#lockPass')).not.toBeFocused();
     });

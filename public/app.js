@@ -6519,10 +6519,11 @@ try {
         : '') +
       (insHow() ? `<button type="button" class="sins" data-act="install">${IC.install}<span>Install One Day</span></button>` : '') +
       undoBtns() +
-      syMoreBtn() +
+      // on a phone the cloud and the lock sit in the bar at the top: here, only what the lock's button doesn't do
+      (held ? syMoreBtn() : '') +
       `<div class="sbk"><button type="button" class="sbk-b" data-act="import">${IC.up}<span>Import backup</span></button>` +
       `<button type="button" class="sbk-b" data-act="export">${IC.down}<span>${canTop ? 'Export backup' : 'Copy backup'}</span></button></div>` +
-      (CAN_LOCK ? lockBtns() : '') +
+      (CAN_LOCK ? lockBtns(held) : '') +
       // the guide, a button of its own under the backups and the lock: in this window on a phone (back returns to the
       // day), in a tab of its own from a floating window
       `<div class="sgd"><a class="sbk-b" href="guide/"${TOUCH ? '' : ' target="_blank" rel="noopener"'}>${IC.help}<span>How to use One Day</span></a></div>` +
@@ -7798,8 +7799,10 @@ try {
       else TOPB.append($.theme);
     } else {
       BSP.append(CLOCK);
-      // the sun, sync's cloud, then the lock, as above the card
-      (document.getElementById('syncb') || $.lockb).before($.theme);
+      // the sun, sync's cloud, then the lock, as above the card; on a phone the cloud and the lock come before the
+      // sun, which keeps its corner
+      if (W().matchMedia(BARQ).matches) $.lockb.after($.theme);
+      else (document.getElementById('syncb') || $.lockb).before($.theme);
     }
     ddPlace();
   }
@@ -7914,6 +7917,8 @@ try {
   });
   BIG.addEventListener('change', installUI);
   PHONE.addEventListener('change', installUI);
+  // a phone keeps the sun in its corner, the cloud and the lock before it
+  PHONE.addEventListener('change', placeTop);
   if (INS) {
     document.getElementById('insGo').onclick = install;
     document.getElementById('insX').onclick = () => {
@@ -8396,7 +8401,9 @@ try {
     LSM = { mode, done, check, from: ae && ae !== D().body ? ae : null };
     guard('lockset', () => closeLockset(null));
     L.lsT.textContent = t;
-    L.lsSub.textContent = sub;
+    // with sync on, which passphrase opens what: the two can be the same, but they are two
+    L.lsSub.textContent =
+      mode === 'on' && SYS ? `${sub} Your sync passphrase opens your tasks in your cloud; this one opens One Day on this device. They can be the same.` : sub;
     L.lsGo.textContent = go;
     L.lsGo.classList.toggle('danger', mode === 'reset');
     L.lsOld.hidden = !old;
@@ -8789,9 +8796,11 @@ try {
       ['lockoff', IC.unlock, 'Turn off protection'],
     ].filter(Boolean);
   }
-  // In More on a phone: centred buttons like the backups'. Several stack in one rounded group, like an action sheet.
-  function lockBtns() {
-    const a = lockActs();
+  // In More: centred buttons like the backups'. Several stack in one rounded group, like an action sheet. On a phone the
+  // lock's own button sits in the bar at the top, so More keeps what it doesn't do; behind ⋮ (the bar folded), all.
+  function lockBtns(all) {
+    const a = lockActs().filter(([k]) => all || (k !== 'lock' && k !== 'locknow'));
+    if (!a.length) return '';
     return `<div class="slk${a.length > 1 ? ' grp' : ''}">${a
       .map(([k, i, l]) => `<button type="button" class="sbk-b" data-act="${k}">${i}<span>${l}</span></button>`)
       .join('')}</div>`;
@@ -10107,7 +10116,6 @@ try {
     }
     // a button more in the card's bar: it folds again if they no longer fit
     if (SYNCB && SYNCB.hidden !== had) barFit();
-    $.mbMore.classList.toggle('att', syAtt());
     // ⋮ shows it only where the bar is folded, its drawer holding sync's button
     $.kb.classList.toggle('att', syAtt());
     if (SYD && SYD.step === 'on') syDraw();
@@ -10282,12 +10290,13 @@ try {
         SY.sySt.innerHTML = SY.sySt.dataset.h = h;
         if (had) (SY.sySt.querySelector('button') || SY.syGo).focus({ preventScroll: true });
       }
+      // what to choose on the other devices, in bold, as it reads on screen there
       SY.syLi.innerHTML = [
-        `${CL[c].co} sees one file and when it changes, never a task.`,
-        `On your other devices, open One Day, choose Sync with your cloud, then ${n} with the same account and the same passphrase.`,
+        `${esc(CL[c].co)} sees one file and when it changes, never a task.`,
+        `On your other devices, open <b>One Day</b>, choose <b>Sync with your cloud</b>, then <b>${esc(CL[c].label || n)}</b> with the same account and the same passphrase.`,
         'Offline, your changes wait here, and go up once you’re back online.',
       ]
-        .map(x => `<li>${esc(x)}</li>`)
+        .map(x => `<li>${x}</li>`)
         .join('');
       go = 'Done';
       no = 'Stop syncing';
