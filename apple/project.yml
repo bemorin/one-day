@@ -1,0 +1,104 @@
+# One Day for iPhone, iPad and Mac. XcodeGen turns this file into OneDay.xcodeproj, which git does not keep:
+#   brew install xcodegen
+#   cd apple && xcodegen generate
+# The app carries the site itself (../public): it loads nothing from the web. See README.md.
+name: OneDay
+options:
+  bundleIdPrefix: com.bemorin
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "14.0"
+  developmentLanguage: en
+  createIntermediateGroups: true
+settings:
+  base:
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "6.0"
+    SWIFT_APPROACHABLE_CONCURRENCY: YES
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+    CODE_SIGN_STYLE: Automatic
+    # The team that signs the app (its Team ID): empty here, given by whoever builds a signed copy.
+    DEVELOPMENT_TEAM: ""
+
+# The site (../public) goes into the app as one folder, as it is published; bridge.js and the privacy manifest are
+# resources too.
+targets:
+  OneDay-iOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: Shared
+        excludes: ["bridge.js", "PrivacyInfo.xcprivacy"]
+      - path: Shared/bridge.js
+        buildPhase: resources
+      - path: Shared/PrivacyInfo.xcprivacy
+        buildPhase: resources
+      - path: ../public
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_NAME: One Day
+        PRODUCT_MODULE_NAME: OneDay
+        PRODUCT_BUNDLE_IDENTIFIER: com.bemorin.oneday
+        INFOPLIST_FILE: iOS/Info.plist
+        CODE_SIGN_ENTITLEMENTS: iOS/OneDay.entitlements
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    scheme:
+      testTargets: [OneDayTests-iOS]
+
+  OneDay-macOS:
+    type: application
+    platform: macOS
+    sources:
+      - path: Shared
+        excludes: ["bridge.js", "PrivacyInfo.xcprivacy"]
+      - path: Shared/bridge.js
+        buildPhase: resources
+      - path: Shared/PrivacyInfo.xcprivacy
+        buildPhase: resources
+      - path: ../public
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_NAME: One Day
+        PRODUCT_MODULE_NAME: OneDay
+        PRODUCT_BUNDLE_IDENTIFIER: com.bemorin.oneday
+        INFOPLIST_FILE: macOS/Info.plist
+        CODE_SIGN_ENTITLEMENTS: macOS/OneDay.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        COMBINE_HIDPI_IMAGES: YES
+    scheme:
+      testTargets: [OneDayTests-macOS]
+
+  # The tests run inside the app (its bundle carries the site), named here because the app's name has a space.
+  OneDayTests-iOS:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [Tests]
+    dependencies:
+      - target: OneDay-iOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bemorin.oneday.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/One Day.app/One Day"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+  OneDayTests-macOS:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Tests]
+    dependencies:
+      - target: OneDay-macOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bemorin.oneday.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/One Day.app/Contents/MacOS/One Day"
+        BUNDLE_LOADER: "$(TEST_HOST)"
