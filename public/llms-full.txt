@@ -17,7 +17,7 @@ Write what today is for in **Add a task** and press Enter. Tick each task as you
 That’s all there is to it. The rest of this page is for the days when you want a little more.
 
 ![One Day on a computer: Tuesday 14 April, today, 1 of 6 done, with tasks such as Prepare the weekly review and Book the train to Lisbon, their tags in colour, and Add a task at the bottom.](https://day.bemorin.com/guide/shots/day-light.webp)
-![The same day on a phone, with Search, Timer, a red add button, Send day and More in a bar at the bottom.](https://day.bemorin.com/guide/shots/phone-day-light.webp)
+![The same day on a phone, the cloud, the lock and the sun at the top right, and Search, Timer, a red add button, Send day and More in a bar at the bottom.](https://day.bemorin.com/guide/shots/phone-day-light.webp)
 
 *Today in One Day: a card on a computer, the whole screen on a phone, with a bar under your thumb.*
 
@@ -265,13 +265,13 @@ On a phone, One Day fills the screen and keeps everything within reach of your t
 - **Timer** opens as a sheet, and the bar shows the time left while it runs;
 - the red **+** opens the field to add a task, just above the keyboard;
 - **Send day** sends the day’s unfinished tasks;
-- **More** holds installing, sync, backups, the lock and the links.
+- **More** holds installing, backups, the lock’s settings and the links.
 
 Swipe sideways to change day. Tap a task to open it; hold it, then drag, to reorder it. A sheet or the drawer closes when you drag it down. On Android, the back button closes what is open first (a sheet, the drawer, an open task) before it leaves One Day.
 
 ![On a phone, the field to add a task rises from the bottom, with Book a table for Friday typed in and a Today chip.](https://day.bemorin.com/guide/shots/phone-add-light.webp)
 ![On a phone, search open as a drawer over the day, with two results for lisbon.](https://day.bemorin.com/guide/shots/phone-search-light.webp)
-![On a phone, More: Install One Day in red, Sync with your cloud, Import backup, Export backup, Protect with a passphrase, How to use One Day, then the links.](https://day.bemorin.com/guide/shots/phone-more-light.webp)
+![On a phone, More: Install One Day in red, Import backup, Export backup, How to use One Day, then the links.](https://day.bemorin.com/guide/shots/phone-more-light.webp)
 
 ### Install it
 
@@ -330,7 +330,7 @@ To have the same tasks on your phone and your computer, One Day can keep them in
 
 *Pick your cloud, sign in there and choose a passphrase. Then sync says where it stands.*
 
-1. Choose **Sync with your cloud**: the cloud beside the lock, above the card on a large screen or in the card’s bar in a narrower window; in More on a phone.
+1. Choose **Sync with your cloud**: the cloud beside the lock, above the card on a large screen or in the card’s bar in a narrower window or on a phone.
 2. Pick your cloud and sign in on its own page. One Day asks for its own folder there, and nothing else: a hidden folder in Google Drive, One Day’s folder under **Apps** in Dropbox and OneDrive.
 3. Choose a sync passphrase, 12 characters or more. On each of your other devices, do the same with the same account, and type the same passphrase.
 
@@ -397,7 +397,7 @@ Things, Apple Reminders and Microsoft To Do have no export One Day can read. Sel
 
 ### The lock
 
-If someone else might open your computer or phone, a passphrase keeps your tasks to yourself. Choose **Protect with a passphrase**: the lock at the top right on a large screen, in the **⋮** menu of a narrower window, or in More on a phone. One Day then encrypts your tasks in the browser.
+If someone else might open your computer or phone, a passphrase keeps your tasks to yourself. Choose **Protect with a passphrase**: the lock at the top right on a large screen or a phone, or in the **⋮** menu of a narrower window. One Day then encrypts your tasks in the browser.
 
 From then on, it asks for the passphrase when it opens, after five minutes away, and as soon as you press L or click the lock. Where your device can, your fingerprint, face or device PIN opens it too; setting that up asks for the passphrase once.
 

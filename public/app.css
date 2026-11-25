@@ -3520,9 +3520,7 @@ mark {
   #sb,
   #tmb,
   #sendd,
-  #float,
-  #syncb,
-  #lockb {
+  #float {
     display: none !important;
   }
   /* no stacking context: the timer sheet can rise above the scrim */
@@ -4105,6 +4103,10 @@ mark {
 .syli li + li {
   margin-top: 6px;
 }
+.syli b {
+  font-weight: 650;
+  color: var(--ink);
+}
 @keyframes sybreath {
   to {
     opacity: 0.35;
@@ -4115,15 +4117,11 @@ mark {
     animation: none;
   }
 }
-/* sync waits on you: a red dot where you find it */
-.chip.att,
-.sbk-b.att,
-.mb.att {
+/* sync waits on you: a red dot where you find it (behind ⋮, sync's button in the drawer) */
+.sbk-b.att {
   position: relative;
 }
-.chip.att::after,
-.sbk-b.att::after,
-.mb.att::after {
+.sbk-b.att::after {
   content: '';
   position: absolute;
   top: 5px;
@@ -4133,10 +4131,6 @@ mark {
   border-radius: 50%;
   background: var(--red);
   box-shadow: 0 0 0 2px var(--bg);
-}
-.mb.att::after {
-  top: 6px;
-  right: calc(50% - 16px);
 }
 /* Sync's cloud, beside the lock (a pill above the card on a large screen, a button in the card's bar otherwise): off,
    just the cloud; on, a tick when all is in, a slash offline, a red dot when it waits on you; at work, its outline
@@ -4174,11 +4168,6 @@ mark {
 }
 .syb[data-s='busy'] .sc-c {
   animation: sybreath 1.2s ease-in-out infinite alternate;
-}
-@keyframes sybreath {
-  to {
-    opacity: 0.35;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .syb[data-s='busy'] .sc-c {
