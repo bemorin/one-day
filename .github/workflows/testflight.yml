@@ -1,7 +1,9 @@
 name: TestFlight
 
-# One Day for iPhone and iPad, signed and sent to TestFlight (App Store Connect), from GitHub's Macs. Run by hand only
-# (Actions → TestFlight → Run workflow), once the repository holds these secrets, all from the Apple Developer account:
+# One Day for iPhone and iPad, signed and sent to TestFlight (App Store Connect), from GitHub's Macs. It runs when a tag
+# testflight-<n> is pushed (the commit it names is the one sent), or by hand (Actions → TestFlight → Run workflow) once
+# this file is on the default branch, where GitHub looks for it. It needs these secrets, all from the Apple Developer
+# account:
 #   APPLE_TEAM_ID   the Team ID
 #   ASC_KEY_ID      an App Store Connect API key's ID (a Team key with the Admin role: Xcode makes the signing
 #                   certificate and profile with it)
@@ -10,6 +12,8 @@ name: TestFlight
 # The build number is the run's number, so each upload is a new build. Nothing here is published: TestFlight builds
 # reach only the testers chosen in App Store Connect.
 on:
+  push:
+    tags: ['testflight-*']
   workflow_dispatch:
 
 permissions:
