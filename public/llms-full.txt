@@ -435,7 +435,7 @@ Clear this site’s data in your browser’s settings. With the lock on, **Forgo
 
 #### Is there an account, a subscription or ads?
 
-None of them. One Day is free and open source, under the MIT licence, and its code is on [GitHub](https://github.com/bemorin/one-day). If it helps your days, you can [buy me a croissant](https://ko-fi.com/bemorin).
+None of them. One Day is free and open source, under the MIT licence, and its code is on [GitHub](https://github.com/bemorin/one-day). If it helps your days, you can [buy me a coffee](https://ko-fi.com/bemorin).
 
 ### Something unclear?
 

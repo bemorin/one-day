@@ -750,9 +750,9 @@ test('a tag takes a colour in two taps from the filter, wears it everywhere, and
   expect(JSON.parse(await page.evaluate(() => localStorage.getItem('oneday.v1'))).tags).toEqual({});
 });
 
-test('the footer: the croissant sits midway between dogood.day and the links', async ({ page }) => {
+test('the footer: the coffee sits midway between dogood.day and the links', async ({ page }) => {
   await open(page);
-  // the pills: the croissant's sits midway between the other two
+  // the pills: the coffee's sits midway between the other two
   const [p, k, n] = await Promise.all(['#foot .promo', '#foot .kofi', '#foot nav'].map(x => page.locator(x).boundingBox()));
   const left = k.x - (p.x + p.width),
     right = n.x - (k.x + k.width);
@@ -1790,8 +1790,8 @@ test.describe('in a narrow window with a mouse', () => {
     await expect(about).toBeVisible();
     await expect(about.locator('.links a')).toHaveCount(5);
     await expect(about.locator('.links a').first()).toHaveText('Guide');
-    await expect(about.locator('.kofi')).toHaveText('This app is free. If you want, buy me a 🥐.');
-    await expect(about.locator('.kofi')).toHaveAttribute('aria-label', 'This app is free. If you want, buy me a croissant on Ko-fi.');
+    await expect(about.locator('.kofi')).toHaveText('This app is free. If you want, buy me a ☕.');
+    await expect(about.locator('.kofi')).toHaveAttribute('aria-label', 'This app is free. If you want, buy me a coffee on Ko-fi.');
     expect(await about.evaluate(n => getComputedStyle(n).alignItems)).toBe('center');
   });
 });
@@ -2036,7 +2036,7 @@ test.describe('on a touch screen', () => {
     await expect(page.locator('#mbSearch')).toHaveAttribute('aria-expanded', 'false');
   });
 
-  test('More: its links to dogood.day and the croissant are buttons like the backups, with no rules between', async ({ page }) => {
+  test('More: its links to dogood.day and the coffee are buttons like the backups, with no rules between', async ({ page }) => {
     await open(page);
     await page.locator('#mbMore').tap();
     await expect(page.locator('#more')).toBeVisible();
@@ -2153,8 +2153,8 @@ test.describe('on a touch screen', () => {
     await expect(page.locator('#more .sgd a')).not.toHaveAttribute('target', /.+/);
     await expect(page.locator('#more .slinks a')).toHaveCount(4);
     await expect(page.locator('#more .slinks a').first()).toHaveText('Privacy');
-    // the croissant says why it is there, on a row of its own under dogood.day
-    await expect(page.locator('#more .spromo.kofi')).toHaveText('This app is free. If you want, buy me a 🥐.');
+    // the coffee says why it is there, on a row of its own under dogood.day
+    await expect(page.locator('#more .spromo.kofi')).toHaveText('This app is free. If you want, buy me a ☕.');
     await expect(page.locator('#more .spromo:not(.kofi) + .spromo.kofi')).toHaveCount(1);
     await page.locator('#scrim').tap({ position: { x: 60, y: 120 } });
     await expect(page.locator('#more')).toBeHidden();

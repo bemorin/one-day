@@ -188,7 +188,7 @@ Current Chrome, Edge, Safari and Firefox. Keep-on-top needs Chrome or Edge 116 o
 
 [Ben Morin](https://bemorin.com) · [@benmorinbm on X](https://x.com/benmorinbm). If you also keep a journal, try [dogood.day](https://dogood.day).
 
-If One Day helps your days, you can [buy me a croissant](https://ko-fi.com/bemorin) 🥐 or [sponsor it on GitHub](https://github.com/sponsors/bemorin).
+If One Day helps your days, you can [buy me a coffee](https://ko-fi.com/bemorin) ☕ or [sponsor it on GitHub](https://github.com/sponsors/bemorin).
 
 ## License
 

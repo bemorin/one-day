@@ -3040,8 +3040,8 @@ try {
       links = [...f.querySelectorAll('nav a')].map(a => a.cloneNode(true).outerHTML).join('');
     return `<div class="about">${promo ? promo.cloneNode(true).outerHTML : ''}${kofi ? freeLine(kofi, 'kofi') : ''}<p class="links">${links}</p></div>`;
   }
-  // Under the card the croissant speaks for itself; small screens have room for the whole sentence. The words it
-  // shows come first, in the same order, in the name a screen reader says: the croissant is drawn last and named there.
+  // Under the card the coffee speaks for itself; small screens have room for the whole sentence. The words it shows
+  // come first, in the same order, in the name a screen reader says: the cup is drawn last and named there.
   function freeLine(k, cls) {
     const low = t => t.charAt(0).toLowerCase() + t.slice(1),
       label = low(k.getAttribute('aria-label') || k.textContent.trim());
