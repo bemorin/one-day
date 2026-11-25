@@ -888,6 +888,52 @@ test.describe('sync with your cloud', () => {
     await expect(row(A.page, 'Pay the rent')).toHaveCount(1);
     await A.ctx.close();
   });
+
+  test('a day whose open tasks were carried on stays out of the full days on the other device, after a merge', async ({ browser, baseURL }) => {
+    const drive = new Drive(),
+      y = plus(-1),
+      seed = {
+        days: {
+          [y]: {
+            u: 1,
+            tasks: [
+              { id: 'y1', text: 'Done yesterday', done: true, at: 1 },
+              { id: 'y2', text: 'Left yesterday', done: false },
+            ],
+          },
+          [today()]: { u: 1, tasks: [{ id: 't1', text: 'Today’s own task', done: false }] },
+        },
+      },
+      A = await device(browser, baseURL, drive, { seed }),
+      B = await device(browser, baseURL, drive, { seed }),
+      days = page => page.evaluate(() => JSON.parse(localStorage.getItem('oneday.v1')).days);
+    await connect(A.page, 'google');
+    await done(A.page);
+    await connect(B.page, 'google', { join: true });
+    await done(B.page);
+    // on A, yesterday's open task comes to today: yesterday keeps its mark, and its one ticked task makes no full day
+    await A.page.locator('#bring').click();
+    await expect(row(A.page, 'Left yesterday')).toBeVisible();
+    expect((await days(A.page))[y].moved).toBe(1);
+    await expect(A.page.locator('#dd')).toBeHidden();
+    await syncNow(A.page, drive);
+    // B changed something of its own meanwhile: the two are merged, task by task, and the mark comes with them
+    await add(B.page, 'Written on B');
+    await syncNow(B.page, drive);
+    await expect(row(B.page, 'Left yesterday')).toBeVisible();
+    await expect(row(B.page, 'Written on B')).toBeVisible();
+    const b = await days(B.page);
+    expect(b[y].tasks.map(t => t.text)).toEqual(['Done yesterday']);
+    expect(b[y].moved).toBe(1);
+    await expect(B.page.locator('#dd')).toBeHidden();
+    // and the copy in the cloud keeps it, sealed with the rest
+    const copy = await openCopy(drive.files[0].content);
+    expect(copy.days[y].moved).toBe(1);
+    expect(copy.days[today()].moved).toBeUndefined();
+    expect([...A.errors, ...B.errors]).toEqual([]);
+    await A.ctx.close();
+    await B.ctx.close();
+  });
 });
 
 test.describe('sync, scanned (axe, WCAG 2.2 AA)', () => {

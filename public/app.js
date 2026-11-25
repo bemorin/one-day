@@ -8931,8 +8931,10 @@ try {
      - an edit beats a deletion; a task deleted on one side and left alone on the other goes everywhere;
      - repeats merge by rule, the days they skip added up; tag colours by tag; occurrences still to come that nobody
        touched follow their repeat as it now is;
+     - a day's mark that open tasks were carried from it (moved, which keeps it out of the full days) follows the side
+       that changed it;
      - with no base (a first sync, or a copy there that doesn't come from this device's last one), nothing is deleted:
-       both sides are kept.
+       both sides are kept, and a mark on either side stays.
      Offline, changes wait here, and go up once the connection is back. While locked, nothing syncs: the key is sealed. */
   const SYF = 'one-day.json',
     SYCH = 'one-day-oauth',
@@ -9581,10 +9583,15 @@ try {
       );
     return v === undefined ? 'null' : JSON.stringify(v);
   }
-  // what the tasks say, without when each day changed: days with tasks, repeats, tag colours
+  // what the tasks say, without when each day changed: days with tasks (and the mark of one whose open tasks were
+  // carried on), repeats, tag colours
   function syCanon(st) {
     const d = {};
-    for (const k in st.days) if (st.days[k].tasks.length) d[k] = st.days[k].tasks;
+    for (const k in st.days) {
+      const x = st.days[k];
+      if (x.moved) d[k] = { t: x.tasks, m: 1 };
+      else if (x.tasks.length) d[k] = x.tasks;
+    }
     return syJ({ d, r: st.rules, t: st.tags || {} });
   }
   async function syHash(st) {
@@ -9729,6 +9736,11 @@ try {
         [a, z] = syLead(ids(L), ids(R), B && B.days[k] ? ids(B) : null, uOf(L, k) >= uOf(R, k));
       if (!keep.size && !L.days[k] && !R.days[k]) continue;
       days[k] = { u: Math.max(uOf(L, k), uOf(R, k)), tasks: syOrder(a, z, keep).map(id => out.get(id).t) };
+      // the day's mark (moved: open tasks carried from it, so it can't be a full day) follows the side that changed
+      // it, an undo included; with nothing to tell who did, a mark on either side stays
+      const mv = st => !!(st && st.days[k] && st.days[k].moved),
+        moved = B && B.days[k] ? pick(mv(B), mv(L), mv(R), uOf(L, k) >= uOf(R, k), true) : mv(L) || mv(R);
+      if (moved) days[k].moved = 1;
     }
     // repeats: each as a whole, except the days it skips, which add up (one put back on a side goes)
     const rules = {},
@@ -9995,7 +10007,9 @@ try {
     const days = cleanDays(A.days),
       rules = cleanRules(A.rules),
       tags = cleanTags(A.tags),
-      one = k => syJ(days[k] ? days[k].tasks : []) !== syJ(now.days[k] ? now.days[k].tasks : []),
+      // a day changed: its tasks, or its mark (see doneDays)
+      dk = (ds, k) => (ds[k] ? [ds[k].tasks, !!ds[k].moved] : [[], false]),
+      one = k => syJ(dk(days, k)) !== syJ(dk(now.days, k)),
       changed = Object.keys({ ...days, ...now.days }).filter(one),
       rulesNew = !syEq(rules, now.rules);
     S.days = days;
