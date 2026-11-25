@@ -21,6 +21,14 @@ export class Drive {
     this.asked = [];
     this.bad = [];
     this.down = false;
+    // who signs in: each token is for the account picked when it was given (one account, unless a test switches)
+    this.user = 'g-user-1';
+    this.users = new Map();
+    // a promise the sign-in waits on (a test slips something in while the window is open), and a hook run when the
+    // version is checked before a write (another device writes just then)
+    this.hold = null;
+    this.onCheck = null;
+    this.checks = 0;
   }
   async route(ctx) {
     await ctx.route('https://accounts.google.com/o/oauth2/v2/auth**', r => this.auth(r));
@@ -30,26 +38,30 @@ export class Drive {
       return r.fulfill({ status: 200, body: '' });
     });
   }
-  auth(route) {
+  async auth(route) {
+    if (this.hold) await this.hold;
     const p = new URL(route.request().url()).searchParams,
       tok = 'g-token-' + ++this.t;
     this.asked.push(Object.fromEntries(p));
     if (p.get('response_type') !== 'token' || p.get('scope') !== GS) this.bad.push('authorize: ' + p);
     this.tokens.add(tok);
+    this.users.set(tok, this.user);
     const back = new URLSearchParams({ access_token: tok, token_type: 'Bearer', expires_in: '3599', scope: GS, state: p.get('state') });
     return route.fulfill({ status: 302, headers: { location: `${p.get('redirect_uri')}#${back}` } });
   }
   find(id) {
     return this.files.find(f => f.id === id);
   }
-  api(route) {
+  async api(route) {
     const req = route.request(),
       u = new URL(req.url()),
-      m = req.method();
+      m = req.method(),
+      tok = (req.headers().authorization || '').replace(/^Bearer /, '');
     if (m === 'OPTIONS') return route.fulfill({ status: 204, headers: PRE });
     if (this.down) return route.abort('internetdisconnected');
-    if (!this.tokens.has((req.headers().authorization || '').replace(/^Bearer /, '')))
-      return json(route, 401, { error: { code: 401, message: 'Invalid Credentials' } });
+    if (!this.tokens.has(tok)) return json(route, 401, { error: { code: 401, message: 'Invalid Credentials' } });
+    // the account a token is for
+    if (u.pathname === '/drive/v3/about' && m === 'GET') return json(route, 200, { user: { permissionId: this.users.get(tok) || this.user } });
     const id = (u.pathname.match(/\/files\/([^/]+)$/) || [])[1];
     if (u.pathname === '/drive/v3/files' && m === 'GET') {
       this.lists++;
@@ -75,7 +87,16 @@ export class Drive {
       return json(route, 200, { id: f.id, version: String(f.ver) });
     }
     if (f && m === 'GET' && u.searchParams.get('alt') === 'media') return route.fulfill({ status: 200, headers: CORS, body: f.content });
-    if (f && m === 'GET') return json(route, 200, { version: String(f.ver) });
+    if (f && m === 'GET') {
+      // the version checked just before a write
+      this.checks++;
+      if (this.onCheck) {
+        const h = this.onCheck;
+        this.onCheck = null;
+        await h(this, f);
+      }
+      return json(route, 200, { version: String(f.ver) });
+    }
     if (f && m === 'DELETE') {
       this.files = this.files.filter(x => x !== f);
       return route.fulfill({ status: 204, headers: CORS, body: '' });
@@ -203,6 +224,9 @@ export class OneDrive {
     this.bad = [];
     this.stale = 0;
     this.downloads = 0;
+    // the personal OneDrive signed in to, and a hook run when a write arrives (another device writes just before it)
+    this.drive = 'od-drive-1';
+    this.onPut = null;
   }
   async route(ctx) {
     await ctx.route('https://login.microsoftonline.com/**', r => this.login(r));
@@ -236,13 +260,20 @@ export class OneDrive {
     this.refresh.add(r);
     return json(route, 200, { token_type: 'Bearer', access_token: a, expires_in: 3600, refresh_token: r });
   }
-  graph(route) {
+  async graph(route) {
     const req = route.request(),
       u = new URL(req.url()),
       m = req.method(),
       p = decodeURIComponent(u.pathname);
     if (m === 'OPTIONS') return route.fulfill({ status: 204, headers: PRE });
     if (!this.tokens.has((req.headers().authorization || '').replace(/^Bearer /, ''))) return json(route, 401, { error: { code: 'InvalidAuthenticationToken' } });
+    // the app folder, and the drive it is in (who a sign-in is for)
+    if (p === '/v1.0/me/drive/special/approot' && m === 'GET') return json(route, 200, { id: 'APPROOT', parentReference: { driveId: this.drive } });
+    if (this.item && p === `/v1.0/me/drive/items/${this.item.id}/content` && m === 'PUT' && this.onPut) {
+      const h = this.onPut;
+      this.onPut = null;
+      await h(this);
+    }
     const it = this.item,
       out = () => ({ id: it.id, eTag: it.eTag, file: {} });
     if (p === '/v1.0/me/drive/special/approot:/one-day.json' && m === 'GET') {

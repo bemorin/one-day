@@ -347,7 +347,7 @@ Nothing you write is lost. One Day merges task by task:
 
 #### Offline, and signing in again
 
-Offline, One Day works as always: your changes are kept on the device, and go up once you’re back online. Each cloud decides how long One Day stays signed in: **Dropbox** until you stop syncing, **OneDrive** a day, **Google Drive** an hour. After that, One Day asks you to sign in again, in a click, and your changes wait meanwhile.
+Offline, One Day works as always: your changes are kept on the device, and go up once you’re back online. Each cloud decides how long One Day stays signed in: **Dropbox** until you stop syncing, **OneDrive** a day, **Google Drive** an hour. After that, One Day asks you to sign in again, in a click, and your changes wait meanwhile. Sign in with the same account: One Day refuses another one, which would hold another copy.
 
 #### With the lock
 

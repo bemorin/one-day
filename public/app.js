@@ -7337,11 +7337,13 @@ try {
         do {
           sealAgain = false;
           if (locked || !vault || !DEK) break;
-          // sync's key and base go with the tasks they belong to, in the same write
+          // sync's key and base go with the tasks they belong to, in the same write, both taken at the same moment
           const dek = DEK,
             kid = KID,
-            data = await sealWith(dek, plain()),
-            sync = SYS ? await sealWith(dek, TE.encode(JSON.stringify(SYS))) : null;
+            tasksJ = plain(),
+            sysJ = SYS ? TE.encode(JSON.stringify(SYS)) : null,
+            data = await sealWith(dek, tasksJ),
+            sync = sysJ ? await sealWith(dek, sysJ) : null;
           if (locked || !vault) break;
           // this tab took a new key meanwhile (a new passphrase): sealed again, with that one
           if (DEK !== dek || KID !== kid) {
@@ -9023,6 +9025,8 @@ try {
         base: typeof o.base === 'string' ? o.base : null,
         anc: typeof o.anc === 'string' ? o.anc : null,
         lh: typeof o.lh === 'string' ? o.lh : '',
+        // the account it syncs with, as the cloud names it: a sign-in to another one is refused
+        acct: typeof o.acct === 'string' && o.acct.length <= 200 ? o.acct : '',
       };
     // the sign-in to the cloud: its token, and what renews it where the cloud allows
     if (a && typeof a.a === 'string' && (+a.ax > 0 || (typeof a.r === 'string' && a.r)))
@@ -9031,13 +9035,44 @@ try {
   }
 
   /* talking to a cloud: no cookie, no referrer, and nothing kept by the browser's cache */
+  const SYTO = 45e3;
   async function syFetch(url, o = {}) {
-    // a request that gets no answer is given up after 45 seconds: nothing waits on it for ever
-    const ac = new AbortController(),
-      t = setTimeout(() => ac.abort(), 45e3);
+    // A request is given up after 45 seconds without news: no answer, or an answer that stops coming. Its body is read
+    // here, under the same watch (each piece that arrives gives it 45 seconds more), so nothing waits on it for ever.
+    const ac = new AbortController();
+    let t = setTimeout(() => ac.abort(), SYTO);
+    const more = () => {
+      clearTimeout(t);
+      t = setTimeout(() => ac.abort(), SYTO);
+    };
     try {
-      return await fetch(url, { ...o, signal: ac.signal, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
+      const r = await fetch(url, { ...o, signal: ac.signal, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
+      // nothing to read: an answer the page can't see into (no-cors), or one that has no body
+      if (r.type === 'opaque' || !r.body || [204, 205, 304].includes(r.status)) return r;
+      if (+r.headers.get('content-length') > 20e6) throw new SyErr('big');
+      const rd = r.body.getReader(),
+        parts = [];
+      let n = 0;
+      for (;;) {
+        const { done, value } = await rd.read();
+        if (done) break;
+        n += value.length;
+        if (n > 20e6) {
+          ac.abort();
+          throw new SyErr('big');
+        }
+        parts.push(value);
+        more();
+      }
+      const body = new Uint8Array(n);
+      let at = 0;
+      for (const p of parts) {
+        body.set(p, at);
+        at += p.length;
+      }
+      return new Response(body, { status: r.status, statusText: r.statusText, headers: r.headers });
     } catch (e) {
+      if (e instanceof SyErr) throw e;
       // no connection at all, or one that didn't get through (a network in the way, the cloud down, no answer)
       throw new SyErr(navigator.onLine ? 'unreachable' : 'offline');
     } finally {
@@ -9063,7 +9098,7 @@ try {
       syQuiet();
       return;
     }
-    SYPEND = a ? { cloud: a.cloud, a: a.a || '', ax: +a.ax || 0, r: a.r || '', rx: +a.rx || 0 } : null;
+    SYPEND = a ? { cloud: a.cloud, a: a.a || '', ax: +a.ax || 0, r: a.r || '', rx: +a.rx || 0, acct: a.acct || '' } : null;
   }
   const syLock = (name, fn) => (navigator.locks ? navigator.locks.request(name, fn) : fn());
   // a token to call with: the one kept while it lasts (a minute's margin), else a new one where the cloud renews it;
@@ -9118,6 +9153,18 @@ try {
     if (!r.ok || !j || typeof j.access_token !== 'string') throw new SyErr('http', r.status);
     return j;
   }
+  // which account a fresh token is for, as the cloud names it (Google's Drive user, OneDrive's drive): what a sign-in
+  // again must match. Unknown (no answer), it is simply not checked this time.
+  async function syWho(url, tok, pick) {
+    try {
+      const r = await syFetch(url, { headers: { Authorization: 'Bearer ' + tok } }),
+        j = r.ok ? await r.json() : null,
+        v = j && pick(j);
+      return typeof v === 'string' && v.length <= 200 ? v : '';
+    } catch (e) {
+      return '';
+    }
+  }
   const syTok = (j, s) => ({ a: j.access_token, ax: Date.now() + (+j.expires_in || s) * 1000 }),
     // where each cloud sends you back: One Day's own page for it, never anywhere else
     syBack = () => new URL('oauth/', location.href).href.replace(/[?#].*$/, '');
@@ -9152,7 +9199,7 @@ try {
     async take(ans) {
       if (!ans.token) throw new SyErr(ans.error === 'access_denied' ? 'denied' : 'signin');
       if (ans.scope && !ans.scope.split(/[\s+]+/).includes(GS)) throw new SyErr('scope');
-      return { a: ans.token, ax: Date.now() + (+ans.expires || 3600) * 1000 };
+      return { a: ans.token, ax: Date.now() + (+ans.expires || 3600) * 1000, acct: await syWho(`${GD}/about?fields=user(permissionId)`, ans.token, j => j.user && j.user.permissionId) };
     },
     async list() {
       const q = new URLSearchParams({ spaces: 'appDataFolder', q: `name = '${SYF}'`, fields: 'files(id,version)', orderBy: 'createdTime', pageSize: '20' }),
@@ -9247,7 +9294,11 @@ try {
         code_verifier: ver,
         redirect_uri: syBack(),
       });
-      return { ...syTok(j, 14400), r: typeof j.refresh_token === 'string' ? j.refresh_token : '' };
+      return {
+        ...syTok(j, 14400),
+        r: typeof j.refresh_token === 'string' ? j.refresh_token : '',
+        acct: typeof j.account_id === 'string' && j.account_id.length <= 200 ? j.account_id : '',
+      };
     },
     async renew(rt) {
       const j = await syRenew(`${DA}/oauth2/token`, { grant_type: 'refresh_token', refresh_token: rt, client_id: CLOUD_IDS.dropbox });
@@ -9336,7 +9387,8 @@ try {
         code_verifier: ver,
         scope: MS,
       });
-      return { ...syTok(j, 3600), r: typeof j.refresh_token === 'string' ? j.refresh_token : '', rx: Date.now() + 864e5 };
+      const t = { ...syTok(j, 3600), r: typeof j.refresh_token === 'string' ? j.refresh_token : '', rx: Date.now() + 864e5 };
+      return { ...t, acct: await syWho(`${MG}/special/approot?$select=id,parentReference`, t.a, x => x.parentReference && x.parentReference.driveId) };
     },
     async renew(rt) {
       const j = await syRenew(`${ML}/token`, { client_id: CLOUD_IDS.onedrive, grant_type: 'refresh_token', refresh_token: rt, scope: MS });
@@ -10072,6 +10124,8 @@ try {
         return `Signing in to ${n} didn’t finish. Try again.`;
       case 'auth':
         return `Sign in to ${n} again to sync.`;
+      case 'account':
+        return `That’s not the ${CL[c].co} account this device syncs with. Sign in with the one you chose when you turned sync on.`;
       case 'full':
         return `Your ${n} is full: make room there, and sync goes on.`;
       case 'slow':
@@ -10387,9 +10441,14 @@ try {
   }
   // signed in: on with sync (the cloud in use), or what the cloud holds says what comes next
   async function syGot(c, tok) {
+    // Signed in again, it must be the account this device syncs with: another one holds another copy (or none), and
+    // syncing there would leave the other devices behind without a word. Nothing changes then.
+    if (SYS && SYS.cloud === c && SYS.acct && tok.acct && tok.acct !== SYS.acct) throw new SyErr('account');
     const a = syAuth();
     syKeepAuth({ v: 1, cloud: c, ...tok, r: tok.r || (a && a.cloud === c ? a.r || '' : '') });
     if (SYS && SYS.cloud === c) {
+      // a device that synced before accounts were known learns its own now
+      if (!SYS.acct && tok.acct) SYS.acct = tok.acct;
       syTold = '';
       SYST.s = 'idle';
       syUI();
@@ -10430,7 +10489,10 @@ try {
     } else {
       // the sign-in held meanwhile goes with the key, kept with the tasks from now on
       const p = SYPEND && SYPEND.cloud === sys.cloud ? SYPEND : null;
-      if (p) sys.auth = { a: p.a, ax: p.ax, r: p.r, rx: p.rx };
+      if (p) {
+        sys.auth = { a: p.a, ax: p.ax, r: p.r, rx: p.rx };
+        sys.acct = p.acct || '';
+      }
       SYS = sys;
     }
     SYPEND = null;
@@ -10456,7 +10518,7 @@ try {
   function syTabs(t) {
     if (!SYBC) return;
     const sys = SYS,
-      m = t === 'stop' || !sys ? { t: 'stop' } : { t, cloud: sys.cloud, kid: sys.key.kid, key: sys.key, auth: sys.auth || null };
+      m = t === 'stop' || !sys ? { t: 'stop' } : { t, cloud: sys.cloud, kid: sys.key.kid, key: sys.key, auth: sys.auth || null, acct: sys.acct || '' };
     try {
       SYBC.postMessage(m);
     } catch (e) {}
@@ -10482,6 +10544,7 @@ try {
         if (!SYS || SYS.cloud !== d.cloud || SYS.key.kid !== d.kid || !d.auth) return;
         // kept in this tab, and written with its tasks next time: the tab that signed in has written it already
         SYS.auth = { a: d.auth.a || '', ax: +d.auth.ax || 0, r: d.auth.r || '', rx: +d.auth.rx || 0 };
+        if (!SYS.acct && typeof d.acct === 'string') SYS.acct = d.acct;
         if (SYST.s === 'auth') {
           syTold = '';
           syState('idle');
@@ -10491,7 +10554,7 @@ try {
       }
       if (d.t === 'start') {
         if (SYS && SYS.cloud === d.cloud && SYS.key.kid === d.kid) return;
-        const sys = cleanSys({ v: 1, cloud: d.cloud, key: d.key, auth: d.auth });
+        const sys = cleanSys({ v: 1, cloud: d.cloud, key: d.key, auth: d.auth, acct: d.acct });
         if (!sys) return;
         SYS = sys;
         SYKEY = null;
@@ -10511,6 +10574,8 @@ try {
     if (!sys) return '';
     const c = CL[sys.cloud];
     SYS = null;
+    // off in what this browser keeps, at once: a tab that opens (or unlocks) meanwhile doesn't sync the copy back
+    syQuiet();
     // the sign-in, held in this page meanwhile, to erase the copy with
     SYPEND = sys.auth ? { cloud: sys.cloud, ...sys.auth } : null;
     clearTimeout(syT);
@@ -10529,6 +10594,7 @@ try {
         if (!locked) {
           // still on: so are the other tabs, with no base of their own (their next sync keeps both sides)
           SYS = sys;
+          syQuiet();
           syTabs('start');
         }
         return syWhy(e, sys.cloud);
@@ -10648,7 +10714,11 @@ try {
       try {
         // this device's own sync, if any, stops first: it would put the copy back
         if (SYS) why = await syStop(false, true);
-        for (const f of await CL[m.c].list()) await CL[m.c].remove(f);
+        // after any sync under way in this browser, and before the next one
+        if (!why)
+          await syLock('one-day-sync', async () => {
+            for (const f of await CL[m.c].list()) await CL[m.c].remove(f);
+          });
       } catch (err) {
         why = syWhy(err, m.c);
       }

@@ -39,9 +39,14 @@ async function device(browser, baseURL, clouds, o = {}) {
     hosts = new Set();
   await ctx.route(/\/app\.js$/, async route => {
     const res = await route.fetch(),
-      body = await res.text(),
-      out = body.replace(/CLOUD_IDS = \{[^}]*\}/, "CLOUD_IDS = { google: 'test.apps.googleusercontent.com', dropbox: 'testappkey', onedrive: '00000000-test' }");
+      body = await res.text();
+    let out = body.replace(/CLOUD_IDS = \{[^}]*\}/, "CLOUD_IDS = { google: 'test.apps.googleusercontent.com', dropbox: 'testappkey', onedrive: '00000000-test' }");
     if (out === body) throw new Error('CLOUD_IDS not found in app.js');
+    // a test may change a constant (a shorter wait, say): each change must find its text
+    for (const [a, b] of o.patch || []) {
+      if (!out.includes(a)) throw new Error(`${a} not found in app.js`);
+      out = out.replace(a, b);
+    }
     await route.fulfill({ response: res, body: out });
   });
   for (const c of [].concat(clouds)) await c.route(ctx);
@@ -528,7 +533,7 @@ test.describe('sync with your cloud', () => {
     await A.ctx.close();
   });
 
-  test('OneDrive: a personal account, its app folder, the file read from its download address, a stale eTag refused', async ({ browser, baseURL }) => {
+  test('OneDrive: a personal account, its app folder, the file read from its download address, two devices merged', async ({ browser, baseURL }) => {
     const od = new OneDrive(),
       A = await device(browser, baseURL, od),
       B = await device(browser, baseURL, od, { seed: false });
@@ -538,7 +543,7 @@ test.describe('sync with your cloud', () => {
     await done(B.page);
     await expect(row(B.page, 'Plan the trip')).toBeVisible();
     expect(od.downloads).toBeGreaterThan(0);
-    // B writes in between A's look and A's write: the If-Match A sends no longer matches
+    // both write: each merges the other's change (a write slipped in between is the If-Match test's)
     await add(A.page, 'From A');
     await add(B.page, 'From B');
     await expect.poll(async () => texts(await openCopy(od.item.content)), { timeout: 20000 }).toEqual(expect.arrayContaining(['From A', 'From B']));
@@ -949,6 +954,173 @@ test.describe('sync with your cloud', () => {
     expect([...A.errors, ...B.errors]).toEqual([]);
     await A.ctx.close();
     await B.ctx.close();
+  });
+
+  test('signed in again with another Google account: refused, nothing changes, and the right account goes on', async ({ browser, baseURL }) => {
+    const drive = new Drive(),
+      A = await device(browser, baseURL, drive);
+    await connect(A.page, 'google');
+    await done(A.page);
+    expect(JSON.parse((await stored(A.page)).plain).sync.acct).toBe('g-user-1');
+    drive.tokens.clear();
+    await add(A.page, 'Written before signing in again');
+    await expect(A.page.locator('#toast')).toContainText('Sign in to Google Drive again to sync', { timeout: 15000 });
+    // in Google's window, the other account is picked
+    drive.user = 'g-user-2';
+    let pop = A.page.waitForEvent('popup');
+    await A.page.locator('#undo').click();
+    await pop;
+    await expect(A.page.locator('#toast')).toContainText('That’s not the Google account this device syncs with.', { timeout: 15000 });
+    await expect(A.page.locator('#spill')).toHaveAttribute('aria-label', 'Sign in to Google Drive again to sync');
+    const s = JSON.parse((await stored(A.page)).plain).sync;
+    expect(s.acct).toBe('g-user-1');
+    expect((s.auth || {}).a || '').not.toBe('g-token-2');
+    expect(drive.files).toHaveLength(1);
+    expect(texts(await openCopy(drive.files[0].content))).not.toContain('Written before signing in again');
+    // the right account: the change goes up, and sync goes on
+    drive.user = 'g-user-1';
+    await openDialog(A.page);
+    pop = A.page.waitForEvent('popup');
+    await A.page.locator('#sySt [data-sy="signin"]').click();
+    await pop;
+    await expect.poll(async () => texts(await openCopy(drive.files[0].content)), { timeout: 15000 }).toContain('Written before signing in again');
+    await idle(A.page);
+    expect(A.errors).toEqual([]);
+    await A.ctx.close();
+  });
+
+  test('an answer that stops halfway is given up too: the dialog says so, can be closed, and sync goes on after', async ({ browser, baseURL }) => {
+    const drive = new Drive(),
+      A = await device(browser, baseURL, drive, { patch: [['SYTO = 45e3', 'SYTO = 1500']] });
+    await connect(A.page, 'google');
+    // the next list sends its first bytes, then nothing more, until the request is given up
+    await A.page.evaluate(() => {
+      const real = window.fetch;
+      window.fetch = (url, init = {}) => {
+        if (!window.__stall || !/\/drive\/v3\/files\?/.test(String(url))) return real(url, init);
+        window.__stall = false;
+        let ctl;
+        const body = new ReadableStream({
+          start(c) {
+            ctl = c;
+            c.enqueue(new TextEncoder().encode('{"files":['));
+          },
+        });
+        if (init.signal) init.signal.addEventListener('abort', () => ctl.error(new DOMException('The operation was aborted.', 'AbortError')));
+        return Promise.resolve(new Response(body, { status: 200, headers: { 'content-type': 'application/json' } }));
+      };
+      window.__stall = true;
+    });
+    await A.page.locator('#sySt [data-sy="now"]').click();
+    await expect(A.page.locator('#sySt')).toContainText('Google Drive couldn’t be reached', { timeout: 15000 });
+    await A.page.keyboard.press('Escape');
+    await expect(A.page.locator('#syncd')).toBeHidden();
+    expect(await A.page.evaluate(() => document.getElementById('home').inert)).toBe(false);
+    // tried again, it goes through
+    await openDialog(A.page);
+    await A.page.locator('#sySt [data-sy="now"]').click();
+    await idle(A.page);
+    expect(A.errors).toEqual([]);
+    await A.ctx.close();
+  });
+
+  test('a sign-in answer that isn’t the one this tab asked for is left alone, in a window or coming back to the page', async ({ browser, baseURL }) => {
+    const drive = new Drive(),
+      A = await device(browser, baseURL, drive);
+    let release;
+    drive.hold = new Promise(r => (release = r));
+    // a token the cloud would take, so that only the state stands in the way
+    drive.tokens.add('stolen');
+    await openDialog(A.page);
+    const pop = A.page.waitForEvent('popup');
+    await A.page.locator('#syCh [data-c="google"]').click();
+    const w = await pop;
+    await expect(A.page.locator('#syT')).toHaveText('Signing in to Google Drive');
+    // while the real answer is awaited, another comes on the channel, with another state
+    await A.page.evaluate(() => {
+      const bc = new BroadcastChannel('one-day-oauth');
+      bc.postMessage({ type: 'one-day-oauth', state: 'forged.p', token: 'stolen', expires: '3600', at: Date.now() });
+      bc.close();
+    });
+    await A.page.waitForTimeout(500);
+    await expect(A.page.locator('#syT')).toHaveText('Signing in to Google Drive');
+    drive.hold = null;
+    release();
+    await expect.poll(() => w.isClosed(), { timeout: 15000 }).toBe(true);
+    await expect(A.page.locator('#syT')).toHaveText('Choose a sync passphrase', { timeout: 15000 });
+    await A.page.locator('#syPass').fill(PASS);
+    await A.page.locator('#syPass2').fill(PASS);
+    await A.page.locator('#syOk').check();
+    await A.page.locator('#syGo').click();
+    await idle(A.page);
+    expect(JSON.parse((await stored(A.page)).plain).sync.auth.a).toBe('g-token-1');
+    await done(A.page);
+    // coming back to the page from the cloud (a phone): an answer for another sign-in than the one waiting is dropped
+    const B = await device(browser, baseURL, drive, { seed: false }),
+      back = (st, ans) =>
+        B.page.evaluate(([st, ans]) => {
+          sessionStorage.setItem('oneday.signin', JSON.stringify({ st, ver: 'v'.repeat(64), c: 'google', at: Date.now() }));
+          sessionStorage.setItem('oneday.signedin', JSON.stringify({ type: 'one-day-oauth', ...ans, at: Date.now() }));
+        }, [st, ans]);
+    await back('mine.r', { state: 'forged.r', token: 'stolen', expires: '3600' });
+    await B.page.reload();
+    await expect(B.page.locator('#app')).not.toHaveClass(/\bpre\b/);
+    await B.page.waitForTimeout(500);
+    await expect(B.page.locator('#syncd')).toBeHidden();
+    // the one it waits for is taken: the copy is there, so it asks for the passphrase
+    drive.tokens.add('g-token-back');
+    await back('mine2.r', { state: 'mine2.r', token: 'g-token-back', expires: '3600' });
+    await B.page.reload();
+    await expect(B.page.locator('#syT')).toHaveText('Enter your sync passphrase', { timeout: 15000 });
+    expect([...A.errors, ...B.errors]).toEqual([]);
+    await A.ctx.close();
+    await B.ctx.close();
+  });
+
+  // another device's write, slipped in between this device's look and its write
+  const elsewhere = (id, text) => p => {
+    p.days[today()].tasks.push({ id, text, done: false });
+    p.days[today()].u = Date.now();
+    return p;
+  };
+
+  test('Google Drive: another device writing between the version check and the write is caught, and merged in', async ({ browser, baseURL }) => {
+    const drive = new Drive(),
+      A = await device(browser, baseURL, drive);
+    await connect(A.page, 'google');
+    await done(A.page);
+    const n = drive.checks;
+    drive.onCheck = async (d, f) => {
+      f.content = await resealCopy(f.content, PASS, elsewhere('else1', 'Written elsewhere meanwhile'));
+      f.ver++;
+    };
+    await add(A.page, 'Written here');
+    await expect.poll(async () => texts(await openCopy(drive.files[0].content)), { timeout: 20000 }).toEqual(expect.arrayContaining(['Written here', 'Written elsewhere meanwhile']));
+    // the first check found the other write, the second let this one through
+    expect(drive.checks).toBeGreaterThanOrEqual(n + 2);
+    await expect(row(A.page, 'Written elsewhere meanwhile')).toBeVisible({ timeout: 15000 });
+    expect(drive.bad).toEqual([]);
+    expect(A.errors).toEqual([]);
+    await A.ctx.close();
+  });
+
+  test('OneDrive: another device writing just before the write is refused by If-Match, and merged in', async ({ browser, baseURL }) => {
+    const od = new OneDrive(),
+      A = await device(browser, baseURL, od);
+    await connect(A.page, 'onedrive');
+    await done(A.page);
+    expect(JSON.parse((await stored(A.page)).plain).sync.acct).toBe('od-drive-1');
+    od.onPut = async d => {
+      d.item.content = await resealCopy(d.item.content, PASS, elsewhere('else2', 'Written elsewhere meanwhile'));
+      d.item.eTag = '"{e' + ++d.n + '},9"';
+    };
+    await add(A.page, 'Written here');
+    await expect.poll(async () => texts(await openCopy(od.item.content)), { timeout: 20000 }).toEqual(expect.arrayContaining(['Written here', 'Written elsewhere meanwhile']));
+    expect(od.stale).toBe(1);
+    await expect(row(A.page, 'Written elsewhere meanwhile')).toBeVisible({ timeout: 15000 });
+    expect(od.bad).toEqual([]);
+    expect(A.errors).toEqual([]);
+    await A.ctx.close();
   });
 });
 
