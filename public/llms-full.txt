@@ -265,13 +265,13 @@ On a phone, One Day fills the screen and keeps everything within reach of your t
 - **Timer** opens as a sheet, and the bar shows the time left while it runs;
 - the red **+** opens the field to add a task, just above the keyboard;
 - **Send day** sends the day’s unfinished tasks;
-- **More** holds installing, backups, the lock’s settings and the links.
+- **More** holds **Undo** and **Redo**, installing, backups, the lock’s settings and the links.
 
 Swipe sideways to change day. Tap a task to open it; hold it, then drag, to reorder it. A sheet or the drawer closes when you drag it down. On Android, the back button closes what is open first (a sheet, the drawer, an open task) before it leaves One Day.
 
 ![On a phone, the field to add a task rises from the bottom, with Book a table for Friday typed in and a Today chip.](https://day.bemorin.com/guide/shots/phone-add-light.webp)
 ![On a phone, search open as a drawer over the day, with two results for lisbon.](https://day.bemorin.com/guide/shots/phone-search-light.webp)
-![On a phone, More: Install One Day in red, Import backup, Export backup, How to use One Day, then the links.](https://day.bemorin.com/guide/shots/phone-more-light.webp)
+![On a phone, More: Install One Day in red, Undo and Redo greyed while there is nothing to take back, Import backup, Export backup, How to use One Day, then the links.](https://day.bemorin.com/guide/shots/phone-more-light.webp)
 
 ### Install it
 
