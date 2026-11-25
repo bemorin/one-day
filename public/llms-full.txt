@@ -94,7 +94,7 @@ On a phone, tap a task to open it: its arrow and its cross then appear on its ro
 
 #### Undo
 
-Everything can be undone. After a change such as deleting or moving a task, a message at the bottom of the screen offers **Undo**. Ctrl Z (⌘ Z on a Mac) goes back up to 80 steps, for as long as One Day stays open, and Ctrl Y or ⌘ ⇧ Z redoes.
+Everything can be undone. After a change such as deleting or moving a task, a message at the bottom of the screen offers **Undo**. Ctrl Z (⌘ Z on a Mac) goes back up to 80 steps, for as long as One Day stays open, and Ctrl Y or ⌘ ⇧ Z redoes. Without keys, on a phone, **More** keeps **Undo** and **Redo** at its top while there is something to take back, each saying what it would do.
 
 ## Organising
 
@@ -271,7 +271,7 @@ Swipe sideways to change day. Tap a task to open it; hold it, then drag, to reor
 
 ![On a phone, the field to add a task rises from the bottom, with Book a table for Friday typed in and a Today chip.](https://day.bemorin.com/guide/shots/phone-add-light.webp)
 ![On a phone, search open as a drawer over the day, with two results for lisbon.](https://day.bemorin.com/guide/shots/phone-search-light.webp)
-![On a phone, More: Install One Day in red, Import backup, Export backup, Protect with a passphrase, then the links.](https://day.bemorin.com/guide/shots/phone-more-light.webp)
+![On a phone, More: Install One Day in red, Undo and Redo greyed while there is nothing to take back, Import backup, Export backup, Protect with a passphrase, How to use One Day, then the links.](https://day.bemorin.com/guide/shots/phone-more-light.webp)
 
 ### Install it
 

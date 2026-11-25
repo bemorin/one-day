@@ -1006,7 +1006,7 @@ test('keep on top: no button to come back inside the window, and a narrow one ke
       label: kb.getAttribute('aria-label'),
       expanded: kb.getAttribute('aria-expanded'),
       drawer: !d.getElementById('more').hidden,
-      items: [...d.querySelectorAll('#moreList .sbk-b')].slice(0, 3).map(b => b.textContent.trim()),
+      items: [...d.querySelectorAll('#moreList .sbk-b:not(.sud)')].slice(0, 3).map(b => b.textContent.trim()),
     };
   });
   expect(opened).toEqual({ label: 'More', expanded: 'true', drawer: true, items: ['Search', 'Send this day', 'Dark mode'] });
@@ -1091,10 +1091,10 @@ test('in a narrow window (a side panel, a page zoomed in) the bar folds like the
   await page.locator('#kb').click();
   await expect(page.locator('#more')).toBeVisible();
   await expect(page.locator('#kb')).toHaveAttribute('aria-label', 'More');
-  await expect(page.locator('#moreList .sbk-b').nth(0)).toHaveText('Search');
-  await expect(page.locator('#moreList .sbk-b').nth(1)).toHaveText('Send this day');
-  await expect(page.locator('#moreList .sbk-b').nth(2)).toHaveText(/^(Dark|Light) mode$/);
-  await expect(page.locator('#moreList .sbk-b').nth(3)).toHaveText('Keep on top');
+  await expect(page.locator('#moreList .sbk-b:not(.sud)').nth(0)).toHaveText('Search');
+  await expect(page.locator('#moreList .sbk-b:not(.sud)').nth(1)).toHaveText('Send this day');
+  await expect(page.locator('#moreList .sbk-b:not(.sud)').nth(2)).toHaveText(/^(Dark|Light) mode$/);
+  await expect(page.locator('#moreList .sbk-b:not(.sud)').nth(3)).toHaveText('Keep on top');
   await page.locator('#moreList [data-act="float"]').click();
   await expect
     .poll(() => page.evaluate(() => !!documentPictureInPicture.window?.document.getElementById('app')))
@@ -1837,6 +1837,47 @@ test.describe('on a touch screen', () => {
     }
   });
 
+  test('More starts with Undo on the left and Redo on the right, each saying what it would do, greyed while there is nothing for it', async ({ page }) => {
+    await open(page);
+    const undoB = page.locator('#moreList [data-act="undo"]'),
+      redoB = page.locator('#moreList [data-act="redo"]');
+    await page.locator('#mbMore').tap();
+    await expect(page.locator('#more')).toBeVisible();
+    // first in the drawer, side by side, both waiting
+    await expect(page.locator('#moreList > *').first()).toHaveClass(/\bsun\b/);
+    await expect(undoB).toBeDisabled();
+    await expect(redoB).toBeDisabled();
+    const [u, re] = await Promise.all([undoB.boundingBox(), redoB.boundingBox()]);
+    expect(u.x + u.width).toBeLessThanOrEqual(re.x);
+    expect(Math.abs(u.y - re.y)).toBeLessThan(1);
+    await page.locator('#mbMore').tap();
+    await expect(page.locator('#more')).toBeHidden();
+    const r = row(page, 'Plan the trip');
+    // a fresh tap, not the second half of a double tap
+    await page.waitForTimeout(450);
+    await r.locator('.tx').tap();
+    await expect(r).toHaveClass(/\bopen\b/);
+    await page.waitForTimeout(450);
+    await r.locator('.in .acts .rm').tap();
+    await expect(r).toHaveCount(0);
+    // the message at the bottom may be gone: More still offers to take it back, and says what
+    await page.locator('#mbMore').tap();
+    await expect(undoB).toBeEnabled();
+    await expect(undoB).toHaveAttribute('aria-label', 'Undo: Deleted “Plan the trip”');
+    await expect(undoB.locator('small')).toHaveText('Deleted “Plan the trip”');
+    await expect(redoB).toBeDisabled();
+    await undoB.tap();
+    await expect(page.locator('#more')).toBeHidden();
+    await expect(r).toBeVisible();
+    // then Redo brings the change back, named the same way, and Undo waits again
+    await page.locator('#mbMore').tap();
+    await expect(undoB).toBeDisabled();
+    await expect(redoB).toBeEnabled();
+    await expect(redoB).toHaveAttribute('aria-label', 'Redo: Deleted “Plan the trip”');
+    await redoB.tap();
+    await expect(r).toHaveCount(0);
+  });
+
   test('handed back by the browser as it was left (back from the guide): nothing stays open, the bar at the bottom', async ({ page }) => {
     await open(page);
     await page.locator('#mbMore').tap();
@@ -2000,7 +2041,7 @@ test.describe('on a touch screen', () => {
     await page.locator('#mbMore').tap();
     await expect(page.locator('#more')).toBeVisible();
     await expect(page.locator('#more hr')).toHaveCount(0);
-    const w = await page.locator('#more .sbk').evaluate(n => n.getBoundingClientRect().width);
+    const w = await page.locator('#more .sbk:not(.sun)').evaluate(n => n.getBoundingClientRect().width);
     for (const sel of ['#more .spromo:not(.kofi)', '#more .spromo.kofi']) {
       const [width, shadow, align] = await page
         .locator(sel)
@@ -2039,7 +2080,7 @@ test.describe('on a touch screen', () => {
     await open(page);
     await page.locator('#mbMore').tap();
     await expect(page.locator('#more')).toBeVisible();
-    await expect(page.locator('#more .sbk .sbk-b')).toHaveCount(2);
+    await expect(page.locator('#more .sbk:not(.sun) .sbk-b')).toHaveCount(2);
     const b = await page.locator('#more [data-act="import"]').boundingBox();
     await page.evaluate(([x, y]) => {
       window.__picked = false;
@@ -2663,7 +2704,7 @@ test.describe('the lock', () => {
       // a button like the backups', across the sheet, its words in the middle
       const centre = sel => page.locator(sel).evaluate(n => { const r = n.getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.width)]; });
       await expect(page.locator('#more [data-act="lock"]')).toHaveClass(/sbk-b/);
-      const [lx, lw] = await centre('#more [data-act="lock"]'), [sx, sw] = await centre('#more .sbk');
+      const [lx, lw] = await centre('#more [data-act="lock"]'), [sx, sw] = await centre('#more .sbk:not(.sun)');
       expect(Math.abs(lx - sx)).toBeLessThan(2);
       expect(Math.abs(lw - sw)).toBeLessThan(6);
       const [tx] = await centre('#more [data-act="lock"] span');

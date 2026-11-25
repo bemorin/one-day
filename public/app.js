@@ -459,7 +459,8 @@ try {
   function applySnap(e, into) {
     stopSeal();
     const keys = Object.keys(e.days);
-    into.push({ ...snap(keys), cur: e.cur });
+    // what it says it does goes with it, from undo to redo and back
+    into.push({ ...snap(keys), cur: e.cur, label: e.label });
     const was = S.rules,
       tk = todayKey();
     if (e.rules) S.rules = e.rules;
@@ -639,6 +640,8 @@ try {
     send: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 9.75V2.25M5.25 5 8 2.25 10.75 5M5.5 7H4.5c-.83 0-1.5.67-1.5 1.5v4c0 .83.67 1.5 1.5 1.5h7c.83 0 1.5-.67 1.5-1.5v-4c0-.83-.67-1.5-1.5-1.5h-1"/></svg>',
     float:
       '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3.2" width="12" height="9.6" rx="2"/><rect x="8" y="7.2" width="4" height="3.6" rx=".8" fill="currentColor" stroke="none"/></svg>',
+    undo: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.75 3.25 2.5 6.5l3.25 3.25"/><path d="M2.75 6.5h6.5a3.75 3.75 0 0 1 0 7.5H7.5"/></svg>',
+    redo: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10.25 3.25 3.25 3.25-3.25 3.25"/><path d="M13.25 6.5h-6.5a3.75 3.75 0 0 0 0 7.5H8.5"/></svg>',
     down: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7.5M4.75 7 8 10.25 11.25 7M2.75 11.5v.75c0 .69.56 1.25 1.25 1.25h8c.69 0 1.25-.56 1.25-1.25v-.75"/></svg>',
     up: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.25V2.75M4.75 6 8 2.75 11.25 6M2.75 11.5v.75c0 .69.56 1.25 1.25 1.25h8c.69 0 1.25-.56 1.25-1.25v-.75"/></svg>',
     lock: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.25" y="7" width="9.5" height="6.75" rx="1.75"/><path d="M5.25 7V5.25a2.75 2.75 0 0 1 5.5 0V7"/></svg>',
@@ -6496,6 +6499,7 @@ try {
       // where the bar is folded, what it let go of comes first (the floating window has its own way back)
       held = barFolded(),
       dark = themeNow() === 'dark';
+    // the order: what the bar let go of, the offer to install (red, first on a phone), Undo and Redo, then the rest
     $.moreList.innerHTML =
       (held
         ? `<div class="sbk"><button type="button" class="sbk-b" data-act="search">${IC.search}<span>Search</span></button>` +
@@ -6505,6 +6509,7 @@ try {
           '</div>'
         : '') +
       (insHow() ? `<button type="button" class="sins" data-act="install">${IC.install}<span>Install One Day</span></button>` : '') +
+      undoBtns() +
       `<div class="sbk"><button type="button" class="sbk-b" data-act="import">${IC.up}<span>Import backup</span></button>` +
       `<button type="button" class="sbk-b" data-act="export">${IC.down}<span>${canTop ? 'Export backup' : 'Copy backup'}</span></button></div>` +
       (CAN_LOCK ? lockBtns() : '') +
@@ -6524,8 +6529,15 @@ try {
     syncScrim();
     $.mbMore.setAttribute('aria-expanded', 'true');
     if (held) $.kb.setAttribute('aria-expanded', 'true');
-    const first = $.moreList.querySelector('button');
+    const first = $.moreList.querySelector('button:not(:disabled)');
     if (first) first.focus({ preventScroll: true });
+  }
+  // Undo on the left, Redo on the right, first in the drawer: on a phone, with no keys, the way to undo once the
+  // message at the bottom has gone. Each says what it would do, and waits greyed while there is nothing for it.
+  function undoBtns() {
+    const b = (act, ic, word, e) =>
+      `<button type="button" class="sbk-b sud" data-act="${act}"${!e ? ' disabled' : e.label ? ` aria-label="${esc(word + ': ' + e.label)}"` : ''}>${ic}<span>${word}${e && e.label ? `<small>${esc(e.label)}</small>` : ''}</span></button>`;
+    return `<div class="sbk sun">${b('undo', IC.undo, 'Undo', UN[UN.length - 1])}${b('redo', IC.redo, 'Redo', RE[RE.length - 1])}</div>`;
   }
   function closeMore(from) {
     if (!moreOpen) return;
@@ -6547,7 +6559,7 @@ try {
       return;
     }
     const a = e.target.closest('[data-act]');
-    if (!a) return;
+    if (!a || a.disabled) return;
     closeMore();
     // the floating window takes the card at once: the drawer is shut before it goes
     if (a.dataset.act === 'float') for (const el of [$.more, $.scrim]) el.getAnimations().forEach(x => x.finish());
@@ -6750,6 +6762,9 @@ try {
     toastAct = null;
   function toast(msg, act, ms = 4200) {
     const was = $.toast.classList.contains('on');
+    // the message that offers to undo a change names it: Undo in More says it again once the message has gone
+    const top = UN[UN.length - 1];
+    if (act === 'undo' && top && !top.label) top.label = msg;
     $.toastTxt.textContent = msg;
     toastAct = act || null;
     $.undo.hidden = !act;
@@ -8735,6 +8750,8 @@ try {
     else if (a === 'send') sendDay();
     else if (a === 'theme') toggleTheme();
     else if (a === 'float') float();
+    else if (a === 'undo') undo();
+    else if (a === 'redo') redo();
   }
   if (locked) showLock();
 

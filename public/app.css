@@ -3237,6 +3237,44 @@ mark {
   text-wrap: balance;
   line-height: 1.2;
 }
+/* Undo on the left, Redo on the right, first in the drawer: each says, under its word, what it would do (two lines
+   at most), and waits greyed while there is nothing for it */
+.sun {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.sud {
+  min-width: 0;
+  height: auto;
+  min-height: 52px;
+  padding: 8px 12px;
+}
+.sbk-b.sud span {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  text-align: left;
+}
+.sud small {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--mute);
+}
+.sud:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.sud:disabled:active {
+  background: none;
+  transform: none;
+}
 /* the lock's actions under the backups: one is a button like theirs; several share one outline, a hairline between
    them, and a press lights the row instead of shrinking it */
 .slk {
