@@ -1,4 +1,3 @@
-import StoreKit
 import SwiftUI
 
 /// The sheet behind "Buy me an 🍎": the tips, from the cheapest, and a thank you. Nothing in it is needed.
@@ -22,7 +21,7 @@ struct TipView: View {
     .frame(minWidth: 320, maxWidth: 440)
     .tint(Color(red: 0.92, green: 0.06, blue: 0.2))
     .task {
-      if tips.products.isEmpty { await tips.load() }
+      if tips.choices.isEmpty { await tips.load() }
     }
   }
 
@@ -41,17 +40,17 @@ struct TipView: View {
         .padding()
     case .ready, .buying:
       VStack(spacing: 10) {
-        ForEach(tips.products, id: \.id) { product in
+        ForEach(tips.choices) { tip in
           Button {
-            Task { await tips.buy(product) }
+            Task { await tips.buy(tip) }
           } label: {
             HStack {
-              Text(product.displayName)
+              Text(tip.name)
               Spacer()
-              if case .buying(product.id) = tips.phase {
+              if case .buying(tip.id) = tips.phase {
                 ProgressView()
               } else {
-                Text(product.displayPrice)
+                Text(tip.displayPrice)
                   .bold()
               }
             }

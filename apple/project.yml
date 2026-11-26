@@ -85,9 +85,6 @@ targets:
     platform: iOS
     sources:
       - path: Tests
-      # the tips as App Store Connect will hold them, for StoreKit's own test store
-      - path: Shared/Tips.storekit
-        buildPhase: resources
     dependencies:
       - target: OneDay-iOS
     settings:
@@ -102,9 +99,6 @@ targets:
     platform: macOS
     sources:
       - path: Tests
-      # the tips as App Store Connect will hold them, for StoreKit's own test store
-      - path: Shared/Tips.storekit
-        buildPhase: resources
     dependencies:
       - target: OneDay-macOS
     settings:

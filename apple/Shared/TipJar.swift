@@ -24,23 +24,18 @@ final class TipJar {
 
   /// Whether the sheet is open (the page's "Buy me an 🍎" opens it).
   var isOpen = false
-  private(set) var products: [Product] = []
+  private(set) var choices: [Tip] = []
   private(set) var phase: Phase = .idle
-  @ObservationIgnored private var updates: Task<Void, Never>?
+  @ObservationIgnored private let store: any TipStore
   @ObservationIgnored private let log = Logger(subsystem: "com.bemorin.oneday", category: "tips")
 
-  init() {
-    // A purchase may end away from the sheet (Ask to Buy approved later, one cut short): it is finished here.
-    updates = Task { [weak self] in
-      for await result in Transaction.updates {
-        await self?.settle(result)
-      }
-    }
+  init(store: any TipStore = AppStoreTips()) {
+    self.store = store
   }
 
   func open() {
     isOpen = true
-    if products.isEmpty, phase != .loading {
+    if choices.isEmpty, phase != .loading {
       Task { await load() }
     }
   }
@@ -48,36 +43,79 @@ final class TipJar {
   func load() async {
     phase = .loading
     do {
-      products = try await Product.products(for: Self.ids).sorted { $0.price < $1.price }
-      phase = products.isEmpty ? .unavailable : .ready
+      choices = try await store.tips(for: Self.ids).sorted { $0.price < $1.price }
+      phase = choices.isEmpty ? .unavailable : .ready
     } catch {
       log.error("The tips could not be loaded: \(error.localizedDescription, privacy: .public)")
       phase = .unavailable
     }
   }
 
-  func buy(_ product: Product) async {
-    phase = .buying(product.id)
+  func buy(_ tip: Tip) async {
+    phase = .buying(tip.id)
     do {
-      switch try await product.purchase() {
-      case .success(let result):
-        phase = await settle(result) ? .thanked : .ready
-      case .userCancelled, .pending:
-        phase = .ready
-      @unknown default:
-        phase = .ready
-      }
+      phase = try await store.buy(tip.id) == .thanked ? .thanked : .ready
     } catch {
       log.error("A tip did not go through: \(error.localizedDescription, privacy: .public)")
       phase = .ready
     }
   }
+}
 
-  /// Finishes a purchase StoreKit has verified. One it can't verify is left alone: a tip unlocks nothing anyway.
-  @discardableResult
-  func settle(_ result: VerificationResult<Transaction>) async -> Bool {
-    guard case .verified(let transaction) = result else { return false }
-    await transaction.finish()
-    return true
+/// One tip, as the sheet shows it.
+nonisolated struct Tip: Sendable, Equatable, Identifiable {
+  var id: String
+  var name: String
+  var price: Decimal
+  var displayPrice: String
+}
+
+/// What buying a tip came to. Only a purchase StoreKit has verified, and the app has finished, says thank you.
+nonisolated enum TipOutcome: Sendable, Equatable {
+  case thanked, cancelled, pending, unverified
+}
+
+/// Where the tips come from: the App Store in the app, a stand-in in the tests (StoreKit's own test store doesn't run
+/// on GitHub's Macs).
+protocol TipStore: AnyObject {
+  func tips(for ids: [String]) async throws -> [Tip]
+  func buy(_ id: String) async throws -> TipOutcome
+}
+
+/// The App Store, through StoreKit 2.
+final class AppStoreTips: TipStore {
+  private var products: [String: Product] = [:]
+  private var updates: Task<Void, Never>?
+
+  init() {
+    // A purchase may end away from the sheet (Ask to Buy approved later, one cut short): it is finished here.
+    updates = Task {
+      for await result in Transaction.updates {
+        if case .verified(let transaction) = result { await transaction.finish() }
+      }
+    }
+  }
+
+  func tips(for ids: [String]) async throws -> [Tip] {
+    let found = try await Product.products(for: ids)
+    products = Dictionary(found.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    return found.map { Tip(id: $0.id, name: $0.displayName, price: $0.price, displayPrice: $0.displayPrice) }
+  }
+
+  func buy(_ id: String) async throws -> TipOutcome {
+    guard let product = products[id] else { return .cancelled }
+    switch try await product.purchase() {
+    case .success(let result):
+      // one StoreKit can't verify unlocks nothing anyway: it is left alone
+      guard case .verified(let transaction) = result else { return .unverified }
+      await transaction.finish()
+      return .thanked
+    case .userCancelled:
+      return .cancelled
+    case .pending:
+      return .pending
+    @unknown default:
+      return .cancelled
+    }
   }
 }
