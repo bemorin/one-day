@@ -37,7 +37,21 @@ jobs:
             if [ -z "${!v}" ]; then echo "::error::The repository has no secret for $v (see the top of testflight.yml)"; exit 1; fi
           done
           mkdir -p ~/.appstoreconnect/private_keys
-          printf '%s\n' "$ASC_KEY" > ~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8
+          KEY=~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8
+          # The key as the .p8 file holds it, however it was pasted (Windows line ends, lines run together, spaces):
+          # its base64 body, wrapped at 64 characters between its BEGIN and END lines.
+          python3 - > "$KEY" <<'PY'
+          import os, re, textwrap
+          body = re.sub(r'-----(BEGIN|END) [A-Z ]*PRIVATE KEY-----', '', os.environ['ASC_KEY'])
+          body = re.sub(r'[^A-Za-z0-9+/=]', '', body)
+          print('-----BEGIN PRIVATE KEY-----')
+          print('\n'.join(textwrap.wrap(body, 64)))
+          print('-----END PRIVATE KEY-----')
+          PY
+          if ! openssl pkey -in "$KEY" -noout 2>/dev/null; then
+            echo "::error::ASC_KEY doesn't hold an App Store Connect key: paste the whole AuthKey_….p8 file, its BEGIN and END lines included"
+            exit 1
+          fi
       - name: Tools
         run: |
           XCODE=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
