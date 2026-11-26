@@ -80,12 +80,15 @@ final class SavedState {
     do {
       try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
       let data = try JSONEncoder().encode(Stored(seq: seq, items: items))
+      // Protected as WebKit protects the page's own storage on iOS (until the device is first unlocked after a
+      // restart), so that the app can still read it when the system starts it ahead of time with the device locked.
       #if os(iOS)
         try data.write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
       #else
         try data.write(to: file, options: .atomic)
       #endif
       dirty = false
+      dropAside()
     } catch {
       log.error("The saved copy could not be written: \(error.localizedDescription, privacy: .public)")
     }
@@ -96,12 +99,23 @@ final class SavedState {
     do {
       let stored = try JSONDecoder().decode(Stored.self, from: data)
       seq = max(0, stored.seq)
-      items = stored.items
+      // only the keys the app keeps: anything else a file may hold (an older version's) never reaches the page
+      items = stored.items.filter { Bridge.isKept($0.key) }
     } catch {
-      // never written over: put aside, so nothing that could still be read is lost
+      // Not written over: put aside, so nothing that could still be read is lost before the page gives the app its
+      // copy again. Once a good copy is written, it goes (dropAside): it may hold tasks in clear, lock or no lock.
       log.error("The saved copy could not be read: \(error.localizedDescription, privacy: .public)")
       let aside = file.deletingLastPathComponent().appending(path: "saved-unreadable-\(Int(Date().timeIntervalSince1970)).json")
       try? FileManager.default.moveItem(at: file, to: aside)
+    }
+  }
+
+  /// The unreadable copies put aside, gone once a good one is written.
+  private func dropAside() {
+    let folder = file.deletingLastPathComponent()
+    guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { return }
+    for name in names where name.hasPrefix("saved-unreadable-") {
+      try? FileManager.default.removeItem(at: folder.appending(path: name))
     }
   }
 

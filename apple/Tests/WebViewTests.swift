@@ -2,6 +2,12 @@ import Foundation
 import Testing
 import WebKit
 
+#if os(iOS)
+  import UIKit
+#else
+  import AppKit
+#endif
+
 @testable import OneDay
 
 @Suite("The day in a web view", .timeLimit(.minutes(3)))
@@ -15,6 +21,7 @@ struct WebViewTests {
     let site = try #require(SiteFiles.bundled())
     let web = WebHost.makeWebView(
       site: site, bridge: bridge, cloud: CloudBridge(store: CloudStore(database: cloud)), store: .nonPersistent())
+    show(web)
     web.load(URLRequest(url: SiteFiles.home))
     // a call that lands while the page is still loading fails: it is simply asked again
     try await eventually {
@@ -40,6 +47,37 @@ struct WebViewTests {
     #expect(bridge.errors.isEmpty, "The page failed: \(bridge.errors)")
   }
 
+  @Test("iCloud through the page itself: Sync with your cloud, iCloud, a passphrase, and only a sealed copy reaches it")
+  func syncThroughThePage() async throws {
+    let (web, bridge) = try await open()
+    _ = try await web.callAsyncJavaScript(
+      """
+      const wait = async (f, ms) => {
+        const end = Date.now() + ms;
+        for (;;) {
+          const v = f();
+          if (v) return v;
+          if (Date.now() > end) throw new Error('waited too long: ' + f);
+          await new Promise(r => setTimeout(r, 100));
+        }
+      };
+      document.getElementById('spill').click();
+      (await wait(() => document.querySelector('#syCh [data-c="icloud"]:not([disabled])'), 20000)).click();
+      await wait(() => document.getElementById('syT').textContent === 'Choose a sync passphrase', 20000);
+      document.getElementById('syPass').value = 'a long sync passphrase';
+      document.getElementById('syPass2').value = 'a long sync passphrase';
+      document.getElementById('syOk').checked = true;
+      document.getElementById('syGo').click();
+      await wait(() => document.getElementById('syT').textContent === 'Sync is on', 60000);
+      return true;
+      """, contentWorld: .page)
+    try await eventually { cloud.copy != nil }
+    let text = try #require(cloud.copy?.text)
+    #expect(text.contains(#""kind":"sync""#))
+    #expect(!text.contains("Tick the circle"))
+    #expect(bridge.errors.isEmpty, "The page failed: \(bridge.errors)")
+  }
+
   @Test("The page's questions to iCloud get their answers, a refusal included")
   func iCloud() async throws {
     let (web, bridge) = try await open()
@@ -57,6 +95,18 @@ struct WebViewTests {
     #expect(cloud.copy?.text == "sealed")
     #expect(bridge.errors.isEmpty, "The page failed: \(bridge.errors)")
   }
+}
+
+/// The web view in the app's window while a test runs, so that the page lays out and its animations run as on screen.
+func show(_ web: WKWebView) {
+  #if os(iOS)
+    let window = UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first
+    web.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+    window?.addSubview(web)
+  #else
+    web.frame = NSRect(x: 0, y: 0, width: 820, height: 760)
+    NSApplication.shared.windows.first?.contentView?.addSubview(web)
+  #endif
 }
 
 nonisolated struct TimedOut: Error {}

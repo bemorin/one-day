@@ -9450,18 +9450,31 @@ try {
      One Day's container), which the app reads and writes through CloudKit, with the account the device is signed in
      to. No sign-in page and no token: that account is the one. Apple lets a website reach iCloud only once its app is
      on the App Store, so for now iCloud is the app's alone. Its name stands alone, without Apple's icon. */
-  const ICK = ['offline', 'unreachable', 'auth', 'full', 'slow', 'conflict', 'gone', 'big', 'restricted', 'noaccount', 'unavailable'];
+  const ICK = ['offline', 'unreachable', 'auth', 'account', 'full', 'slow', 'conflict', 'gone', 'big', 'restricted', 'noaccount', 'unavailable'];
   if (APPCL) {
     // the copy as last read or written there (its tag and its words): a sync reads it once
     let icLast = null;
-    const ic = async (op, o = {}) => {
-      try {
-        return await APPCL.postMessage({ op, ...o });
-      } catch (e) {
-        const k = String((e && e.message) || '');
-        throw new SyErr(ICK.includes(k) ? k : 'http');
-      }
-    };
+    // A question to the app, given up after 45 seconds without an answer, like a request to the other clouds: nothing
+    // waits on iCloud for ever. A write that lands after that is no harm: the next one names a tag that is no more.
+    const ic = (op, o = {}) =>
+      new Promise((res, rej) => {
+        const t = setTimeout(() => rej(new SyErr('unreachable')), SYTO);
+        APPCL.postMessage({ op, ...o }).then(
+          v => {
+            clearTimeout(t);
+            res(v);
+          },
+          e => {
+            clearTimeout(t);
+            const k = String((e && e.message) || '');
+            rej(new SyErr(ICK.includes(k) ? k : 'http'));
+          },
+        );
+      });
+    // The account sync goes with, as One Day's container names it: while sync is on, and while it stops (its copy may
+    // be erased then, and only that account's). The app checks it again before it writes or erases anything, so a
+    // device that changed accounts meanwhile, in its settings and with no word to One Day, never touches the other's.
+    const icWho = () => ((SYS && SYS.cloud === 'icloud' ? SYS.acct : SYPEND && SYPEND.cloud === 'icloud' ? SYPEND.acct : '') || '');
     CL.icloud = {
       name: 'iCloud',
       co: 'Apple',
@@ -9479,9 +9492,10 @@ try {
       async list() {
         // The device may have changed accounts since (in its settings, with no word to One Day): another account holds
         // another copy, or none, and syncing there would leave the other devices behind. Nothing goes then.
-        const a = (await ic('account')) || {};
+        const a = (await ic('account')) || {},
+          want = icWho();
         if (a.status !== 'available') throw new SyErr(a.status === 'noaccount' || a.status === 'restricted' ? a.status : 'icloudoff');
-        if (SYS && SYS.cloud === 'icloud' && SYS.acct && a.user && a.user !== SYS.acct) throw new SyErr('account');
+        if (want && a.user && a.user !== want) throw new SyErr('account');
         const x = await ic('fetch');
         icLast = x && typeof x.tag === 'string' && typeof x.text === 'string' ? x : null;
         return icLast ? [{ id: 'one-day', ver: icLast.tag }] : [];
@@ -9495,13 +9509,13 @@ try {
         return icLast.text;
       },
       async write(f, text) {
-        const r = await ic('save', { text, tag: f ? f.ver : null });
+        const r = await ic('save', { text, tag: f ? f.ver : null, user: icWho() });
         if (!r || typeof r.tag !== 'string') throw new SyErr('http');
         icLast = { tag: r.tag, text };
         return { id: 'one-day', ver: r.tag };
       },
       async remove() {
-        await ic('delete');
+        await ic('delete', { user: icWho() });
         icLast = null;
       },
       revoke() {},
@@ -10121,7 +10135,8 @@ try {
         if (dirty) syTell();
       } else {
         syState('error', syWhy(e, sys.cloud), k);
-        syncSoon(k === 'slow' ? 60e3 : 120e3);
+        // a copy too large stays too large: the next change here tries again, not a timer
+        if (k !== 'big') syncSoon(k === 'slow' ? 60e3 : 120e3);
       }
     } finally {
       clearTimeout(slow);
@@ -10209,7 +10224,10 @@ try {
       case 'auth':
         return `Sign in to ${n} again to sync.`;
       case 'account':
-        return `That’s not the ${CL[c].co} account this device syncs with. Sign in with the one you chose when you turned sync on.`;
+        // iCloud: the device's account is the one, and it changes in the device's settings, not here
+        return c && CL[c].native
+          ? `This device is now signed in to another Apple Account than the one sync started with. Switch back to it in ${settings}, or stop syncing here.`
+          : `That’s not the ${CL[c].co} account this device syncs with. Sign in with the one you chose when you turned sync on.`;
       case 'full':
         return `Your ${n} is full: make room there, and sync goes on.`;
       case 'slow':
@@ -10217,7 +10235,9 @@ try {
       case 'alien':
         return `The file One Day keeps in your ${n} can’t be read.`;
       case 'big':
-        return `The copy in your ${n} is larger than One Day can hold.`;
+        return c && CL[c].native
+          ? `One Day’s copy is larger than the 1 MB that ${n} keeps for it, so it stays on this device. Sync tries again after your next change.`
+          : `The copy in your ${n} is larger than One Day can hold.`;
       default:
         return `${n} couldn’t do that${e && e.status ? ` (${e.status})` : ''}. One Day tries again in a moment.`;
     }
@@ -10439,7 +10459,9 @@ try {
       // what to choose on the other devices, in bold, as it reads on screen there
       SY.syLi.innerHTML = [
         `${esc(CL[c].co)} sees one file and when it changes, never a task.`,
-        `On your other devices, open <b>One Day</b>, choose <b>Sync with your cloud</b>, then <b>${esc(CL[c].label || n)}</b> with the same account and the same passphrase.`,
+        CL[c].native
+          ? `On your other iPhone, iPad or Mac, open the <b>One Day</b> app, choose <b>Sync with your cloud</b>, then <b>${esc(n)}</b>, with the same Apple Account and the same passphrase.`
+          : `On your other devices, open <b>One Day</b>, choose <b>Sync with your cloud</b>, then <b>${esc(CL[c].label || n)}</b> with the same account and the same passphrase.`,
         'Offline, your changes wait here, and go up once you’re back online.',
       ]
         .map(x => `<li>${x}</li>`)
@@ -10448,7 +10470,7 @@ try {
       no = 'Stop syncing';
     } else if (st === 'stop') {
       t = 'Stop syncing here?';
-      sub = `Your tasks stay in this browser, and in your ${n} for your other devices.`;
+      sub = `Your tasks stay ${APP ? 'on this device' : 'in this browser'}, and in your ${n} for your other devices.`;
       SY.syEraseT.textContent = `Also erase One Day’s copy from your ${n}`;
       if (SY.syErase.checked) hint = 'Stop syncing on your other devices first: one still syncing would put the copy back.';
       go = 'Stop syncing';
@@ -10672,7 +10694,7 @@ try {
     // off in what this browser keeps, at once: a tab that opens (or unlocks) meanwhile doesn't sync the copy back
     syQuiet();
     // the sign-in, held in this page meanwhile, to erase the copy with
-    SYPEND = sys.auth ? { cloud: sys.cloud, ...sys.auth } : null;
+    SYPEND = sys.auth ? { cloud: sys.cloud, ...sys.auth, acct: sys.acct || '' } : null;
     clearTimeout(syT);
     syT = null;
     // the other tabs stop first, so that none of them puts the copy back while it goes

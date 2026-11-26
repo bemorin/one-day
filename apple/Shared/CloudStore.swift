@@ -55,9 +55,10 @@ final class CloudStore {
   }
 }
 
-/// A failure the app names itself.
+/// A failure the app names itself, in the words app.js knows. `account`: the device is signed in to another account than
+/// the one the page syncs with. `http`: something CloudKit refused that waiting won't mend (a record type missing).
 nonisolated enum CloudError: String, Error, Sendable {
-  case conflict, gone, big
+  case conflict, gone, big, account, http
 }
 
 /// The iCloud account the device is signed in to: `available` (with the user's id in One Day's container, the same on
@@ -79,9 +80,11 @@ protocol CloudDatabase: AnyObject {
   /// The copy, or nil when there is none.
   func fetch() async throws -> CloudCopy?
   /// Writes the copy over the one whose tag is given (none: a first copy) and returns the new tag. Another copy
-  /// written meanwhile is never written over: CloudError.conflict (or CloudKit's serverRecordChanged).
-  func save(_ text: String, over tag: String?) async throws -> String
-  func delete() async throws
+  /// written meanwhile is never written over: CloudError.conflict (or CloudKit's serverRecordChanged). With `user`,
+  /// only into that account: CloudError.account if the device is signed in to another one.
+  func save(_ text: String, over tag: String?, as user: String?) async throws -> String
+  /// Erases the copy, with `user` only from that account.
+  func delete(as user: String?) async throws
 }
 
 /// CloudKit itself: the private database of One Day's container.
@@ -114,9 +117,10 @@ final class CloudKitDatabase: CloudDatabase {
     return CloudCopy(tag: record.recordChangeTag ?? "", text: Self.text(of: record))
   }
 
-  func save(_ text: String, over tag: String?) async throws -> String {
+  func save(_ text: String, over tag: String?, as user: String?) async throws -> String {
     let data = Data(text.utf8)
     guard data.count <= CloudStore.limit else { throw CloudError.big }
+    try await check(user)
     let record: CKRecord
     if let tag {
       if let last, last.recordChangeTag == tag {
@@ -130,19 +134,34 @@ final class CloudKitDatabase: CloudDatabase {
       record = CKRecord(recordType: CloudStore.recordType, recordID: CloudStore.recordID)
     }
     record[CloudStore.field] = data
-    let (saved, _) = try await database.modifyRecords(
-      saving: [record], deleting: [], savePolicy: .ifServerRecordUnchanged, atomically: false)
-    guard let result = saved[CloudStore.recordID] else { throw CloudError.gone }
-    let written = try result.get()
-    last = written
-    return written.recordChangeTag ?? ""
+    do {
+      let (saved, _) = try await database.modifyRecords(
+        saving: [record], deleting: [], savePolicy: .ifServerRecordUnchanged, atomically: false)
+      guard let result = saved[CloudStore.recordID] else { throw CloudError.http }
+      let written = try result.get()
+      last = written
+      return written.recordChangeTag ?? ""
+    } catch {
+      // Unknown at a write is not a copy gone (that one is read first): it is the record type missing where the app
+      // writes (not yet deployed to production), which reading again won't mend.
+      last = nil
+      if CloudStore.kind(of: error) == "gone" { throw CloudError.http }
+      throw error
+    }
   }
 
-  func delete() async throws {
+  func delete(as user: String?) async throws {
+    try await check(user)
     last = nil
     do {
       _ = try await database.deleteRecord(withID: CloudStore.recordID)
     } catch let error as CKError where error.code == .unknownItem {}
+  }
+
+  /// The account the page expects, if it says one, must be the one the device is signed in to now.
+  private func check(_ user: String?) async throws {
+    guard let user, !user.isEmpty else { return }
+    guard try await container.userRecordID().recordName == user else { throw CloudError.account }
   }
 
   private func currentRecord() async throws -> CKRecord? {

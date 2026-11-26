@@ -18,11 +18,12 @@ final class CloudBridge: NSObject, WKScriptMessageHandlerWithReply {
     guard message.frameInfo.isMainFrame, message.frameInfo.securityOrigin.protocol == SiteFiles.scheme,
       let body = message.body as? [String: Any], let op = body["op"] as? String
     else { return (nil, "refused") }
-    return await answer(op: op, text: body["text"] as? String, tag: body["tag"] as? String)
+    return await answer(op: op, text: body["text"] as? String, tag: body["tag"] as? String, user: body["user"] as? String)
   }
 
-  /// One question, answered: a value for the page, or the kind of failure.
-  func answer(op: String, text: String?, tag: String?) async -> (Any?, String?) {
+  /// One question, answered: a value for the page, or the kind of failure. `user`: the account the page syncs with,
+  /// which a write or an erase must still find signed in.
+  func answer(op: String, text: String?, tag: String?, user: String? = nil) async -> (Any?, String?) {
     guard let database = store?.database else { return (nil, "unavailable") }
     do {
       switch op {
@@ -34,10 +35,10 @@ final class CloudBridge: NSObject, WKScriptMessageHandlerWithReply {
         return (["tag": copy.tag, "text": copy.text], nil)
       case "save":
         guard let text else { return (nil, "http") }
-        let written = try await database.save(text, over: tag)
+        let written = try await database.save(text, over: tag, as: user)
         return (["tag": written], nil)
       case "delete":
-        try await database.delete()
+        try await database.delete(as: user)
         return (true, nil)
       default:
         return (nil, "refused")

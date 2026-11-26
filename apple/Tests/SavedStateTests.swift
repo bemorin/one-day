@@ -45,6 +45,20 @@ struct SavedStateTests {
     #expect(names.contains { $0.hasPrefix("saved-unreadable-") })
   }
 
+  @Test("Only the keys the app keeps come back from the file; an unreadable copy goes once a good one is written")
+  func kept() throws {
+    let folder = file.deletingLastPathComponent()
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    try Data(#"{"seq":3,"items":{"oneday.v1":"a","oneday.signedin":"token","other":"x"}}"#.utf8).write(to: file)
+    let saved = SavedState(file: file)
+    #expect(saved.items == ["oneday.v1": "a"])
+    try Data("not json".utf8).write(to: folder.appending(path: "saved-unreadable-1.json"))
+    saved.apply(.set(key: "oneday.theme", value: "dark", seq: 4))
+    saved.flush()
+    let names = try FileManager.default.contentsOfDirectory(atPath: folder.path)
+    #expect(!names.contains { $0.hasPrefix("saved-unreadable-") })
+  }
+
   @Test("A page starts with the file's number, its keys and the app")
   func boot() throws {
     let saved = SavedState(file: file)

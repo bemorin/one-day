@@ -12,18 +12,34 @@ const key = d =>
 const seed = text => ({ days: { [key(new Date())]: { u: 1, tasks: [{ id: 'f1', text, done: false }] } }, rules: {}, tags: {} });
 const texts = p => Object.values(p.days).flatMap(d => d.tasks.map(t => t.text));
 
-// The record One Day keeps in iCloud, and the account the device is signed in to. A write names the tag of the copy it
-// builds on, and is refused over any other (as CloudKit refuses it): none for a first copy.
+// One Day's record in each account's iCloud, and the account the device is signed in to. A write names the tag of the
+// copy it builds on, and is refused over any other (as CloudKit refuses it): none for a first copy. A write or an erase
+// that names another account than the device's is refused, as the app refuses it (CloudKitDatabase.check).
 class ICloud {
   constructor() {
-    this.copy = null;
+    this.records = {};
     this.account = { status: 'available', user: '_a1b2c3' };
     this.writes = 0;
     this.saves = 0;
     this.lists = 0;
     this.refuseNext = 0;
+    this.users = [];
+    // { op, kind }: that question fails so; hang: that question never gets an answer
+    this.fail = null;
+    this.hang = null;
+  }
+  get copy() {
+    return this.records[this.account.user] || null;
+  }
+  set copy(v) {
+    this.records[this.account.user] = v;
   }
   answer(q) {
+    if (this.hang === q.op) return new Promise(() => {});
+    if (this.fail && this.fail.op === q.op) {
+      if (q.op === 'save') this.saves++;
+      return { error: this.fail.kind };
+    }
     switch (q.op) {
       case 'account':
         return { ...this.account };
@@ -32,6 +48,8 @@ class ICloud {
         return this.copy ? { ...this.copy } : null;
       case 'save':
         this.saves++;
+        this.users.push(q.user);
+        if (q.user && q.user !== this.account.user) return { error: 'account' };
         if (this.refuseNext > 0) {
           this.refuseNext--;
           return { error: 'conflict' };
@@ -41,6 +59,8 @@ class ICloud {
         this.copy = { tag: `t${this.writes}`, text: q.text };
         return { tag: this.copy.tag };
       case 'delete':
+        this.users.push(q.user);
+        if (q.user && q.user !== this.account.user) return { error: 'account' };
         this.copy = null;
         return true;
       default:
@@ -54,6 +74,16 @@ async function appDevice(browser, baseURL, cloud, o = {}) {
   const ctx = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 1280, height: 860 } }),
     errors = [];
   await ctx.exposeFunction('__icloud', q => cloud.answer(q));
+  if (o.patch)
+    await ctx.route(/\/app\.js$/, async route => {
+      const res = await route.fetch();
+      let body = await res.text();
+      for (const [a, b] of o.patch) {
+        if (!body.includes(a)) throw new Error(`${a} not found in app.js`);
+        body = body.replace(a, b);
+      }
+      await route.fulfill({ response: res, body });
+    });
   const page = await ctx.newPage();
   page.on('pageerror', e => errors.push(e.message));
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -183,7 +213,7 @@ test.describe('iCloud in the app', () => {
     const writes = cloud.writes;
     cloud.account = { status: 'available', user: '_someone_else' };
     await A.page.locator('#sySt [data-sy="now"]').click();
-    await expect(A.page.locator('#sySt')).toContainText('That’s not the Apple account this device syncs with', { timeout: 15000 });
+    await expect(A.page.locator('#sySt')).toContainText('another Apple Account than the one sync started with', { timeout: 15000 });
     expect(cloud.writes).toBe(writes);
     await A.ctx.close();
   });
@@ -194,6 +224,128 @@ test.describe('iCloud in the app', () => {
     const c = A.page.locator('#syCh [data-c="icloud"]');
     await expect(c).toBeDisabled();
     await expect(c.locator('span')).toHaveText('Not set up yet');
+    await A.ctx.close();
+  });
+
+  test('another account on the device: stopping with its copy erased erases neither account’s copy, and says why', async ({ browser, baseURL }) => {
+    const cloud = new ICloud(),
+      A = await appDevice(browser, baseURL, cloud, { seed: seed('Water the fern') });
+    await connect(A.page);
+    const mine = cloud.records._a1b2c3;
+    expect(mine).toBeTruthy();
+    // the device now uses an account that keeps a copy of its own
+    cloud.records._b4 = { tag: 'b1', text: 'B’s own copy' };
+    cloud.account = { status: 'available', user: '_b4' };
+    await A.page.locator('#syNo').click();
+    await A.page.locator('#syErase').check();
+    await A.page.locator('#syGo').click();
+    await expect(A.page.locator('#syErr')).toContainText('another Apple Account than the one sync started with', { timeout: 15000 });
+    expect(cloud.records._b4).toEqual({ tag: 'b1', text: 'B’s own copy' });
+    expect(cloud.records._a1b2c3).toEqual(mine);
+    // sync stays on, with the account it started with
+    await expect(A.page.locator('#spill')).not.toHaveAttribute('data-s', 'off');
+    expect(A.errors).toEqual([]);
+    await A.ctx.close();
+  });
+
+  test('each write and each erase names the account sync goes with', async ({ browser, baseURL }) => {
+    const cloud = new ICloud(),
+      A = await appDevice(browser, baseURL, cloud, { seed: seed('Water the fern') });
+    await connect(A.page);
+    await A.page.locator('#syNo').click();
+    await A.page.locator('#syErase').check();
+    await A.page.locator('#syGo').click();
+    await expect(A.page.locator('#toast')).toContainText('gone from your iCloud', { timeout: 15000 });
+    expect(cloud.copy).toBeNull();
+    expect(cloud.users.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(cloud.users)).toEqual(new Set(['_a1b2c3']));
+    await A.ctx.close();
+  });
+
+  test('with the lock on, iCloud’s part is sealed with the tasks; locked, nothing goes; unlocked, it goes on', async ({ browser, baseURL }) => {
+    const cloud = new ICloud(),
+      A = await appDevice(browser, baseURL, cloud, { seed: seed('Water the fern') });
+    await A.page.locator('#lpill').click();
+    await A.page.locator('#lsPass').fill('correct horse battery');
+    await A.page.locator('#lsPass2').fill('correct horse battery');
+    await A.page.locator('#lsOk').check();
+    await A.page.locator('#lsGo').click();
+    await expect(A.page.locator('#lockset')).toBeHidden({ timeout: 20000 });
+    await A.page.keyboard.press('Escape');
+    await connect(A.page);
+    await A.page.keyboard.press('Escape');
+    const keys = await A.page.evaluate(() => Object.keys(localStorage).sort());
+    expect(keys).toEqual(['oneday.app', 'oneday.vault']);
+    const vault = await A.page.evaluate(() => localStorage.getItem('oneday.vault'));
+    expect(JSON.parse(vault).sync).toMatchObject({ iv: expect.any(String), ct: expect.any(String) });
+    expect(vault).not.toContain('_a1b2c3');
+    await A.page.keyboard.press('l');
+    await expect(A.page.locator('#lock')).toBeVisible();
+    const B = await appDevice(browser, baseURL, cloud);
+    await connect(B.page, { join: true });
+    await B.page.keyboard.press('Escape');
+    await B.page.locator('#input').fill('Sent while A was locked');
+    await B.page.locator('#input').press('Enter');
+    await expect.poll(async () => texts(await openCopy(cloud.copy.text, PASS)), { timeout: 15000 }).toContain('Sent while A was locked');
+    const lists = cloud.lists;
+    await A.page.evaluate(() => window.dispatchEvent(new Event('online')));
+    await A.page.waitForTimeout(1500);
+    expect(cloud.lists).toBe(lists);
+    await A.page.locator('#lockPass').fill('correct horse battery');
+    await A.page.locator('#lockPass').press('Enter');
+    await expect(A.page.locator('#lock')).toBeHidden({ timeout: 20000 });
+    await expect(row(A.page, 'Sent while A was locked')).toBeVisible({ timeout: 15000 });
+    expect([...A.errors, ...B.errors]).toEqual([]);
+    await A.ctx.close();
+    await B.ctx.close();
+  });
+
+  test('a copy larger than iCloud keeps says so, and is not sent again by a timer', async ({ browser, baseURL }) => {
+    const cloud = new ICloud(),
+      A = await appDevice(browser, baseURL, cloud, {
+        seed: seed('Water the fern'),
+        patch: [["if (k !== 'big') syncSoon(k === 'slow' ? 60e3 : 120e3);", "if (k !== 'big') syncSoon(k === 'slow' ? 60e3 : 1500);"]],
+      });
+    cloud.fail = { op: 'save', kind: 'big' };
+    await openDialog(A.page);
+    await A.page.locator('#syCh [data-c="icloud"]').click();
+    await A.page.locator('#syPass').fill(PASS);
+    await A.page.locator('#syPass2').fill(PASS);
+    await A.page.locator('#syOk').check();
+    await A.page.locator('#syGo').click();
+    await expect(A.page.locator('#sySt')).toContainText('larger than the 1 MB that iCloud keeps for it', { timeout: 15000 });
+    const saves = cloud.saves;
+    await A.page.waitForTimeout(4000);
+    expect(cloud.saves).toBe(saves);
+    await A.ctx.close();
+  });
+
+  test('iCloud that never answers is given up, and sync says so', async ({ browser, baseURL }) => {
+    const cloud = new ICloud(),
+      A = await appDevice(browser, baseURL, cloud, { seed: seed('Water the fern'), patch: [['SYTO = 45e3', 'SYTO = 1500']] });
+    await connect(A.page);
+    cloud.hang = 'fetch';
+    await A.page.locator('#sySt [data-sy="now"]').click();
+    await expect(A.page.locator('#sySt')).toContainText('iCloud couldn’t be reached', { timeout: 15000 });
+    await A.ctx.close();
+  });
+
+  test('offline, changes wait on the device', async ({ browser, baseURL }) => {
+    const cloud = new ICloud(),
+      A = await appDevice(browser, baseURL, cloud, { seed: seed('Water the fern') });
+    await connect(A.page);
+    const lists = cloud.lists;
+    await A.ctx.setOffline(true);
+    await expect(A.page.locator('#sySt')).toContainText('go to your iCloud once you’re back online', { timeout: 15000 });
+    // a change made offline waits on the device, and asks nothing of iCloud
+    await A.page.keyboard.press('Escape');
+    await A.page.locator('#input').fill('Written offline');
+    await A.page.locator('#input').press('Enter');
+    await A.page.waitForTimeout(3500);
+    expect(cloud.lists).toBe(lists);
+    // back online, it goes up
+    await A.ctx.setOffline(false);
+    await expect.poll(async () => texts(await openCopy(cloud.copy.text, PASS)), { timeout: 20000 }).toContain('Written offline');
     await A.ctx.close();
   });
 });

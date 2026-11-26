@@ -22,16 +22,18 @@ final class FakeCloud: CloudDatabase {
     return copy
   }
 
-  func save(_ text: String, over tag: String?) async throws -> String {
+  func save(_ text: String, over tag: String?, as user: String?) async throws -> String {
     if let failure { throw failure }
+    if let user, !user.isEmpty, user != status.user { throw CloudError.account }
     guard tag == copy?.tag else { throw CloudError.conflict }
     writes += 1
     copy = CloudCopy(tag: "t\(writes)", text: text)
     return "t\(writes)"
   }
 
-  func delete() async throws {
+  func delete(as user: String?) async throws {
     if let failure { throw failure }
+    if let user, !user.isEmpty, user != status.user { throw CloudError.account }
     copy = nil
   }
 }
@@ -64,6 +66,19 @@ struct CloudTests {
 
     _ = await bridge.answer(op: "delete", text: nil, tag: nil)
     #expect(cloud.copy == nil)
+  }
+
+  @Test("Nothing is written to, or erased from, another account than the one the page syncs with")
+  func otherAccount() async throws {
+    let bridge = self.bridge
+    let (first, _) = await bridge.answer(op: "save", text: "sealed", tag: nil, user: "_user")
+    let tag = try #require((first as? [String: String])?["tag"])
+    cloud.status = CloudAccount(status: "available", user: "_someone_else")
+    let (_, write) = await bridge.answer(op: "save", text: "late", tag: tag, user: "_user")
+    #expect(write == "account")
+    let (_, erase) = await bridge.answer(op: "delete", text: nil, tag: nil, user: "_user")
+    #expect(erase == "account")
+    #expect(cloud.copy?.text == "sealed")
   }
 
   @Test("The account, as the device is signed in to it")
@@ -113,5 +128,7 @@ struct CloudTests {
     let (_, error) = await bridge.answer(op: "fetch", text: nil, tag: nil)
     #expect(error == "offline")
     #expect(CloudStore.kind(of: CloudError.big) == "big")
+    #expect(CloudStore.kind(of: CloudError.account) == "account")
+    #expect(CloudStore.kind(of: CloudError.http) == "http")
   }
 }
