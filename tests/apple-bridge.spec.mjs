@@ -97,4 +97,32 @@ test('app: outside the app, the bridge does nothing', async ({ page }) => {
   await expect(page.locator('#app')).not.toHaveClass(/\bpre\b/);
   await expect(row(page, 'Never shown')).toHaveCount(0);
   expect(await page.evaluate(() => ['serviceWorker' in navigator, 'oneDayApp' in window])).toEqual([true, false]);
+  // the website keeps its coffee, and Ko-fi
+  await expect(page.locator('#foot .kofi')).toHaveText('Buy me a ☕');
+  await expect(page.locator('#foot .kofi')).toHaveAttribute('href', 'https://ko-fi.com/bemorin');
+});
+
+test('app: the coffee to Ko-fi becomes an apple through Apple: a click opens the app’s tip sheet, and goes nowhere', async ({ page }) => {
+  await inApp(page, { seq: 0, items: {} });
+  const k = page.locator('#foot .kofi');
+  await expect(k).toHaveText('Buy me an 🍎');
+  await expect(k).toHaveAttribute('aria-label', 'Buy me an apple, a tip through the App Store');
+  expect(await k.getAttribute('href')).not.toContain('ko-fi');
+  const url = page.url();
+  await k.click();
+  await expect.poll(async () => (await sent(page)).filter(m => m.op === 'tip').length).toBe(1);
+  expect(page.url()).toBe(url);
+  expect(await page.evaluate(() => document.body.innerHTML.includes('ko-fi.com'))).toBe(false);
+});
+
+test('app: on a phone, More says the apple too, and it opens the tip sheet', async ({ browser, baseURL }) => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const page = await ctx.newPage();
+  await inApp(page, { seq: 0, items: {} });
+  await page.locator('#mbMore').tap();
+  const line = page.locator('#moreList .kofi');
+  await expect(line).toContainText('buy me an 🍎');
+  await line.tap();
+  await expect.poll(async () => (await sent(page)).filter(m => m.op === 'tip').length).toBe(1);
+  await ctx.close();
 });

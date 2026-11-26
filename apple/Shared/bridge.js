@@ -32,6 +32,31 @@
     });
   } catch (e) {}
 
+  // The footer's coffee goes to Ko-fi, a payment outside the App Store, which an app may not offer. In the app it is an
+  // apple instead: a tip through Apple, in the app's own sheet (TipJar.swift). More and search's foot copy the footer's
+  // link as it is, so they follow; a click on any of them opens the sheet and goes nowhere.
+  const apple = () => {
+    const k = document.querySelector('#foot .kofi');
+    if (!k) return;
+    k.textContent = 'Buy me an 🍎';
+    k.setAttribute('aria-label', 'Buy me an apple, a tip through the App Store');
+    k.setAttribute('href', '#tip');
+    k.removeAttribute('target');
+    k.removeAttribute('rel');
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apple, { once: true });
+  else apple();
+  addEventListener(
+    'click',
+    e => {
+      const a = e.target && e.target.closest && e.target.closest('a.kofi');
+      if (!a) return;
+      e.preventDefault();
+      post({ op: 'tip' });
+    },
+    true,
+  );
+
   // what goes wrong in the page reaches the app's log
   addEventListener('error', e => {
     if (e.error || e.message) post({ op: 'error', message: `${e.message || e.error} (${e.filename || ''}:${e.lineno || 0})` });
