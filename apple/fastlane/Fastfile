@@ -1,0 +1,87 @@
+# One Day for iPhone and iPad, signed for the App Store and sent to TestFlight from GitHub's Macs:
+# .github/workflows/testflight.yml runs `fastlane beta` in apple/.
+#
+# The team has no registered device, so Xcode can't make the development profile its automatic signing starts with,
+# and Xcode 26 refuses ad hoc signing for iOS. So the build is signed for the App Store from the start: with a
+# distribution certificate made for this run (its private key exists only in this Mac's temporary keychain) and an
+# App Store profile, which needs no device. The certificate is revoked when the run ends, whatever happens: a team
+# holds only a few, and the builds already sent to TestFlight or the App Store don't depend on it.
+default_platform(:ios)
+
+platform :ios do
+  lane :beta do
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_filepath: ENV.fetch("ASC_KEY_PATH"),
+      in_house: false
+    )
+    team = ENV.fetch("TEAM_ID")
+    keychain = "one-day-ci"
+    password = SecureRandom.hex(24)
+    create_keychain(name: keychain, password: password, default_keychain: true, unlock: true, timeout: 3600, lock_when_sleeps: false)
+    certificate = nil
+    begin
+      get_certificates(
+        api_key: api_key,
+        development: false,
+        keychain_path: File.expand_path("~/Library/Keychains/#{keychain}-db"),
+        keychain_password: password,
+        output_path: "build/signing"
+      )
+      certificate = lane_context[SharedValues::CERT_CERTIFICATE_ID]
+      get_provisioning_profile(
+        api_key: api_key,
+        app_identifier: "com.bemorin.oneday",
+        cert_id: certificate,
+        force: true,
+        output_path: "build/signing",
+        filename: "OneDay_AppStore.mobileprovision"
+      )
+      profile = lane_context[SharedValues::SIGH_NAME]
+      build_app(
+        project: "OneDay.xcodeproj",
+        scheme: "OneDay-iOS",
+        configuration: "Release",
+        destination: "generic/platform=iOS",
+        output_directory: "build/ipa",
+        output_name: "OneDay.ipa",
+        export_method: "app-store",
+        xcargs: [
+          "DEVELOPMENT_TEAM=#{team}",
+          "CODE_SIGN_STYLE=Manual",
+          "CODE_SIGN_IDENTITY='Apple Distribution'",
+          "PROVISIONING_PROFILE_SPECIFIER='#{profile}'",
+          "CURRENT_PROJECT_VERSION=#{ENV.fetch('BUILD_NUMBER')}"
+        ].join(" "),
+        export_options: {
+          signingStyle: "manual",
+          teamID: team,
+          provisioningProfiles: { "com.bemorin.oneday" => profile },
+          iCloudContainerEnvironment: "Production"
+        }
+      )
+      # The signed app must carry its iCloud container: CloudKit stops an app that asks for one it isn't entitled to.
+      # (`sh` runs in this fastlane folder; the actions above, in apple/.)
+      sh("rm -rf ../build/ipa-open && mkdir -p ../build/ipa-open && unzip -q ../build/ipa/OneDay.ipa -d ../build/ipa-open")
+      entitlements = sh("codesign -d --entitlements - ../build/ipa-open/Payload/*.app 2>&1 | tee ../build/entitlements.txt")
+      UI.user_error!("The signed app lacks its iCloud container") unless entitlements.include?("iCloud.com.bemorin.oneday")
+      upload_to_testflight(api_key: api_key, ipa: "build/ipa/OneDay.ipa", skip_waiting_for_build_processing: true)
+    ensure
+      if certificate
+        begin
+          Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.from(hash: api_key)
+          Spaceship::ConnectAPI::Certificate.all.find { |c| c.id == certificate }&.delete!
+          UI.message("This run's distribution certificate is revoked")
+        rescue StandardError => e
+          UI.important("This run's distribution certificate could not be revoked (#{e.message}): revoke it in Certificates, Identifiers & Profiles")
+        end
+      end
+      begin
+        delete_keychain(name: keychain)
+      rescue StandardError
+        nil
+      end
+    end
+  end
+end

@@ -5,7 +5,7 @@ name: TestFlight
 # this file is on the default branch, where GitHub looks for it. It needs these secrets, all from the Apple Developer
 # account:
 #   APPLE_TEAM_ID   the Team ID
-#   ASC_KEY_ID      an App Store Connect API key's ID (a Team key with the Admin role: Xcode makes the signing
+#   ASC_KEY_ID      an App Store Connect API key's ID (a Team key with the Admin role: fastlane makes the signing
 #                   certificate and profile with it)
 #   ASC_ISSUER_ID   the Issuer ID shown above the keys
 #   ASC_KEY         the key's file (AuthKey_….p8), its whole text
@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   upload:
-    name: Archive, sign and upload (iPhone and iPad)
+    name: Sign and send to TestFlight (iPhone and iPad)
     runs-on: macos-26
     timeout-minutes: 60
     env:
@@ -61,53 +61,27 @@ jobs:
       - name: Project
         working-directory: apple
         run: xcodegen generate
-      - name: Archive and export
+      # The build is signed for the App Store with a certificate made for this run and revoked at its end, and an App
+      # Store profile, which needs no registered device: see apple/fastlane/Fastfile.
+      - name: Sign and send to TestFlight
         working-directory: apple
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+          FASTLANE_SKIP_UPDATE_CHECK: '1'
+          FASTLANE_HIDE_CHANGELOG: '1'
+          FASTLANE_DISABLE_COLORS: '1'
+          LC_ALL: en_US.UTF-8
+          LANG: en_US.UTF-8
         run: |
-          set -o pipefail
-          KEY=~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8
-          AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEY -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID"
-          mkdir -p build
-          # The archive is signed ad hoc, with the app's entitlements (iCloud) but no certificate or profile: a
-          # development profile needs a registered device, which this team has not. The export below signs it for the
-          # App Store with Apple's cloud-managed certificate and an App Store profile, which need no device, and keeps
-          # the entitlements the archive's signature carries.
-          xcodebuild archive -project OneDay.xcodeproj -scheme OneDay-iOS -configuration Release \
-            -destination 'generic/platform=iOS' -archivePath build/OneDay-iOS.xcarchive \
-            DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- PROVISIONING_PROFILE_SPECIFIER= \
-            CODE_SIGNING_REQUIRED=NO PROVISIONING_PROFILE_REQUIRED=NO \
-            CURRENT_PROJECT_VERSION="${{ github.run_number }}" -quiet 2>&1 | tee build/archive.log
-          echo "Entitlements in the archive:"
-          codesign -d --entitlements - "build/OneDay-iOS.xcarchive/Products/Applications/One Day.app" 2>&1 | tee build/entitlements-archive.txt
-          cat > build/export.plist <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0"><dict>
-            <key>method</key><string>app-store-connect</string>
-            <key>destination</key><string>export</string>
-            <key>signingStyle</key><string>automatic</string>
-            <key>teamID</key><string>$TEAM_ID</string>
-            <key>iCloudContainerEnvironment</key><string>Production</string>
-            <key>uploadSymbols</key><true/>
-          </dict></plist>
-          EOF
-          xcodebuild -exportArchive -archivePath build/OneDay-iOS.xcarchive -exportPath build/ipa \
-            -exportOptionsPlist build/export.plist $AUTH 2>&1 | tee build/export.log
-          ls -la build/ipa
-          echo "Entitlements of the signed app:"
-          mkdir -p build/ipa-open && unzip -q -o build/ipa/*.ipa -d build/ipa-open
-          codesign -d --entitlements - build/ipa-open/Payload/*.app 2>&1 | tee build/entitlements-signed.txt
-          grep -q "iCloud.com.bemorin.oneday" build/entitlements-signed.txt || { echo "::error::The signed app lacks its iCloud container"; exit 1; }
-      - name: Upload to App Store Connect
-        working-directory: apple
-        run: |
-          IPA=$(ls build/ipa/*.ipa | head -1)
-          xcrun altool --upload-app -f "$IPA" -t ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+          export ASC_KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8"
+          fastlane beta
+          mkdir -p build/logs && cp -R ~/Library/Logs/gym/. build/logs/ 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: testflight-${{ github.run_number }}
           path: |
-            apple/build/*.log
-            apple/build/entitlements-*.txt
+            apple/build/logs/
+            apple/build/entitlements.txt
+            ~/Library/Logs/gym/
           retention-days: 14
