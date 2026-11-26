@@ -68,9 +68,17 @@ jobs:
           KEY=~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8
           AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEY -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID"
           mkdir -p build
+          # The archive is signed ad hoc, with the app's entitlements (iCloud) but no certificate or profile: a
+          # development profile needs a registered device, which this team has not. The export below signs it for the
+          # App Store with Apple's cloud-managed certificate and an App Store profile, which need no device, and keeps
+          # the entitlements the archive's signature carries.
           xcodebuild archive -project OneDay.xcodeproj -scheme OneDay-iOS -configuration Release \
             -destination 'generic/platform=iOS' -archivePath build/OneDay-iOS.xcarchive \
-            DEVELOPMENT_TEAM="$TEAM_ID" CURRENT_PROJECT_VERSION="${{ github.run_number }}" $AUTH -quiet 2>&1 | tee build/archive.log
+            DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- PROVISIONING_PROFILE_SPECIFIER= \
+            CODE_SIGNING_REQUIRED=NO PROVISIONING_PROFILE_REQUIRED=NO \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" -quiet 2>&1 | tee build/archive.log
+          echo "Entitlements in the archive:"
+          codesign -d --entitlements - "build/OneDay-iOS.xcarchive/Products/Applications/One Day.app" 2>&1 | tee build/entitlements-archive.txt
           cat > build/export.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -79,12 +87,17 @@ jobs:
             <key>destination</key><string>export</string>
             <key>signingStyle</key><string>automatic</string>
             <key>teamID</key><string>$TEAM_ID</string>
+            <key>iCloudContainerEnvironment</key><string>Production</string>
             <key>uploadSymbols</key><true/>
           </dict></plist>
           EOF
           xcodebuild -exportArchive -archivePath build/OneDay-iOS.xcarchive -exportPath build/ipa \
             -exportOptionsPlist build/export.plist $AUTH 2>&1 | tee build/export.log
           ls -la build/ipa
+          echo "Entitlements of the signed app:"
+          mkdir -p build/ipa-open && unzip -q -o build/ipa/*.ipa -d build/ipa-open
+          codesign -d --entitlements - build/ipa-open/Payload/*.app 2>&1 | tee build/entitlements-signed.txt
+          grep -q "iCloud.com.bemorin.oneday" build/entitlements-signed.txt || { echo "::error::The signed app lacks its iCloud container"; exit 1; }
       - name: Upload to App Store Connect
         working-directory: apple
         run: |
@@ -94,5 +107,7 @@ jobs:
         if: always()
         with:
           name: testflight-${{ github.run_number }}
-          path: apple/build/*.log
+          path: |
+            apple/build/*.log
+            apple/build/entitlements-*.txt
           retention-days: 14
