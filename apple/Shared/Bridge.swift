@@ -9,6 +9,8 @@ final class Bridge: NSObject, WKScriptMessageHandler {
   let saved: SavedState
   /// Whether this build carries iCloud: the page is told before its own code runs (oneDayApp.icloud).
   var icloud = false
+  /// What the page's "Buy me an 🍎" does: opens the tip sheet (see TipJar).
+  var onTip: (() -> Void)?
   /// The page's uncaught errors, the last few (the tests read them).
   private(set) var errors: [String] = []
   private let log = Logger(subsystem: "com.bemorin.oneday", category: "page")
@@ -50,6 +52,8 @@ final class Bridge: NSObject, WKScriptMessageHandler {
       let text = body["message"] as? String ?? "?"
       errors = Array((errors + [text]).suffix(20))
       log.error("The page failed: \(text, privacy: .private)")
+    case "tip":
+      onTip?()
     case "rejection":
       let text = body["message"] as? String ?? "?"
       log.notice("A promise of the page failed: \(text, privacy: .private)")

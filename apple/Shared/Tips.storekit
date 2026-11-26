@@ -1,0 +1,95 @@
+{
+  "identifier" : "4E0A3F1B",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "6743000001",
+      "localizations" : [
+        {
+          "description" : "A tip for One Day. It unlocks nothing, and says thank you.",
+          "displayName" : "An apple",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.bemorin.oneday.tip.apple",
+      "referenceName" : "Tip: an apple",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "2.99",
+      "familyShareable" : false,
+      "internalID" : "6743000002",
+      "localizations" : [
+        {
+          "description" : "A tip for One Day. It unlocks nothing, and says thank you.",
+          "displayName" : "A basket of apples",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.bemorin.oneday.tip.basket",
+      "referenceName" : "Tip: a basket of apples",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "6743000003",
+      "localizations" : [
+        {
+          "description" : "A tip for One Day. It unlocks nothing, and says thank you.",
+          "displayName" : "An apple pie",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.bemorin.oneday.tip.pie",
+      "referenceName" : "Tip: an apple pie",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "9.99",
+      "familyShareable" : false,
+      "internalID" : "6743000004",
+      "localizations" : [
+        {
+          "description" : "A tip for One Day. It unlocks nothing, and says thank you.",
+          "displayName" : "An apple tree",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.bemorin.oneday.tip.tree",
+      "referenceName" : "Tip: an apple tree",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "19.99",
+      "familyShareable" : false,
+      "internalID" : "6743000005",
+      "localizations" : [
+        {
+          "description" : "A tip for One Day. It unlocks nothing, and says thank you.",
+          "displayName" : "An orchard",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.bemorin.oneday.tip.orchard",
+      "referenceName" : "Tip: an orchard",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA"
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

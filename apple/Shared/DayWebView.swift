@@ -6,9 +6,10 @@ import os
 /// backups are saved where the person chooses, and its files come from the app.
 struct DayWebView {
   let saved: SavedState
+  let tips: TipJar
 
   func makeCoordinator() -> Coordinator {
-    Coordinator(saved: saved)
+    Coordinator(saved: saved, tips: tips)
   }
 
   final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
@@ -18,9 +19,11 @@ struct DayWebView {
     private var downloads: [ObjectIdentifier: URL] = [:]
     private let log = Logger(subsystem: "com.bemorin.oneday", category: "web")
 
-    init(saved: SavedState) {
+    init(saved: SavedState, tips: TipJar) {
       bridge = Bridge(saved: saved)
       cloud = CloudBridge(store: CloudStore.live())
+      super.init()
+      bridge.onTip = { [weak tips] in tips?.open() }
     }
 
     func makeWebView() -> WKWebView {

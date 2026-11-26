@@ -34,7 +34,7 @@ targets:
     platform: iOS
     sources:
       - path: Shared
-        excludes: ["bridge.js", "PrivacyInfo.xcprivacy"]
+        excludes: ["bridge.js", "PrivacyInfo.xcprivacy", "Tips.storekit"]
       - path: Shared/bridge.js
         buildPhase: resources
       - path: Shared/PrivacyInfo.xcprivacy
@@ -59,7 +59,7 @@ targets:
     platform: macOS
     sources:
       - path: Shared
-        excludes: ["bridge.js", "PrivacyInfo.xcprivacy"]
+        excludes: ["bridge.js", "PrivacyInfo.xcprivacy", "Tips.storekit"]
       - path: Shared/bridge.js
         buildPhase: resources
       - path: Shared/PrivacyInfo.xcprivacy
@@ -83,7 +83,11 @@ targets:
   OneDayTests-iOS:
     type: bundle.unit-test
     platform: iOS
-    sources: [Tests]
+    sources:
+      - path: Tests
+      # the tips as App Store Connect will hold them, for StoreKit's own test store
+      - path: Shared/Tips.storekit
+        buildPhase: resources
     dependencies:
       - target: OneDay-iOS
     settings:
@@ -96,7 +100,11 @@ targets:
   OneDayTests-macOS:
     type: bundle.unit-test
     platform: macOS
-    sources: [Tests]
+    sources:
+      - path: Tests
+      # the tips as App Store Connect will hold them, for StoreKit's own test store
+      - path: Shared/Tips.storekit
+        buildPhase: resources
     dependencies:
       - target: OneDay-macOS
     settings:
