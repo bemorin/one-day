@@ -6,8 +6,9 @@ if (/Android/i.test(navigator.userAgent)) {
   const vp = document.querySelector('meta[name="viewport"]');
   if (vp) vp.content = vp.content.replace(/,\s*viewport-fit=cover/, '');
 }
-/* One Day's app on Google Play is this very page, which Chrome opens full screen at ./?app=android (android/ in the
-   repository). Chrome also names the app as where the page came from, which is all a link opened in the app shows. The
+/* One Day's app on Google Play is this very page, which the phone's browser (Chrome, mostly) opens full screen at
+   ./?app=android (android/ in the repository). The browser also names the app as where the page came from, which is all
+   a link opened in the app shows. The
    page keeps it in mind for as long as the app's tab lives (a reload, the guide and back), and takes the mark out of
    its address, so a day sent from the app never carries it. Google Play wants an app's payments to go through it, so
    there the coffee (Ko-fi, outside Google Play) is left out: One Day stays free, and the website keeps the coffee. */
