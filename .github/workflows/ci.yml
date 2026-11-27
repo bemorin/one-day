@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # apple-app too: the app carries the site, and its changes to the site's code are tested on the site as well
+    branches: [main, apple-app]
   pull_request:
 
 permissions:
