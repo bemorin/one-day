@@ -22,7 +22,7 @@ final class FakeSheet: SignInOpening {
   var opened: [URL] = []
   var cancels = 0
   var ending: SignInError?
-  var back = URL(string: "https://day.bemorin.com/oauth/?code=c1&state=s1")!
+  var back = URL(string: "https://getone.day/oauth/?code=c1&state=s1")!
 
   func open(_ url: URL) async throws -> URL {
     opened.append(url)
@@ -46,7 +46,7 @@ struct SignInTests {
       ("https://someone@www.dropbox.com/oauth2/authorize", false),
       ("https://dropbox.com/oauth2/authorize", false),
       ("https://www.dropbox.com.example.com/oauth2/authorize", false),
-      ("https://day.bemorin.com/oauth/", false),
+      ("https://getone.day/oauth/", false),
       ("oneday://localhost/", false),
     ])
   func pages(url: String, opens: Bool) throws {
@@ -60,7 +60,7 @@ struct SignInTests {
     let (back, error) = await bridge.answer(
       op: "signin", text: nil, tag: nil, url: "https://www.dropbox.com/oauth2/authorize?client_id=x&state=s1")
     #expect(error == nil)
-    #expect(back as? String == "https://day.bemorin.com/oauth/?code=c1&state=s1")
+    #expect(back as? String == "https://getone.day/oauth/?code=c1&state=s1")
     #expect(sheet.opened.map { $0.host() } == ["www.dropbox.com"])
   }
 

@@ -21,16 +21,16 @@ nonisolated enum SignInError: Error, Sendable {
 
 /// Signing in to Google Drive, Dropbox or OneDrive from the app (app.js, "Sync with your cloud"). The cloud's own page
 /// opens in the system's sign-in sheet: the browser's, never the app's web view, where Google refuses to sign in. The
-/// cloud sends you back to One Day's page on its website, https://day.bemorin.com/oauth/, the address each cloud already
-/// knows, and the sheet hands that address to the app instead of opening it. It does so only for an app that the
+/// cloud sends you back to One Day's page on its website, https://getone.day/oauth/, the address registered with each
+/// cloud for the website, and the sheet hands that address to the app instead of opening it. It does so only for an app that the
 /// website names as its own (its apple-app-site-association file lists the app for webcredentials, and the app's
-/// entitlements name day.bemorin.com). The page reads the cloud's answer in that address, as the website's oauth/ page
+/// entitlements name getone.day). The page reads the cloud's answer in that address, as the website's oauth/ page
 /// reads it, and takes it only if it answers the sign-in it started.
 final class SignInSheet: NSObject, SignInOpening {
   /// The sign-in pages the app opens, and nothing else.
   static let pages: Set<String> = ["accounts.google.com", "www.dropbox.com", "login.microsoftonline.com"]
   /// Where the clouds send you back.
-  static let backHost = "day.bemorin.com"
+  static let backHost = "getone.day"
   static let backPath = "/oauth/"
 
   /// The window the sheet stands over.

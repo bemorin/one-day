@@ -39,7 +39,7 @@ platform :ios do
         filename: "OneDay_AppStore.mobileprovision"
       )
       profile = lane_context[SharedValues::SIGH_NAME]
-      # The sign-in sheet for Google Drive, Dropbox and OneDrive comes back on day.bemorin.com only for an app that names
+      # The sign-in sheet for Google Drive, Dropbox and OneDrive comes back on getone.day only for an app that names
       # that domain (Associated Domains): the profile allows it only once the App ID has that capability turned on.
       path = lane_context[SharedValues::SIGH_PROFILE_PATH].to_s
       path = File.expand_path(path, "..") unless File.exist?(path)
@@ -74,7 +74,7 @@ platform :ios do
       sh("rm -rf ../build/ipa-open && mkdir -p ../build/ipa-open && unzip -q ../build/ipa/OneDay.ipa -d ../build/ipa-open")
       entitlements = sh("codesign -d --entitlements - ../build/ipa-open/Payload/*.app 2>&1 | tee ../build/entitlements.txt")
       UI.user_error!("The signed app lacks its iCloud container") unless entitlements.include?("iCloud.com.bemorin.oneday")
-      UI.user_error!("The signed app doesn't name day.bemorin.com") unless entitlements.include?("webcredentials:day.bemorin.com")
+      UI.user_error!("The signed app doesn't name getone.day") unless entitlements.include?("webcredentials:getone.day")
       upload_to_testflight(api_key: api_key, ipa: "build/ipa/OneDay.ipa", skip_waiting_for_build_processing: true)
     ensure
       if certificate

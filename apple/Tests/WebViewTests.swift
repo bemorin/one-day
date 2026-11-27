@@ -110,7 +110,7 @@ struct WebViewTests {
       try { await ask({ op: 'signin', url: 'https://example.com/' }); } catch (e) { refused = e.message; }
       return [back, refused].join(' ');
       """, contentWorld: .page) as? String
-    #expect(said == "https://day.bemorin.com/oauth/?code=c1&state=s1 refused")
+    #expect(said == "https://getone.day/oauth/?code=c1&state=s1 refused")
     #expect(sheet.opened.count == 1)
     #expect(bridge.errors.isEmpty, "The page failed: \(bridge.errors)")
   }

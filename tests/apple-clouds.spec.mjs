@@ -9,7 +9,7 @@ import { Drive, Dropbox, OneDrive, openCopy } from './clouds.mjs';
 
 const BRIDGE = readFileSync(new URL('../apple/Shared/bridge.js', import.meta.url), 'utf8');
 const PASS = 'a long sync passphrase';
-const BACK = 'https://day.bemorin.com/oauth/';
+const BACK = 'https://getone.day/oauth/';
 const key = d =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const seed = text => ({ days: { [key(new Date())]: { u: 1, tasks: [{ id: 'f1', text, done: false }] } }, rules: {}, tags: {} });

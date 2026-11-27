@@ -9212,7 +9212,7 @@ try {
   const syTok = (j, s) => ({ a: j.access_token, ax: Date.now() + (+j.expires_in || s) * 1000 }),
     // Where each cloud sends you back: One Day's own page for it, never anywhere else. In the app, that page on One Day's
     // website, the address the clouds know: the sign-in sheet hands it to the app instead of opening it (appSheet).
-    syBack = () => (APPSI ? 'https://day.bemorin.com/oauth/' : new URL('oauth/', location.href).href.replace(/[?#].*$/, ''));
+    syBack = () => (APPSI ? 'https://getone.day/oauth/' : new URL('oauth/', location.href).href.replace(/[?#].*$/, ''));
 
   /* Google Drive: One Day's hidden folder there (the appDataFolder, scope drive.appdata), which no other app and no other
      file can reach. Google gives a page without a server one way to sign in: a token in the address it sends back,
