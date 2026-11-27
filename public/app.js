@@ -10904,6 +10904,7 @@ if (typeof MOVE === 'undefined' || (MOVE.mode !== 'gone' && MOVE.mode !== 'clear
         'Export a backup here.',
         'Open getone.day in Safari and add it to your Home Screen.',
         'There, choose Import backup: your tasks are added, nothing is overwritten.',
+        sy && `Sync with your ${esc(sy)} stops here once they’re there. At getone.day, turn it on again with the same cloud and passphrase.`,
       ];
       go = st === 'saved' ? 'They’re at getone.day' : 'Export backup';
     }
@@ -10986,7 +10987,7 @@ if (typeof MOVE === 'undefined' || (MOVE.mode !== 'gone' && MOVE.mode !== 'clear
     if (!MVD || MVD.busy) return;
     const done = MVD.st === 'done';
     closeMove();
-    if (done) return location.replace(MV.NEW + '/');
+    if (done) return location.replace(MV.NEW + '/' + (PLAY ? '?app=android' : ''));
     if (INRE.test(location.hash)) later(readIncoming, 300);
   }
   MI.mvNo.onclick = () => moveLater();
@@ -11149,6 +11150,10 @@ if (typeof MOVE === 'undefined' || (MOVE.mode !== 'gone' && MOVE.mode !== 'clear
       hash = MVD && MVD.link ? MVD.link : '',
       rec = { to: MV.NEW, at: Date.now(), n: P.n, sig: P.sig, how: 'window' };
     MVW = null;
+    // an earlier try by link that never came back: its number and copy go
+    try {
+      localStorage.removeItem(MVKEYS.moving);
+    } catch (e) {}
     try {
       localStorage.setItem(MVKEYS.moved, JSON.stringify(P.keep ? { ...rec, keep: P.keep } : rec));
     } catch (e) {
@@ -11166,7 +11171,12 @@ if (typeof MOVE === 'undefined' || (MOVE.mode !== 'gone' && MOVE.mode !== 'clear
     // the Android app's mark goes along: each address keeps its own
     location.replace(MV.NEW + '/' + (PLAY ? '?app=android' : '') + hash);
   }
-  // with the lock on: the passphrase, checked before anything goes, unless this page was opened with it
+  // with the lock on: the passphrase, checked before anything goes, unless this page was opened with it; its field
+  // shows if it was hidden
+  const passWrong = msg => {
+    MI.mvPass.hidden = false;
+    return wrong(MI.mvForm, MI.mvErr, MI.mvPass, msg);
+  };
   async function movePass() {
     if (!vault || MVPASS) return '';
     const pass = MI.mvPass.value,
@@ -11187,11 +11197,13 @@ if (typeof MOVE === 'undefined' || (MOVE.mode !== 'gone' && MOVE.mode !== 'clear
     if (OWNSTORE) {
       if (MVD.st !== 'saved') {
         const bad = await movePass();
-        if (bad) return wrong(MI.mvForm, MI.mvErr, MI.mvPass, bad);
+        if (bad) return passWrong(bad);
         await exportData();
         return MVD && drawMove('saved');
       }
-      // told it is done: remembered (this app still shows its copy; see moved.js)
+      // told it is done: sync stops here (its key and sign-in leave this app; the copy in the cloud stays), and the move
+      // is remembered (this app still shows its copy; see moved.js)
+      if (SYS) await syStop(false);
       try {
         localStorage.setItem(MVKEYS.moved, JSON.stringify({ to: MV.NEW, at: Date.now(), n: mvTasks(), sig: moveSig(), how: 'file' }));
       } catch (err) {}
@@ -11218,7 +11230,7 @@ if (typeof MOVE === 'undefined' || (MOVE.mode !== 'gone' && MOVE.mode !== 'clear
     try {
       if (m.w && !m.w.closed) m.w.close();
     } catch (err) {}
-    if (r.why === 'pass') return wrong(MI.mvForm, MI.mvErr, MI.mvPass, r.msg);
+    if (r.why === 'pass') return passWrong(r.msg);
     drawMove('failed', r.why);
   });
   // The link way: the tasks, compressed, after # in getone.day's address. getone.day keeps them, asks before adding
@@ -11226,7 +11238,7 @@ if (typeof MOVE === 'undefined' || (MOVE.mode !== 'gone' && MOVE.mode !== 'clear
   MI.mvLink.onclick = async () => {
     if (!MVD || MVD.busy) return;
     const bad = await movePass();
-    if (bad) return wrong(MI.mvForm, MI.mvErr, MI.mvPass, bad);
+    if (bad) return passWrong(bad);
     MVD.busy = true;
     busy(MI.mvLink, 'Making the link…');
     try {
@@ -11252,7 +11264,7 @@ if (typeof MOVE === 'undefined' || (MOVE.mode !== 'gone' && MOVE.mode !== 'clear
   MI.mvFile.onclick = async () => {
     if (!MVD || MVD.busy) return;
     const bad = await movePass();
-    if (bad) return wrong(MI.mvForm, MI.mvErr, MI.mvPass, bad);
+    if (bad) return passWrong(bad);
     await exportData();
     if (MVD) {
       MI.mvHint.textContent = 'Then open getone.day and choose Import backup: your tasks are added there, nothing is overwritten.';
@@ -11271,6 +11283,14 @@ if (typeof MOVE === 'undefined' || (MOVE.mode !== 'gone' && MOVE.mode !== 'clear
       if (m) localStorage.setItem(MVKEYS.movedin, JSON.stringify({ ...m, ...x }));
     } catch (e) {}
   };
+  // A page brought back by the browser's Back (its back-forward cache) missed what other tabs did meanwhile: at the old
+  // address, a move finished elsewhere; at getone.day, tasks that came. It opens again rather than writing over them.
+  const mvSeen = { moved: localStorage.getItem(MVKEYS.moved), at: (movedInfo() || {}).at || 0 };
+  addEventListener('pageshow', e => {
+    if (!e.persisted) return;
+    if (MVOLD && localStorage.getItem(MVKEYS.moved) !== mvSeen.moved) return location.reload();
+    if (MVNEW && ((movedInfo() || {}).at || 0) !== mvSeen.at) location.reload();
+  });
   // nothing kept here yet: what came is taken as it was
   const moveFresh = () => !vault && !SYS && !localStorage.getItem(VK) && (!localStorage.getItem(LS) || syFresh(S));
   // the copy that went last time, as the old address kept it: what both sides came from (null when it can't be read)
@@ -11413,10 +11433,13 @@ if (typeof MOVE === 'undefined' || (MOVE.mode !== 'gone' && MOVE.mode !== 'clear
     return moveWelcome();
   }
   function movedInNow(p) {
+    const at = Date.now();
     localStorage.setItem(
       MVKEYS.movedin,
-      JSON.stringify({ from: MV.OLD, at: Date.now(), n: +p.n || 0, sync: CL[p.sync] ? p.sync : '', locked: !!p.vault, app: !!p.app, copy: true, shown: false }),
+      JSON.stringify({ from: MV.OLD, at, n: +p.n || 0, sync: CL[p.sync] ? p.sync : '', locked: !!p.vault, app: !!p.app, copy: true, shown: false }),
     );
+    // this page knows: it needn't open again if Back brings it back
+    mvSeen.at = at;
   }
   // the card at getone.day: a question (tasks by a link) or what to know once they are here
   function moveCard(o) {

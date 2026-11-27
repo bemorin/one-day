@@ -86,6 +86,13 @@ const MOVE = (() => {
     moved = JSON.parse(ls('oneday.moved'));
   } catch (e) {}
   if (!moved || typeof moved !== 'object' || moved.to !== NEW) moved = null;
+  // a move by link that never came back within a day (a Cancel at getone.day, say): its number and copy go
+  try {
+    const w = JSON.parse(ls('oneday.moving'));
+    if (w && !(Date.now() - w.at < 864e5)) drop('oneday.moving');
+  } catch (e) {
+    drop('oneday.moving');
+  }
   // the Android app's mark, kept by this address for its tab: getone.day is told it too, as the address can't carry it
   let play = false;
   try {
@@ -184,7 +191,8 @@ const MOVE = (() => {
             }).catch(() => {});
         } catch (e) {}
         for (const k of ['oneday.v1', 'oneday.vault', 'oneday.timer', 'oneday.theme', 'oneday.install', 'oneday.signedin', 'oneday.moving']) drop(k);
-        put('oneday.moved', JSON.stringify({ ...m, cleared: Date.now() }));
+        // only that the move happened stays, so that every visit goes on: no task, and not the copy that went
+        put('oneday.moved', JSON.stringify({ to: NEW, at: m.at, sig: m.sig, cleared: Date.now() }));
         on('#old-copy-cleared', '/');
       };
       // the safe choice first: Enter keeps the copy

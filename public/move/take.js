@@ -154,7 +154,7 @@
     } else if (d.step === 'open') {
       // an installed app's move: this window becomes One Day, with the link's tasks it was opened with, if any
       clearTimeout(after);
-      location.replace('../' + (typeof d.hash === 'string' && /^#add[=?]/.test(d.hash) && d.hash.length < 32000 ? d.hash : ''));
+      location.replace('../' + (typeof d.hash === 'string' && /^#add[=?]/.test(d.hash) ? d.hash : ''));
     }
   });
   tell({ step: 'ready' });

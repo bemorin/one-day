@@ -55,7 +55,13 @@ export function parseHeaders(text) {
       if (t.startsWith('!')) rule.unset.push(t.slice(1).trim().toLowerCase());
       else {
         const i = t.indexOf(':');
-        if (i > 0) rule.set.set(t.slice(0, i).trim().toLowerCase(), [t.slice(0, i).trim(), t.slice(i + 1).trim()]);
+        if (i > 0) {
+          // a header written twice in a block: both values, joined with a comma, as Pages does
+          const k = t.slice(0, i).trim(),
+            v = t.slice(i + 1).trim(),
+            was = rule.set.get(k.toLowerCase());
+          rule.set.set(k.toLowerCase(), was ? [was[0], was[1] + ', ' + v] : [k, v]);
+        }
       }
     }
   }

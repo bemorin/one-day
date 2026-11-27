@@ -324,7 +324,8 @@ test.describe('moving to getone.day', () => {
     await expect(page.locator('#toast')).toContainText('The old copy at day.bemorin.com is cleared');
     const left = await storageAt(ctx, OLD);
     expect(Object.keys(left)).toEqual(['oneday.moved']);
-    expect(JSON.parse(left['oneday.moved']).cleared).toBeGreaterThan(0);
+    // only that the tasks moved: no copy of them
+    expect(Object.keys(JSON.parse(left['oneday.moved'])).sort()).toEqual(['at', 'cleared', 'sig', 'to']);
     await page.keyboard.press('/');
     await expect(page.locator('#slist .sdata')).toBeVisible();
     await expect(page.locator('#slist [data-act="oldcopy"]')).toHaveCount(0);
@@ -661,6 +662,104 @@ test.describe('moving to getone.day', () => {
     await ctx.close();
   });
 
+  test('a move by link that never came back leaves nothing at the old address after a day, and a later move clears it at once', async ({ browser }) => {
+    const { ctx } = await browserAt(browser),
+      left = at => JSON.stringify({ id: 'abcdefgh12', sum: 'f'.repeat(64), at, n: 4, sig: 'x', keep: 'a copy' });
+    await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(seed()), 'oneday.moving': left(Date.now() - 2 * 864e5) });
+    const page = await fresh(ctx);
+    await expect(page.locator('#mv')).toBeVisible();
+    expect((await storageAt(ctx, OLD))['oneday.moving']).toBeUndefined();
+    await keepAt(ctx, OLD, { 'oneday.moving': left(Date.now()) });
+    await page.reload();
+    await move(page);
+    expect((await storageAt(ctx, OLD))['oneday.moving']).toBeUndefined();
+    await ctx.close();
+  });
+
+  test('a Home Screen app with sync on stops syncing once its tasks went by a file', async ({ browser }) => {
+    const drive = new Drive(),
+      { ctx } = await browserAt(browser, { patch: [IDS], clouds: [drive], init: () => Object.defineProperty(Navigator.prototype, 'standalone', { get: () => true }) }),
+      late = [];
+    let after = false;
+    ctx.on('request', r => {
+      let o = '';
+      try {
+        o = origin(r.frame().url());
+      } catch (e) {}
+      if (after && o === OLD && /googleapis\.com/.test(r.url())) late.push(r.url());
+    });
+    await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(seed()) });
+    const page = await fresh(ctx);
+    await page.locator('#mvNo').click();
+    await page.locator('#spill:visible, #syncb:visible').first().click();
+    const pop = page.waitForEvent('popup');
+    await page.locator('#syCh [data-c="google"]').click();
+    await expect.poll(async () => (await pop).isClosed(), { timeout: 15000 }).toBe(true);
+    await page.locator('#syPass').fill(PASS);
+    await page.locator('#syPass2').fill(PASS);
+    await page.locator('#syOk').check();
+    await page.locator('#syGo').click();
+    await expect(page.locator('#sySt .syd')).toHaveAttribute('data-s', 'idle', { timeout: 20000 });
+    await page.locator('#syGo').click();
+    await page.reload();
+    await expect(page.locator('#mvLi')).toContainText('Sync with your Google Drive stops here once they’re there');
+    const dl = page.waitForEvent('download');
+    await page.locator('#mvGo').click();
+    await dl;
+    await page.locator('#mvGo').click();
+    await expect(page.locator('#mvT')).toHaveText('One Day lives at getone.day now');
+    after = true;
+    expect(JSON.parse((await storageAt(ctx, OLD))['oneday.v1']).sync).toBeUndefined();
+    await page.waitForTimeout(1500);
+    expect(late).toEqual([]);
+    await ctx.close();
+  });
+
+  test('the Android app, moved as an installed app, keeps its mark at getone.day', async ({ browser }) => {
+    const { ctx } = await browserAt(browser, {
+        init: () => {
+          if (location.origin !== 'https://day.bemorin.com') return;
+          const mm = window.matchMedia.bind(window);
+          window.matchMedia = q => (/display-mode: standalone/.test(q) ? mm('(min-width: 0px)') : mm(q));
+        },
+      }),
+      asked = [];
+    ctx.on('request', r => asked.push(r.url()));
+    await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(seed()) });
+    const page = await ctx.newPage();
+    await page.goto(OLD + '/?app=android');
+    const pop = page.waitForEvent('popup');
+    await page.locator('#mvGo').click();
+    await pop;
+    await expect(page.locator('#mvT')).toHaveText('Your tasks are at getone.day', { timeout: 20000 });
+    await page.locator('#mvGo').click();
+    await page.waitForURL(u => origin(u) === NEW);
+    expect(asked).toContain(NEW + '/?app=android');
+    await ctx.close();
+  });
+
+  test('a page brought back by Back opens again if a move happened meanwhile, at either address', async ({ browser }) => {
+    const { ctx } = await browserAt(browser);
+    await keepAt(ctx, NEW, { 'oneday.v1': JSON.stringify({ days: { [today()]: { u: 5, tasks: [{ id: 'z9', text: 'Only here', done: false }] } }, rules: {}, tags: {} }) });
+    const page = await ctx.newPage();
+    await page.goto(NEW + '/');
+    await expect(row(page, 'Only here')).toBeVisible();
+    // tasks came while this page slept in the back-forward cache (no storage event reaches it there)
+    await page.evaluate(o => localStorage.setItem('oneday.movedin', JSON.stringify({ from: o, at: Date.now(), n: 1, copy: true, shown: true })), OLD);
+    let reload = page.waitForEvent('load');
+    await page.evaluate(() => dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
+    await reload;
+    // the old address: a move finished in another tab meanwhile
+    await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(seed()) });
+    await page.goto(OLD + '/');
+    await page.locator('#mvNo').click();
+    await page.evaluate(n => localStorage.setItem('oneday.moved', JSON.stringify({ to: n, at: Date.now(), sig: MOVE.sig(localStorage.getItem('oneday.v1'), null), how: 'window' })), NEW);
+    reload = page.waitForURL(u => origin(u) === NEW);
+    await page.evaluate(() => dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
+    await reload;
+    await ctx.close();
+  });
+
   test('each address gets its own opener policy, as Pages reads _headers: one rule per pattern, detaches first', async () => {
     const coop = async u => (await answer(new URL(u))).headers['Cross-Origin-Opener-Policy'];
     expect(await coop(OLD + '/')).toBe('same-origin-allow-popups');
@@ -679,6 +778,8 @@ test.describe('moving to getone.day', () => {
     expect(new Set(patterns).size).toBe(patterns.length);
     const trap = parseHeaders(['/*', '  X: a', 'https://h/*', '  ! X', 'https://h/*', '  X: b'].join('\n'));
     expect(headersFor(trap, 'h', '/')).toEqual({ X: 'a, b' });
+    // a header written twice in one block: both values, as Pages joins them
+    expect(headersFor(parseHeaders(['/*', '  Y: a', '  Y: b'].join('\n')), 'h', '/')).toEqual({ Y: 'a, b' });
   });
 
   for (const scheme of ['light', 'dark'])
