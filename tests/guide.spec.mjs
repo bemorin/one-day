@@ -83,7 +83,7 @@ test('SEO basics: a title, a description, one h1, headings in order, every ancho
   const desc = await page.locator('meta[name="description"]').getAttribute('content');
   expect(desc.length).toBeGreaterThan(70);
   expect(desc.length).toBeLessThanOrEqual(160);
-  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://day.bemorin.com/guide/');
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://getone.day/guide/');
   await expect(page.locator('h1')).toHaveCount(1);
   const levels = await page.$$eval('h1, h2, h3, h4, h5, h6', hs => hs.map(h => +h.tagName[1]));
   for (let i = 1; i < levels.length; i++) expect(levels[i] - levels[i - 1]).toBeLessThanOrEqual(1);
@@ -118,8 +118,8 @@ test('SEO basics: a title, a description, one h1, headings in order, every ancho
 });
 
 for (const [path, title, image] of [
-  ['/guide/', 'How to use One Day', 'https://day.bemorin.com/guide/share.jpg'],
-  ['/', 'One Day', 'https://day.bemorin.com/share.jpg'],
+  ['/guide/', 'How to use One Day', 'https://getone.day/guide/share.jpg'],
+  ['/', 'One Day', 'https://getone.day/share.jpg'],
 ])
   test(`a link to ${path} shares a picture of the app (WhatsApp, X…)`, async ({ page, request }) => {
     await page.goto(path);
@@ -130,7 +130,7 @@ for (const [path, title, image] of [
     expect(await meta('og:image:height')).toBe('630');
     expect((await meta('og:image:alt')).length).toBeGreaterThan(20);
     expect(await meta('twitter:card')).toBe('summary_large_image');
-    expect(new URL(await meta('og:url')).origin).toBe('https://day.bemorin.com');
+    expect(new URL(await meta('og:url')).origin).toBe('https://getone.day');
     // the picture npm run shots made: a JPEG of 1200 by 630, light enough for WhatsApp
     const buf = readFileSync(fileOf(image));
     expect(jpegSize(buf)).toEqual([1200, 630]);
@@ -228,7 +228,7 @@ test('Copy page as Markdown: the whole guide, in the clipboard only', async ({ p
   const md = await page.evaluate(() => window.__copied.at(-1));
   expect(md.startsWith('# How to use One Day\n\nOne Day is a calm to-do list')).toBe(true);
   for (const s of [
-    'From https://day.bemorin.com/guide/',
+    'From https://getone.day/guide/',
     '## Basics',
     '### Getting started',
     '#### Leftovers',
@@ -239,9 +239,9 @@ test('Copy page as Markdown: the whole guide, in the clipboard only', async ({ p
     '| Back to today | D or Home |',
     '#### The installed app shows an old version',
     '![One Day on a computer: Tuesday 14 April',
-    '(https://day.bemorin.com/guide/shots/day-light.webp)',
+    '(https://getone.day/guide/shots/day-light.webp)',
     '[privacy policy](https://bemorin.com/privacy#one-day)',
-    '[Moving to a new phone or computer](https://day.bemorin.com/guide/#moving)',
+    '[Moving to a new phone or computer](https://getone.day/guide/#moving)',
     '> **A forgotten passphrase cannot be recovered.**',
     '`one-day-backup-2026-04-14.json`',
     '### Something unclear?',
@@ -536,8 +536,8 @@ test('llms.txt sums One Day up for assistants and points to the guide', async ({
   expect(r.headers()['content-type']).toContain('text/plain');
   const t = await r.text();
   expect(t.startsWith('# One Day\n\n> ')).toBe(true);
-  expect(t).toContain('](https://day.bemorin.com/guide/)');
-  expect(t).toContain('](https://day.bemorin.com/llms-full.txt)');
+  expect(t).toContain('](https://getone.day/guide/)');
+  expect(t).toContain('](https://getone.day/llms-full.txt)');
 });
 
 test('llms-full.txt is the whole guide as its Copy button gives it, every link absolute (npm run llms when the guide changes)', async ({ page, baseURL, request }) => {
@@ -547,7 +547,7 @@ test('llms-full.txt is the whole guide as its Copy button gives it, every link a
   const file = (await r.text()).replace(/\r\n/g, '\n');
   expect(file).toBe(asFile(await guideMarkdown(page, new URL(baseURL).origin)));
   expect(file.startsWith('# How to use One Day\n')).toBe(true);
-  expect(file).toContain('](https://day.bemorin.com/guide/shots/');
+  expect(file).toContain('](https://getone.day/guide/shots/');
   // nothing left pointing relative to the root, where the file is
   expect([...file.matchAll(/\]\(([^)\s]+)/g)].map(m => m[1]).filter(u => !/^(https:|mailto:)/.test(u))).toEqual([]);
 });
@@ -559,12 +559,12 @@ test('robots.txt welcomes every crawler, AI ones included, and points to a sitem
   expect(t).toMatch(/^User-agent: \*$/m);
   expect(t).toMatch(/^Allow: \/$/m);
   expect(t).not.toMatch(/^Disallow:/m);
-  expect(t).toContain('Sitemap: https://day.bemorin.com/sitemap.xml');
-  expect(t).toContain('https://day.bemorin.com/llms.txt');
+  expect(t).toContain('Sitemap: https://getone.day/sitemap.xml');
+  expect(t).toContain('https://getone.day/llms.txt');
   const s = await request.get('/sitemap.xml');
   expect(s.status()).toBe(200);
   expect(s.headers()['content-type']).toContain('xml');
   const x = await s.text();
   expect(x).toContain('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
-  expect([...x.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1])).toEqual(['https://day.bemorin.com/', 'https://day.bemorin.com/guide/']);
+  expect([...x.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1])).toEqual(['https://getone.day/', 'https://getone.day/guide/']);
 });

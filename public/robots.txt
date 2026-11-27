@@ -1,8 +1,8 @@
-# One Day, a calm to-do list that shows one day at a time: https://day.bemorin.com/
+# One Day, a calm to-do list that shows one day at a time: https://getone.day/
 # Every crawler is welcome, search engines and AI assistants alike.
-# For AI: a summary at https://day.bemorin.com/llms.txt, the whole guide in Markdown at https://day.bemorin.com/llms-full.txt
+# For AI: a summary at https://getone.day/llms.txt, the whole guide in Markdown at https://getone.day/llms-full.txt
 
 User-agent: *
 Allow: /
 
-Sitemap: https://day.bemorin.com/sitemap.xml
+Sitemap: https://getone.day/sitemap.xml

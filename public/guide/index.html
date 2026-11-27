@@ -8,19 +8,21 @@
       content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
     />
     <meta name="referrer" content="no-referrer" />
+    <!-- One Day moved from day.bemorin.com to getone.day: at the old address, this decides first what happens -->
+    <script src="../moved.js"></script>
     <title>One Day guide: how the calm to-do list works</title>
     <meta
       name="description"
       content="How to use One Day, the calm to-do list for one day at a time: every feature in plain words, keyboard shortcuts, installing it, privacy, backups and questions."
     />
-    <link rel="canonical" href="https://day.bemorin.com/guide/" />
+    <link rel="canonical" href="https://getone.day/guide/" />
     <!-- what a shared link shows (WhatsApp, X, iMessage…); the picture comes from npm run shots -->
     <meta property="og:site_name" content="One Day" />
     <meta property="og:type" content="article" />
     <meta property="og:title" content="How to use One Day" />
     <meta property="og:description" content="Every feature of One Day, the calm to-do list that shows one day at a time, in plain words and pictures." />
-    <meta property="og:url" content="https://day.bemorin.com/guide/" />
-    <meta property="og:image" content="https://day.bemorin.com/guide/share.jpg" />
+    <meta property="og:url" content="https://getone.day/guide/" />
+    <meta property="og:image" content="https://getone.day/guide/share.jpg" />
     <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -136,7 +138,7 @@
           <section id="start">
             <h3>Getting started</h3>
             <p>
-              Open <a href="https://day.bemorin.com">day.bemorin.com</a> in a current browser, on a computer or a phone.
+              Open <a href="https://getone.day">getone.day</a> in a current browser, on a computer or a phone.
               It opens on today: a big date, a line that says how far along the day is, and a field to add tasks.
             </p>
             <p>
@@ -487,7 +489,7 @@
               </li>
             </ul>
             <div class="prompt">
-              <pre id="aiPrompt" tabindex="0" aria-label="The paragraph to paste">When I ask to add tasks to One Day, answer with one link holding them all, shown as a Markdown link "Add to One Day". Build it as https://day.bemorin.com/#add? followed by name=value pairs joined by &amp;:
+              <pre id="aiPrompt" tabindex="0" aria-label="The paragraph to paste">When I ask to add tasks to One Day, answer with one link holding them all, shown as a Markdown link "Add to One Day". Build it as https://getone.day/#add? followed by name=value pairs joined by &amp;:
 task= the task (#word makes a tag). Each task= starts a new task; the pairs after it describe that task.
 note= details (plain text; **bold**, - lists and links work)
 sub= one sub-task; repeat it for more
@@ -495,7 +497,7 @@ day= today, tomorrow, monday…sunday (the next one) or YYYY-MM-DD. Leave it out
 repeat= daily, weekdays, weekends, weekly, monthly, yearly, or an RRULE such as FREQ=WEEKLY;BYDAY=MO,TH or FREQ=MONTHLY;BYDAY=-1FR. It counts from the task's day.
 Tags: when several tasks belong to one project, end each task with the same short tag (task=Book+flights+%23lisbon). Reuse a tag I named or used before; otherwise pick one and name it in your answer, so I can ask for another before opening the link. A one-off errand needs no tag.
 Encode values as in a URL query: a space is +, and write %2B for +, %26 for &amp;, %23 for #, %25 for %, %28 and %29 for ( ), %0A for a new line. Accented letters can stay as they are.
-Example: https://day.bemorin.com/#add?task=Buy+bread&amp;day=tomorrow&amp;task=Call+the+bank&amp;note=About+the+loan&amp;sub=Find+the+number&amp;task=Water+the+plants&amp;repeat=FREQ=WEEKLY;BYDAY=TU,FR
+Example: https://getone.day/#add?task=Buy+bread&amp;day=tomorrow&amp;task=Call+the+bank&amp;note=About+the+loan&amp;sub=Find+the+number&amp;task=Water+the+plants&amp;repeat=FREQ=WEEKLY;BYDAY=TU,FR
 Nothing is sent anywhere: the tasks stay in the link until I open it and confirm.</pre>
               <button class="btn" id="copyPrompt" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.25" y="5.25" width="8" height="8" rx="2" /><path d="M10.75 5.25V4.5a1.75 1.75 0 0 0-1.75-1.75H4.5A1.75 1.75 0 0 0 2.75 4.5V9c0 .97.78 1.75 1.75 1.75h.75" /></svg><span>Copy the paragraph</span></button>
             </div>
@@ -923,6 +925,17 @@ Nothing is sent anywhere: the tasks stay in the link until I open it and confirm
             <p>
               In your browser, on this device, for this site only. With <a href="#sync">sync</a> on, also in your own Google
               Drive, Dropbox or OneDrive, encrypted. There is never a copy on a server of One Day’s.
+            </p>
+
+            <h4 id="new-address">One Day moved to getone.day. Where are my tasks?</h4>
+            <p>
+              Still in your browser, kept for One Day’s old address until you bring them over. Open
+              <a href="https://day.bemorin.com">day.bemorin.com</a> in the browser that holds them and choose
+              <b>Move my tasks</b>: they go from that page to getone.day, inside your browser, never through a server. With
+              <a href="#sync">sync</a> on, turn it on again at getone.day, with the same cloud and passphrase: everything
+              comes back. If you installed One Day, install it again from getone.day. An app on the Home Screen of an iPhone
+              or iPad keeps its own copy: export a backup there, then import it at getone.day. Old links, an assistant’s
+              too, still work: day.bemorin.com sends them on.
             </p>
 
             <h4 id="two-devices">Can I use One Day on my phone and my computer?</h4>

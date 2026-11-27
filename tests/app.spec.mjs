@@ -687,7 +687,7 @@ test('Repeat opened from the day picker: Cancel goes back to the picker', async 
 
 test('the dogood.day link says where it comes from; the progress rule has round ends', async ({ page }) => {
   await open(page);
-  expect(await page.locator('#foot .promo').getAttribute('href')).toBe('https://dogood.day/?utm_source=day.bemorin.com&utm_medium=referral');
+  expect(await page.locator('#foot .promo').getAttribute('href')).toBe('https://dogood.day/?utm_source=getone.day&utm_medium=referral');
   expect(await page.locator('.rule').evaluate(n => getComputedStyle(n).borderTopLeftRadius)).toBe('3px');
   // one task done of three: the fill's round end is a third of the way
   const [rule, fill] = await Promise.all([page.locator('.rule').boundingBox(), page.locator('.rule i').boundingBox()]);
@@ -1632,9 +1632,9 @@ test.describe('links from assistants', () => {
   test('the skill for ChatGPT and Claude says who it is, and its example link holds what it says', async ({ page, baseURL }) => {
     const skill = readFileSync(new URL('../skills/one-day/SKILL.md', import.meta.url), 'utf8');
     expect(skill).toMatch(/^---\nname: one-day\ndescription: [^\n]{40,1024}\n---\n/);
-    const link = skill.split('\n').find(l => l.startsWith('https://day.bemorin.com/#add?'));
+    const link = skill.split('\n').find(l => l.startsWith('https://getone.day/#add?'));
     await openOn(page);
-    await page.goto(link.replace('https://day.bemorin.com', baseURL));
+    await page.goto(link.replace('https://getone.day', baseURL));
     await expect(page.locator('#inList .inlt')).toHaveText(['Buy bread', 'Call the bank', 'Water the plants']);
     await expect(page.locator('#inList .inlm')).toHaveText(['Tomorrow', 'Note · 1 sub-task', 'Every Tuesday and Friday, from tomorrow']);
   });

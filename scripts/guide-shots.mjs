@@ -494,7 +494,7 @@ function webpSize(buf) {
 const SHARES = [
   {
     file: join(root, 'public', 'share.jpg'),
-    brand: 'day.bemorin.com',
+    brand: 'getone.day',
     title: 'One Day',
     size: 116,
     line: 'A calm to-do list that shows one day at a time.',
@@ -506,7 +506,7 @@ const SHARES = [
     title: 'How to use One Day',
     size: 86,
     line: 'Every feature, in plain words and pictures.',
-    foot: 'day.bemorin.com/guide',
+    foot: 'getone.day/guide',
   },
 ];
 async function lossless(browser, device, keep) {

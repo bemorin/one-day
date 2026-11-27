@@ -1,6 +1,6 @@
 ---
 name: one-day
-description: Puts tasks into One Day (day.bemorin.com), a private to-do list that keeps tasks in the user's browser, by writing a link the user opens. Use it when the user asks to add, plan or schedule tasks, to-dos or reminders in One Day, with notes, sub-tasks, days or repeats.
+description: Puts tasks into One Day (getone.day), a private to-do list that keeps tasks in the user's browser, by writing a link the user opens. Use it when the user asks to add, plan or schedule tasks, to-dos or reminders in One Day, with notes, sub-tasks, days or repeats.
 ---
 
 # One Day links
@@ -9,7 +9,7 @@ One Day has no server and no account: tasks reach it in a link, after the `#`, w
 
 ## Build the link
 
-`https://day.bemorin.com/#add?` followed by `name=value` pairs joined by `&`. Each `task=` starts a new task; the pairs after it describe that task, until the next `task=`.
+`https://getone.day/#add?` followed by `name=value` pairs joined by `&`. Each `task=` starts a new task; the pairs after it describe that task, until the next `task=`.
 
 - `task=` the task as it should read, in the user's language, up to 500 characters. Words starting with `#` become tags.
 - `note=` details, as plain text: `**bold**`, `*italic*`, lines starting with `- ` and links are kept.
@@ -30,7 +30,7 @@ If you can run code, let it do the encoding:
 ```python
 from urllib.parse import urlencode
 pairs = [("task", "Buy bread"), ("day", "tomorrow"), ("task", "Water the plants"), ("repeat", "FREQ=WEEKLY;BYDAY=TU,FR")]
-print("https://day.bemorin.com/#add?" + urlencode(pairs))
+print("https://getone.day/#add?" + urlencode(pairs))
 ```
 
 ## Answer
@@ -39,6 +39,6 @@ Give one link holding all the tasks, as a Markdown link such as `[Add 3 tasks to
 
 For "buy bread tomorrow, call the bank about the loan (find the number first), and water the plants every Tuesday and Friday":
 
-https://day.bemorin.com/#add?task=Buy+bread&day=tomorrow&task=Call+the+bank&note=About+the+loan&sub=Find+the+number&task=Water+the+plants&repeat=FREQ=WEEKLY;BYDAY=TU,FR
+https://getone.day/#add?task=Buy+bread&day=tomorrow&task=Call+the+bank&note=About+the+loan&sub=Find+the+number&task=Water+the+plants&repeat=FREQ=WEEKLY;BYDAY=TU,FR
 
 This sends nothing anywhere: the tasks stay inside the link until the user opens it and confirms. The full format is `docs/links.md` in github.com/bemorin/one-day.

@@ -9,7 +9,7 @@
     "name": "Ben Morin",
     "url": "https://bemorin.com"
   },
-  "homepage": "https://day.bemorin.com",
+  "homepage": "https://getone.day",
   "documentation": "https://github.com/bemorin/one-day/tree/main/mcp#readme",
   "support": "https://github.com/bemorin/one-day/issues",
   "icon": "icon.png",
@@ -40,8 +40,8 @@
     "app_url": {
       "type": "string",
       "title": "One Day address",
-      "description": "Where your One Day opens, starting with https://. Change it only for your own copy of One Day; left empty, links open day.bemorin.com.",
-      "default": "https://day.bemorin.com/",
+      "description": "Where your One Day opens, starting with https://. Change it only for your own copy of One Day; left empty, links open getone.day.",
+      "default": "https://getone.day/",
       "required": false
     }
   },

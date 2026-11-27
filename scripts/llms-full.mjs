@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-export const GUIDE = 'https://day.bemorin.com/guide/';
+export const GUIDE = 'https://getone.day/guide/';
 
 // Links and pictures that point inside the guide (#basics, shots/day.webp, ../), made absolute
 export function absolute(md, base = GUIDE) {

@@ -33,7 +33,9 @@ try {
   const th = localStorage.getItem('oneday.theme');
   if (th === 'light' || th === 'dark') document.documentElement.dataset.theme = th;
 } catch (e) {}
-{
+// At day.bemorin.com, One Day's old address, moved.js may have sent the page on to getone.day, or shown its one card:
+// then nothing of One Day runs here.
+if (typeof MOVE === 'undefined' || (MOVE.mode !== 'gone' && MOVE.mode !== 'clear')) {
   const app = document.getElementById('app'),
     home = document.getElementById('home'),
     q = s => app.querySelector(s),
@@ -374,6 +376,11 @@ try {
     vault = JSON.parse(localStorage.getItem(VK));
   } catch (e) {}
   if (!okVault(vault)) vault = null;
+  // moving to getone.day (see there): its step at day.bemorin.com and its card at getone.day, while they show, and
+  // whether this page was unlocked with the passphrase (moving doesn't ask for it again)
+  let MVD = null,
+    MVIN = null,
+    MVPASS = false;
   let locked = !!vault,
     S = null,
     // Sync with your cloud (see "sync"): its key and the copy last agreed with the cloud. They are written with the
@@ -2997,7 +3004,7 @@ try {
               .join('')}${tags.length > 12 ? `<button type="button" class="chip" data-more>${tags.length - 12} more tags</button>` : ''}</div>` +
             (tags.length > 12 ? '<p class="shint">Type # and a few letters to find any tag.</p>' : '')
           : '') +
-        `<div class="sdata"><p class="shint">${dataHint()}</p><div class="chips"><button type="button" class="chip" data-act="import">${IC.up}Import backup</button><button type="button" class="chip" data-act="export">${IC.down}${canTop ? 'Export backup' : 'Copy backup'}</button></div>${lockChips()}</div>${aboutHTML()}`;
+        `<div class="sdata"><p class="shint">${dataHint()}</p><div class="chips"><button type="button" class="chip" data-act="import">${IC.up}Import backup</button><button type="button" class="chip" data-act="export">${IC.down}${canTop ? 'Export backup' : 'Copy backup'}</button></div>${lockChips()}${oldCopy() ? '<div class="chips"><button type="button" class="chip" data-act="oldcopy">Clear the old copy</button></div>' : ''}</div>${aboutHTML()}`;
       moveHl();
       return;
     }
@@ -3364,14 +3371,34 @@ try {
       toast('That file isn’t a One Day backup');
       return;
     }
+    const r = mergeTasks(j);
+    if (!r) return toast('That backup is empty');
+    const what = [
+      r.added ? `${r.added} ${r.added > 1 ? 'tasks' : 'task'}` : '',
+      r.ruled ? `${r.ruled} repeating ${r.ruled > 1 ? 'tasks' : 'task'}` : '',
+    ].filter(Boolean);
+    toast(what.length ? `Imported ${what.join(' and ')}` : 'Nothing new in that backup', what.length ? 'undo' : null);
+  }
+  // The tasks that came from day.bemorin.com (see "moving to getone.day"), added as a backup is; false when the
+  // passphrase of locked ones wasn't given.
+  async function mergeIn(j) {
+    if (j.vault) {
+      const inner = await openBackup(j.vault);
+      if (!inner || locked) return false;
+      j = inner;
+    }
+    const r = j && j.days && typeof j.days === 'object' ? mergeTasks(j) : null,
+      n = r ? r.added + r.ruled : 0;
+    toast(n ? `${n} ${n > 1 ? 'tasks' : 'task'} came from day.bemorin.com` : 'Nothing new came from day.bemorin.com', n ? 'undo' : null);
+    return true;
+  }
+  // A backup's tasks added beside those here, none overwritten, in one step that one undo takes back; null if empty.
+  function mergeTasks(j) {
     const keys = Object.keys(j.days)
       .filter(k => /^\d{4}-\d\d-\d\d$/.test(k))
       .slice(0, 5000);
     const incRules = cleanRules(j.rules);
-    if (!keys.length && !Object.keys(incRules).length) {
-      toast('That backup is empty');
-      return;
-    }
+    if (!keys.length && !Object.keys(incRules).length) return null;
     record(keys);
     let added = 0,
       ruled = 0;
@@ -3406,11 +3433,7 @@ try {
     });
     ensure(cur);
     flip(() => renderList());
-    const what = [
-      added ? `${added} ${added > 1 ? 'tasks' : 'task'}` : '',
-      ruled ? `${ruled} repeating ${ruled > 1 ? 'tasks' : 'task'}` : '',
-    ].filter(Boolean);
-    toast(what.length ? `Imported ${what.join(' and ')}` : 'Nothing new in that backup', what.length ? 'undo' : null);
+    return { added, ruled };
   }
 
   /* importing from other apps: an export from Todoist, TickTick, Google Tasks or todo.txt is read here, in the page,
@@ -6546,6 +6569,8 @@ try {
       (held ? syMoreBtn() : '') +
       `<div class="sbk"><button type="button" class="sbk-b" data-act="import">${IC.up}<span>Import backup</span></button>` +
       `<button type="button" class="sbk-b" data-act="export">${IC.down}<span>${canTop ? 'Export backup' : 'Copy backup'}</span></button></div>` +
+      // tasks that came from day.bemorin.com: the copy left there goes from there, after a yes there
+      (oldCopy() ? `<div class="sbk"><button type="button" class="sbk-b" data-act="oldcopy">${IC.rm}<span>Clear the old copy</span></button></div>` : '') +
       (CAN_LOCK ? lockBtns(held) : '') +
       // the guide, a button of its own under the backups and the lock: in this window on a phone (back returns to the
       // day), in a tab of its own from a floating window
@@ -6789,7 +6814,15 @@ try {
     window.dispatchEvent(new Event('resize'));
     if (window.visualViewport) visualViewport.dispatchEvent(new Event('resize'));
   });
-  window.addEventListener('hashchange', readIncoming);
+  // a link opened in a tab already open: at day.bemorin.com, the step to getone.day first, the link's tasks with it
+  window.addEventListener('hashchange', () => {
+    if (!MVOLD || locked || !INRE.test(location.hash)) return readIncoming();
+    if (!MVD) return openMove();
+    if (!MVD.busy) {
+      MVD.link = location.hash;
+      drawMove(MVD.st);
+    }
+  });
 
   /* toast */
   let toastTm = null,
@@ -6916,7 +6949,7 @@ try {
       closeSync();
       return;
     }
-    if (locked || LSM || IMP || IMSEAL || SYD) return;
+    if (locked || LSM || IMP || IMSEAL || SYD || MVD || MVIN) return;
     const t = e.target,
       typing = t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName),
       k = e.key,
@@ -7683,7 +7716,7 @@ try {
       introLater = false;
       intro();
     }
-    if (INRE.test(location.hash)) later(readIncoming, 600);
+    mvStart(600);
     syWake();
   }
   // sync's key and base, sealed in the vault with the tasks (null when sync is off, or it can't be read)
@@ -7705,6 +7738,8 @@ try {
     const raw = await byPass(pass, vault);
     busy(L.lockGo);
     if (!raw) return wrong(L.lockForm, L.lockErr, L.lockPass, 'That passphrase doesn’t open these tasks');
+    // opened with the passphrase: moving to getone.day doesn't ask for it again
+    MVPASS = true;
     try {
       await opened(raw);
     } catch (err) {
@@ -7757,6 +7792,8 @@ try {
     closeLockset(null);
     closeSync(true);
     closeImport();
+    closeMove();
+    closeMoveIn('');
     IM.impList.textContent = '';
     IM.impNote.textContent = '';
     IM.impT.textContent = '';
@@ -8866,6 +8903,7 @@ try {
     else if (a === 'float') float();
     else if (a === 'undo') undo();
     else if (a === 'redo') redo();
+    else if (a === 'oldcopy') location.assign(MV.OLD + '/#clear-old-copy');
   }
   if (locked) showLock();
 
@@ -10819,6 +10857,530 @@ try {
     syWake();
   }
 
+  /* moving to getone.day: One Day's address was day.bemorin.com, it is getone.day now. A browser keeps a site's tasks
+     for that site's address alone, so at the old one (see moved.js) a browser that keeps tasks there is offered one
+     step. A window opens at getone.day (move/), this page hands it the tasks, and each side listens only to the other
+     (the exact address, and the window it opened or was opened by). getone.day keeps them aside until One Day opens
+     there and adds them, overwriting nothing. What travels is what Export backup holds (the tasks, still locked if the
+     lock is on), the timer's settings and the light or dark choice; never sync's key or sign-in, nor the lock's
+     passkey (it belongs to this address). Once getone.day says what it holds, this browser remembers the move, sync
+     stops here, and every later visit goes on to getone.day. Where no window can do it, a link can (the tasks after
+     #, which the browser's history may keep), or a backup file. */
+  const MV = typeof MOVE === 'object' && MOVE ? MOVE : { mode: '' },
+    MVOLD = MV.mode === 'old' || MV.mode === 'again',
+    MVNEW = MV.mode === 'new',
+    MI = {};
+  'mv mvForm mvT mvSub mvLi mvPass mvErr mvNo mvGo mvLink mvFile mvHint mvin mviCard mviT mviSub mviLi mviNo mviYes'
+    .split(' ')
+    .forEach(id => (MI[id] = document.getElementById(id)));
+  // a home-screen app on iPhone, iPad or Mac keeps its own storage, apart from Safari's: no window or link reaches it
+  const OWNSTORE = navigator.standalone === true,
+    INAPP = matchMedia('(display-mode: standalone), (display-mode: window-controls-overlay), (display-mode: minimal-ui)').matches,
+    MVKEYS = { moved: 'oneday.moved', moving: 'oneday.moving', incoming: 'oneday.incoming', movedin: 'oneday.movedin' };
+  let MVW = null; // the window at getone.day, and what it said
+  const shaHex = async s =>
+    [...new Uint8Array(await crypto.subtle.digest('SHA-256', TE.encode(s)))].map(b => b.toString(16).padStart(2, '0')).join('');
+  const mvGet = k => {
+      try {
+        return JSON.parse(localStorage.getItem(k));
+      } catch (e) {
+        return null;
+      }
+    },
+    mvTasks = () => Object.values(S.days).reduce((n, d) => n + d.tasks.length, 0);
+  const li = a => a.filter(Boolean).map(x => `<li>${x}</li>`).join('');
+
+  // the step's words, for what this browser keeps and how the move went
+  function drawMove(st = '', why = '') {
+    const again = MV.mode === 'again',
+      off = !navigator.onLine,
+      sy = SYS && CL[SYS.cloud] ? CL[SYS.cloud].name : '';
+    let T = again ? 'Some tasks changed here' : 'One Day has moved to getone.day',
+      sub = again
+        ? 'Since your tasks moved to getone.day, some changed here, at day.bemorin.com. Bring them over too: nothing there is overwritten.'
+        : 'Your tasks are kept in this browser, for this address. Bring them to getone.day in one step: they go from this page to the new one, inside your browser, never through a server.',
+      items = [
+        sy && `Sync with your ${esc(sy)} stops here. At getone.day, turn it on again with the same cloud and passphrase: everything comes back.`,
+        vault && 'They move locked: at getone.day, your passphrase opens them. Fingerprint or face can be set up again there.',
+        MVD && MVD.link && 'The tasks in your link go there too.',
+        INAPP && !OWNSTORE && 'Then install One Day from getone.day: this app can go.',
+        off && '<b>You’re offline.</b> Move once you’re back online.',
+      ],
+      go = again ? 'Move them' : 'Move my tasks',
+      no = 'Not now',
+      alt = false,
+      hint = '';
+    if (OWNSTORE) {
+      sub = 'This app keeps its own copy of your tasks, which no other page can reach. A backup file brings them over.';
+      items = [
+        'Export a backup here.',
+        'Open getone.day in Safari and add it to your Home Screen.',
+        'There, choose Import backup: your tasks are added, nothing is overwritten.',
+      ];
+      go = st === 'saved' ? 'They’re at getone.day' : 'Export backup';
+    }
+    if (st === 'failed') {
+      T = why === 'blocked' ? 'The window was blocked' : why === 'full' ? 'No room at getone.day' : 'getone.day didn’t answer';
+      sub =
+        why === 'blocked'
+          ? 'Your browser blocked the window that brings your tasks over, so nothing moved.'
+          : why === 'full'
+            ? 'This browser has no room left for your tasks at getone.day, so nothing moved.'
+            : 'The page at getone.day didn’t answer, so nothing moved.';
+      items = [
+        why !== 'full' && 'A link can carry them instead: your tasks go in the link itself. Your browser’s history may keep it.',
+        'Or export a backup here, then open getone.day and choose Import backup.',
+      ];
+      go = 'Try again';
+      alt = true;
+    }
+    if (st === 'saved' && !OWNSTORE) hint = 'Then open getone.day and choose Import backup: your tasks are added there, nothing is overwritten.';
+    if (st === 'done') {
+      T = 'Your tasks are at getone.day';
+      sub = 'One Day is open there, in your browser. Install it from there: this app can go.';
+      items = [];
+      go = 'OK';
+      no = '';
+    }
+    MI.mvT.textContent = T;
+    MI.mvSub.textContent = sub;
+    MI.mvLi.innerHTML = li(items);
+    MI.mvPass.hidden = !vault || MVPASS || OWNSTORE || st === 'done';
+    MI.mvGo.textContent = go;
+    MI.mvGo.disabled = off && !OWNSTORE && st !== 'done';
+    MI.mvNo.textContent = no;
+    MI.mvNo.hidden = !no;
+    MI.mvLink.hidden = !alt || why === 'full';
+    MI.mvFile.hidden = !alt;
+    MI.mvHint.textContent = hint;
+    MI.mvHint.hidden = !hint;
+    MI.mvErr.textContent = '';
+    if (MVD) MVD.st = st;
+  }
+  function openMove() {
+    if (!MVOLD || locked || MVD || LSM || IMP || SYD) return;
+    if (pip) pip.close();
+    closePops();
+    closeMore();
+    compose(false);
+    const ae = D().activeElement;
+    MVD = { back: ae && ae !== D().body ? ae : null, link: INRE.test(location.hash) ? location.hash : '', st: '' };
+    drawMove();
+    home.inert = true;
+    modalIn(MVD.back, MI.mv, MI.mvForm);
+    guard('mv', () => moveLater());
+    (MI.mvPass.hidden ? MI.mvGo : MI.mvPass).focus({ preventScroll: true });
+    // with sync on, what the other devices did comes in first: the copy that moves is the latest one
+    if (SYS && navigator.onLine) syncNow();
+  }
+  function closeMove() {
+    const m = MVD;
+    if (!m) return;
+    MVD = null;
+    unguard('mv');
+    modalOut(MI.mv, MI.mvForm);
+    MI.mvPass.value = '';
+    if (!locked) home.inert = false;
+    if (m.back && m.back.isConnected && !m.back.closest('[inert]')) m.back.focus({ preventScroll: true });
+  }
+  // Not now: One Day opens here as before, and the step comes back next time; a link's tasks are added here then
+  function moveLater() {
+    if (!MVD || MVD.busy) return;
+    const done = MVD.st === 'done';
+    closeMove();
+    if (done) return location.replace(MV.NEW + '/');
+    if (INRE.test(location.hash)) later(readIncoming, 300);
+  }
+  MI.mvNo.onclick = () => moveLater();
+  MI.mv.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation();
+    moveLater();
+  });
+  MI.mv.addEventListener('click', e => {
+    if (e.target === MI.mv) moveLater();
+  });
+  if (MVOLD) {
+    // getone.day's window speaks only for itself, from its own address
+    addEventListener('message', e => {
+      const m = MVW;
+      if (!m || e.source !== m.w || e.origin !== MV.NEW) return;
+      const d = e.data;
+      if (!d || typeof d !== 'object' || d.type !== 'one-day-move' || d.v !== 1) return;
+      if (d.step === 'ready') {
+        m.ready = true;
+        if (m.wait) m.wait();
+      } else if (m.on) m.on(d);
+    });
+    // another tab of this address finished the move: this one goes on too
+    addEventListener('storage', e => {
+      if (e.key === MVKEYS.moved && e.newValue) location.reload();
+    });
+    // back online, the step can go
+    addEventListener('online', () => MVD && !MVD.busy && MVD.st === '' && drawMove());
+  }
+  if (MVNEW)
+    // another tab here took in what came from day.bemorin.com: a tab that holds nothing yet opens with it, rather
+    // than writing its empty day over it
+    addEventListener('storage', e => {
+      if ((e.key === LS || e.key === VK) && e.newValue && moveFresh() && !locked) location.reload();
+    });
+  const tellMove = (m, step, x = {}) => {
+    try {
+      if (m && m.w) m.w.postMessage({ type: 'one-day-move', v: 1, step, ...x }, MV.NEW);
+    } catch (e) {}
+  };
+
+  // What moves: the tasks as stored (with the lock on, still sealed: its passphrase opens them there), and two settings
+  async function movePack() {
+    if (vault) await flush();
+    const v1 = localStorage.getItem(LS),
+      vk = localStorage.getItem(VK),
+      p = { kind: 'one-day-move', v: 1, from: MV.OLD, at: Date.now(), n: mvTasks(), sync: SYS ? SYS.cloud : '', app: INAPP && !OWNSTORE };
+    if (vk) {
+      const v = storedVault();
+      if (!v) return null;
+      p.vault = { v: 1, kdf: v.kdf, pass: v.pass, data: v.data, ...(typeof v.kid === 'string' ? { kid: v.kid } : {}) };
+    } else {
+      let o = null;
+      try {
+        o = JSON.parse(v1);
+      } catch (e) {}
+      // never written yet: the tasks as they are here
+      if (!o || !o.days) o = S;
+      p.tasks = { days: o.days, rules: o.rules || {}, tags: o.tags || {} };
+    }
+    try {
+      const t = localStorage.getItem(TK),
+        th = localStorage.getItem(THK);
+      if (t) p.timer = t;
+      if (th === 'light' || th === 'dark') p.theme = th;
+    } catch (e) {}
+    const json = JSON.stringify(p);
+    return { json, sum: await shaHex(json), id: b64.enc(rnd(12)), sig: MV.sig(v1, vk), n: p.n };
+  }
+  const moveSig = () => MV.sig(localStorage.getItem(LS), localStorage.getItem(VK));
+  // handed to the window, which answers with what it kept
+  function moveSend(m, P, ms) {
+    return new Promise(res => {
+      let tm = 0,
+        poll = 0;
+      const end = r => {
+          clearTimeout(tm);
+          clearInterval(poll);
+          m.wait = m.on = null;
+          res(r);
+        },
+        send = () => tellMove(m, 'data', { id: P.id, json: P.json, sum: P.sum });
+      m.on = d => {
+        if (d.step === 'done' && d.id === P.id && d.sum === P.sum) end({ ok: true });
+        else if (d.step === 'failed' && d.id === P.id) end({ why: d.why === 'full' ? 'full' : 'bad' });
+      };
+      m.wait = send;
+      tm = setTimeout(() => end({ why: 'slow' }), ms);
+      poll = setInterval(() => {
+        try {
+          if (m.w.closed) end({ why: 'closed' });
+        } catch (e) {}
+      }, 400);
+      if (m.ready) send();
+    });
+  }
+  async function moveByWindow(m) {
+    if (!m.w) return { why: 'blocked' };
+    if (SYS && navigator.onLine && !['auth', 'pass'].includes(SYST.s)) await Promise.race([syncNow(), new Promise(r => setTimeout(r, 15e3))]);
+    for (let i = 0; i < 3; i++) {
+      const P = await movePack();
+      if (!P) return { why: 'bad' };
+      const r = await moveSend(m, P, i ? 15e3 : 30e3);
+      if (!r.ok) return r;
+      // another tab changed the tasks while they went: they go again, and getone.day keeps the later copy
+      if (moveSig() === P.sig) return { ok: true, P };
+    }
+    return { why: 'slow' };
+  }
+  // Moved: remembered here, so every later visit goes on to getone.day; sync stops here (its key and sign-in leave this
+  // browser, the other tabs stop too); the copy stays until it is cleared from getone.day
+  async function moveDone(P) {
+    const m = MVW,
+      hash = MVD && MVD.link ? MVD.link : '';
+    MVW = null;
+    if (SYS) await syStop(false);
+    if (vault) await flush();
+    try {
+      localStorage.setItem(MVKEYS.moved, JSON.stringify({ to: MV.NEW, at: Date.now(), n: P.n, sig: moveSig(), how: 'window' }));
+    } catch (e) {}
+    if (INAPP && !OWNSTORE) {
+      // an installed app: One Day opens in that window, in the browser, where it can be installed from getone.day
+      tellMove(m, 'open', { hash });
+      if (MVD) drawMove('done');
+      return;
+    }
+    tellMove(m, 'close');
+    location.replace(MV.NEW + '/' + hash);
+  }
+  MI.mvForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!MVD || MVD.busy) return;
+    if (MVD.st === 'done') return moveLater();
+    if (OWNSTORE) {
+      if (MVD.st !== 'saved') {
+        await exportData();
+        return MVD && drawMove('saved');
+      }
+      // told it is done: remembered, and on to getone.day from now on
+      try {
+        localStorage.setItem(MVKEYS.moved, JSON.stringify({ to: MV.NEW, at: Date.now(), n: mvTasks(), sig: moveSig(), how: 'file' }));
+      } catch (err) {}
+      return location.replace(MV.NEW + '/');
+    }
+    if (!navigator.onLine) return;
+    // the window opens on the click itself, or the browser blocks it
+    MVW = { w: window.open(MV.NEW + '/move/', 'one-day-move'), ready: false, wait: null, on: null };
+    const m = MVW;
+    MVD.busy = true;
+    busy(MI.mvGo, 'Moving…');
+    let r = null;
+    try {
+      if (vault && !MVPASS) {
+        const pass = MI.mvPass.value,
+          raw = pass ? await byPass(pass, storedVault() || vault) : null;
+        if (raw) {
+          raw.fill(0);
+          MVPASS = true;
+        } else r = { why: 'pass', msg: pass ? 'That passphrase doesn’t open these tasks' : 'Enter your passphrase' };
+      }
+      if (!r) r = await moveByWindow(m);
+    } catch (err) {
+      r = { why: 'bad' };
+    }
+    if (!MVD) return;
+    MVD.busy = false;
+    busy(MI.mvGo);
+    if (r.ok) return moveDone(r.P);
+    if (MVW === m) MVW = null;
+    try {
+      if (m.w && !m.w.closed) m.w.close();
+    } catch (err) {}
+    if (r.why === 'pass') return wrong(MI.mvForm, MI.mvErr, MI.mvPass, r.msg);
+    drawMove('failed', r.why);
+  });
+  // The link way: the tasks, compressed, after # in getone.day's address. getone.day keeps them, then sends this
+  // browser back with the number kept here for the move (moved.js), and asks before adding them.
+  MI.mvLink.onclick = async () => {
+    if (!MVD || MVD.busy) return;
+    MVD.busy = true;
+    busy(MI.mvLink, 'Making the link…');
+    try {
+      const P = await movePack();
+      const z = P && b64.enc(await through(TE.encode(P.json), new CompressionStream('deflate-raw'), 64e6));
+      // past what browsers take in an address: the backup file it is
+      if (!z || z.length > 18e5) throw new Error('too long');
+      localStorage.setItem(MVKEYS.moving, JSON.stringify({ id: P.id, sum: P.sum, at: Date.now(), n: P.n, sig: P.sig, hash: MVD.link }));
+      location.assign(MV.NEW + '/move/#v1.' + P.id + '.' + z);
+    } catch (err) {
+      if (!MVD) return;
+      MVD.busy = false;
+      busy(MI.mvLink);
+      MI.mvLink.hidden = true;
+      say(MI.mvForm, MI.mvErr, 'Your tasks are too many for a link: export a backup instead.');
+    }
+  };
+  MI.mvFile.onclick = async () => {
+    if (!MVD || MVD.busy) return;
+    await exportData();
+    if (MVD) {
+      MI.mvHint.textContent = 'Then open getone.day and choose Import backup: your tasks are added there, nothing is overwritten.';
+      MI.mvHint.hidden = false;
+    }
+  };
+
+  /* at getone.day: what came from day.bemorin.com */
+  const movedInfo = () => {
+    const m = mvGet(MVKEYS.movedin);
+    return m && typeof m === 'object' && m.from === MV.OLD ? m : null;
+  };
+  const setMovedIn = x => {
+    const m = movedInfo();
+    try {
+      if (m) localStorage.setItem(MVKEYS.movedin, JSON.stringify({ ...m, ...x }));
+    } catch (e) {}
+  };
+  // nothing kept here yet: what came is taken as it was
+  const moveFresh = () => !vault && !SYS && !localStorage.getItem(VK) && (!localStorage.getItem(LS) || syFresh(S));
+  async function moveIn() {
+    if (!MVNEW || locked) return;
+    const st = mvGet(MVKEYS.incoming);
+    if (!st) return moveWelcome();
+    const drop = () => {
+      try {
+        localStorage.removeItem(MVKEYS.incoming);
+      } catch (e) {}
+    };
+    let p = null;
+    try {
+      if (st.v !== 1 || st.from !== MV.OLD || typeof st.z !== 'string' || typeof st.sum !== 'string') throw new Error('shape');
+      const json = TD.decode(await through(b64.dec(st.z), new DecompressionStream('deflate-raw'), 64e6));
+      if ((await shaHex(json)) !== st.sum) throw new Error('sum');
+      p = JSON.parse(json);
+      if (!p || p.kind !== 'one-day-move' || p.v !== 1 || !(p.vault || (p.tasks && p.tasks.days))) throw new Error('kind');
+    } catch (e) {
+      drop();
+      return toast('The tasks from day.bemorin.com could not be read');
+    }
+    // by a link, which anyone could have made: asked first
+    if (st.via !== 'window' && !(await moveAsk(p))) return drop();
+    const sealed =
+      p.vault && okVault({ ...p.vault, v: 1, bio: null, sync: null })
+        ? { v: 1, kdf: p.vault.kdf, pass: p.vault.pass, data: p.vault.data, ...(typeof p.vault.kid === 'string' ? { kid: p.vault.kid } : {}) }
+        : null;
+    if (p.vault && !sealed) {
+      drop();
+      return toast('The tasks from day.bemorin.com could not be read');
+    }
+    if (moveFresh()) {
+      // a link's locked tasks: its passphrase must open them before they are taken as they are
+      if (sealed && st.via !== 'window' && !(await openBackup(sealed))) return;
+      const was = S;
+      try {
+        if (sealed) {
+          localStorage.setItem(VK, JSON.stringify(sealed));
+          localStorage.removeItem(LS);
+          // nothing more is written from this page: it opens again, locked
+          locked = true;
+        } else {
+          S = { days: cleanDays(p.tasks.days), rules: cleanRules(p.tasks.rules), tags: cleanTags(p.tasks.tags) };
+          localStorage.setItem(LS, JSON.stringify(S));
+        }
+        if (typeof p.timer === 'string' && p.timer.length < 2000 && !localStorage.getItem(TK)) localStorage.setItem(TK, p.timer);
+        if ((p.theme === 'light' || p.theme === 'dark') && !localStorage.getItem(THK)) localStorage.setItem(THK, p.theme);
+        movedInNow(p);
+      } catch (e) {
+        locked = false;
+        S = was;
+        return toast('This browser has no room left for these tasks');
+      }
+      drop();
+      // One Day opens again, with them
+      location.reload();
+      return 'reload';
+    }
+    // tasks here already: added beside them, as Import backup adds a backup, overwriting nothing
+    const ok = await mergeIn(sealed ? { vault: sealed } : p.tasks);
+    if (!ok) return;
+    movedInNow(p);
+    drop();
+    return moveWelcome();
+  }
+  function movedInNow(p) {
+    localStorage.setItem(
+      MVKEYS.movedin,
+      JSON.stringify({ from: MV.OLD, at: Date.now(), n: +p.n || 0, sync: CL[p.sync] ? p.sync : '', locked: !!p.vault, app: !!p.app, copy: true, shown: false }),
+    );
+  }
+  // the card at getone.day: a question (tasks by a link) or what to know once they are here
+  function moveCard(o) {
+    return new Promise(res => {
+      if (pip) pip.close();
+      closePops();
+      closeMore();
+      const ae = D().activeElement;
+      MVIN = { back: ae && ae !== D().body ? ae : null, res };
+      MI.mviT.textContent = o.title;
+      MI.mviSub.textContent = o.sub;
+      MI.mviLi.innerHTML = li(o.items || []);
+      MI.mviNo.textContent = o.no;
+      MI.mviNo.hidden = !o.no;
+      MI.mviYes.textContent = o.yes;
+      home.inert = true;
+      modalIn(MVIN.back, MI.mvin, MI.mviCard);
+      guard('mvin', () => closeMoveIn(''));
+      MI.mviYes.focus({ preventScroll: true });
+    });
+  }
+  // what was chosen: 'yes', 'no' (the other button), or '' (Escape, the device's back, a lock)
+  function closeMoveIn(how) {
+    const m = MVIN;
+    if (!m) return;
+    MVIN = null;
+    unguard('mvin');
+    modalOut(MI.mvin, MI.mviCard);
+    if (!locked) home.inert = false;
+    if (m.back && m.back.isConnected && !m.back.closest('[inert]')) m.back.focus({ preventScroll: true });
+    m.res(how);
+  }
+  MI.mviYes.onclick = () => closeMoveIn('yes');
+  MI.mviNo.onclick = () => closeMoveIn('no');
+  MI.mvin.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation();
+    closeMoveIn('');
+  });
+  async function moveAsk(p) {
+    const n = p.tasks ? Object.values(p.tasks.days || {}).reduce((a, d) => a + ((d && Array.isArray(d.tasks) && d.tasks.length) || 0), 0) : 0;
+    return (
+      (await moveCard({
+        title: 'Bring these tasks here?',
+        sub: 'They come from day.bemorin.com, in a link. Add them only if you made that link yourself, to move your tasks.',
+        items: [p.vault ? 'They are locked: their passphrase opens them here.' : `${n} ${n === 1 ? 'task' : 'tasks'}, added beside any you have here: nothing is overwritten.`],
+        no: 'Cancel',
+        yes: 'Bring them',
+      })) === 'yes'
+    );
+  }
+  async function moveWelcome() {
+    const m = movedInfo();
+    if (!m || m.shown || MVIN) return;
+    const sy = m.sync && CL[m.sync] ? CL[m.sync].name : '';
+    const how = await moveCard({
+      title: 'Your tasks are here',
+      sub: 'They came from day.bemorin.com, in this browser: nothing went through a server.',
+      items: [
+        sy && `Sync was on there. Turn it on again here: Sync with your cloud, then ${esc(sy)} and the same passphrase. Everything comes back.`,
+        m.locked && CAN_LOCK && 'Fingerprint or face can be set up again from the lock.',
+        m.app && 'Installed One Day? Install it again from here: the old app can go.',
+        m.copy && 'A copy stays at day.bemorin.com, in this browser, until you clear it.',
+      ],
+      no: m.copy ? 'Clear the old copy' : '',
+      yes: 'OK',
+    });
+    // a lock closed the card: it shows again once One Day is open
+    if (!how && locked) return;
+    setMovedIn({ shown: true });
+    if (how === 'no' && m.copy) location.assign(MV.OLD + '/#clear-old-copy');
+  }
+  // the copy left at day.bemorin.com goes from there, after a yes there
+  const oldCopy = () => MVNEW && !!movedInfo() && !!movedInfo().copy;
+  // what getone.day was sent back with, and, with nothing here yet, the offer to bring tasks from day.bemorin.com
+  function moveNotes() {
+    if (!MVNEW || locked) return;
+    const h = location.hash;
+    if (h === '#old-copy-cleared' || h === '#nothing-to-bring') {
+      try {
+        history.replaceState(null, '', location.pathname + location.search);
+      } catch (e) {}
+      if (h === '#nothing-to-bring') return toast('This browser keeps no tasks at day.bemorin.com');
+      setMovedIn({ copy: false });
+      return toast('The old copy at day.bemorin.com is cleared');
+    }
+    if (!h && moveFresh() && !movedInfo() && !mvGet(MVKEYS.incoming))
+      toast('Had tasks at day.bemorin.com?', { label: 'Bring them here', run: () => location.assign(MV.OLD + '/#bring') }, 9000);
+  }
+  // when One Day opens, or is unlocked: the step at the old address, what came at the new one, a link's tasks
+  function mvStart(ms) {
+    if (locked) return;
+    if (MVOLD) return later(openMove, ms);
+    if (MVNEW)
+      return later(async () => {
+        if ((await moveIn()) === 'reload' || locked || MVIN) return;
+        moveNotes();
+        if (INRE.test(location.hash)) readIncoming();
+      }, ms);
+    if (INRE.test(location.hash)) later(readIncoming, ms);
+  }
+
   /* the day turning over while the app is open */
   setInterval(() => {
     const tk = todayKey();
@@ -11050,7 +11612,7 @@ try {
   bindDoc(document);
   cloud.init();
   syBoot();
-  if (!locked && INRE.test(location.hash)) later(readIncoming, RM.matches ? 0 : 900);
+  mvStart(RM.matches ? 0 : 900);
   if (
     'serviceWorker' in navigator &&
     (location.protocol === 'https:' || location.hostname === 'localhost') &&

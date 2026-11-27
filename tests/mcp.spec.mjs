@@ -180,7 +180,7 @@ test.describe('MCP server', () => {
     );
   });
 
-  test('the Claude Desktop extension hands its address setting to the server, and an empty or unresolved one means day.bemorin.com', async () => {
+  test('the Claude Desktop extension hands its address setting to the server, and an empty or unresolved one means getone.day', async () => {
     // Claude Desktop runs node <the extension's folder>/server.mjs, with ONE_DAY_URL from the “One Day address” setting
     const { server, user_config } = json('manifest.json');
     expect(server).toMatchObject({

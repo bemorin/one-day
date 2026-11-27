@@ -1,9 +1,9 @@
 // One Day links. The tasks travel in the address, after the #, which browsers never send to a server:
-//   https://day.bemorin.com/#add?task=…&note=…&sub=…&day=…&repeat=…
+//   https://getone.day/#add?task=…&note=…&sub=…&day=…&repeat=…
 // This module builds that link and checks it holds what One Day can read. The format is described in
 // docs/links.md; the app reads it in public/app.js (readQuery, linkDay, linkRepeat).
 
-export const DEFAULT_URL = 'https://day.bemorin.com/';
+export const DEFAULT_URL = 'https://getone.day/';
 export const LIMITS = { tasks: 100, title: 500, note: 10000, subtasks: 100, subtask: 300, link: 8000 };
 
 const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];

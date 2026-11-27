@@ -1,6 +1,6 @@
 {
   "packageId": "com.bemorin.oneday",
-  "host": "day.bemorin.com",
+  "host": "getone.day",
   "name": "One Day",
   "launcherName": "One Day",
   "display": "standalone",
@@ -13,8 +13,8 @@
   "backgroundColor": "#FFFFFF",
   "enableNotifications": false,
   "startUrl": "/?app=android",
-  "iconUrl": "https://day.bemorin.com/icons/icon-512.png",
-  "maskableIconUrl": "https://day.bemorin.com/icons/icon-maskable-512.png",
+  "iconUrl": "https://getone.day/icons/icon-512.png",
+  "maskableIconUrl": "https://getone.day/icons/icon-maskable-512.png",
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
     "path": "../../../android/key/one-day-upload.keystore",
@@ -24,7 +24,7 @@
   "appVersionCode": 1,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
-  "webManifestUrl": "https://day.bemorin.com/manifest.webmanifest",
+  "webManifestUrl": "https://getone.day/manifest.webmanifest",
   "fallbackType": "customtabs",
   "features": {},
   "alphaDependencies": {
@@ -33,7 +33,7 @@
   "enableSiteSettingsShortcut": true,
   "isChromeOSOnly": false,
   "isMetaQuest": false,
-  "fullScopeUrl": "https://day.bemorin.com/",
+  "fullScopeUrl": "https://getone.day/",
   "minSdkVersion": 24,
   "orientation": "default",
   "fingerprints": [

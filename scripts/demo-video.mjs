@@ -880,7 +880,7 @@ async function main() {
   await sleep(PHONE_IN + phone.dur + 450);
 
   // 17. Outro
-  await cap('day.bemorin.com', 'Free, private and open source.');
+  await cap('getone.day', 'Free, private and open source.');
   await page.evaluate(() => window.__barEnd());
   await sleep(2520);
 

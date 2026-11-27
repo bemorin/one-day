@@ -1,11 +1,13 @@
 /* One Day service worker: makes the app open instantly and work offline, even from a cold start.
    It only caches the app's own files, and its guide. It never sees your tasks, which live in localStorage.
    Sync's calls to your cloud go to other sites: it lets them by untouched and keeps nothing of them. */
-const CACHE = 'one-day-v72';
+const CACHE = 'one-day-v73';
 const SHELL = [
   './',
   './app.css',
   './app.js',
+  // at day.bemorin.com, One Day's old address: what happens there now (on to getone.day, or the move)
+  './moved.js',
   './manifest.webmanifest',
   './favicon.ico',
   './fonts/archivo-latin.woff2',

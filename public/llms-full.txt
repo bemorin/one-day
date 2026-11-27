@@ -2,7 +2,7 @@
 
 One Day is a calm to-do list that shows one day at a time. There’s no account and nothing to set up: your tasks stay in your browser, on your device. This guide covers everything it does, in plain words. Read it from top to bottom, or jump to what you need.
 
-From https://day.bemorin.com/guide/
+From https://getone.day/guide/
 
 ## Basics
 
@@ -10,18 +10,18 @@ The day on screen, adding tasks and ticking them off: all you need from the firs
 
 ### Getting started
 
-Open [day.bemorin.com](https://day.bemorin.com/) in a current browser, on a computer or a phone. It opens on today: a big date, a line that says how far along the day is, and a field to add tasks.
+Open [getone.day](https://getone.day/) in a current browser, on a computer or a phone. It opens on today: a big date, a line that says how far along the day is, and a field to add tasks.
 
 Write what today is for in **Add a task** and press Enter. Tick each task as you finish it: the thick rule at the top fills as the day gets done, in red on today.
 
 That’s all there is to it. The rest of this page is for the days when you want a little more.
 
-![One Day on a computer: Tuesday 14 April, today, 1 of 6 done, with tasks such as Prepare the weekly review and Book the train to Lisbon, their tags in colour, and Add a task at the bottom.](https://day.bemorin.com/guide/shots/day-light.webp)
-![The same day on a phone, the cloud, the lock and the sun at the top right, and Search, Timer, a red add button, Send day and More in a bar at the bottom.](https://day.bemorin.com/guide/shots/phone-day-light.webp)
+![One Day on a computer: Tuesday 14 April, today, 1 of 6 done, with tasks such as Prepare the weekly review and Book the train to Lisbon, their tags in colour, and Add a task at the bottom.](https://getone.day/guide/shots/day-light.webp)
+![The same day on a phone, the cloud, the lock and the sun at the top right, and Search, Timer, a red add button, Send day and More in a bar at the bottom.](https://getone.day/guide/shots/phone-day-light.webp)
 
 *Today in One Day: a card on a computer, the whole screen on a phone, with a bar under your thumb.*
 
-> **Nothing to sign up for.** One Day has no account, no server and no tracking. Your tasks stay in this browser on this device: [Privacy](https://day.bemorin.com/guide/#privacy) explains what that means, [Sync with your cloud](https://day.bemorin.com/guide/#sync) how to have them on your other devices too, and [Backups](https://day.bemorin.com/guide/#backups) how to keep a copy.
+> **Nothing to sign up for.** One Day has no account, no server and no tracking. Your tasks stay in this browser on this device: [Privacy](https://getone.day/guide/#privacy) explains what that means, [Sync with your cloud](https://getone.day/guide/#sync) how to have them on your other devices too, and [Backups](https://getone.day/guide/#backups) how to keep a copy.
 
 To come back to this guide, click the **?** at the top right, above the day, on a computer; on a phone, it’s **How to use One Day** in More.
 
@@ -38,7 +38,7 @@ On any other day, **Today** appears beside the arrows; it, or D, brings you back
 
 Under the weekday, a short line says which day it is next to today (“Tomorrow”, “3 days ago”) and how much of it is done. The rule at the top fills as you tick tasks off.
 
-![The calendar open under April 2026, with the 14th filled in and a dot under each day that has tasks left.](https://day.bemorin.com/guide/shots/picker-light.webp)
+![The calendar open under April 2026, with the 14th filled in and a dot under each day that has tasks left.](https://getone.day/guide/shots/picker-light.webp)
 
 *The month under the weekday opens a calendar. Today is filled in; a dot marks the days with tasks left.*
 
@@ -46,7 +46,7 @@ Under the weekday, a short line says which day it is next to today (“Tomorrow�
 
 Unfinished tasks stay on their day: they don’t move by themselves. When earlier days still have some, today says how many are left, and **Bring here** moves them all to today in one click. Repeating tasks are left out, so a missed repeat never piles up.
 
-![Above today’s tasks, a line reads 2 tasks left from before, with a Bring here button.](https://day.bemorin.com/guide/shots/leftovers-light.webp)
+![Above today’s tasks, a line reads 2 tasks left from before, with a Bring here button.](https://getone.day/guide/shots/leftovers-light.webp)
 
 *Two tasks were left on earlier days. Bring here moves them to today.*
 
@@ -58,11 +58,11 @@ A day gone by whose unfinished tasks you carried on, with **Bring here** or a ta
 
 In a narrower window, where the time sits in the bar, the count takes its place for five seconds when One Day opens, every ten minutes, and when it counts one more. If your device asks for less motion, the check and the count just show for a moment, without moving.
 
-![The last task of the day just ticked: a big red check in the middle of the day, 13 full days under it, and the same count in the bar, in red.](https://day.bemorin.com/guide/shots/seal-light.webp)
+![The last task of the day just ticked: a big red check in the middle of the day, 13 full days under it, and the same count in the bar, in red.](https://getone.day/guide/shots/seal-light.webp)
 
 *The last task ticked: the big check, and the count it adds to, before it all folds into the bar.*
 
-![Every task of the day ticked: the rule at the top is full, the line under the weekday reads Today, all done, and the middle of the bar reads 13 full days.](https://day.bemorin.com/guide/shots/done-light.webp)
+![Every task of the day ticked: the rule at the top is full, the line under the weekday reads Today, all done, and the middle of the bar reads 13 full days.](https://getone.day/guide/shots/done-light.webp)
 
 *The day is done: the rule is full, and the bar counts it with the others.*
 
@@ -72,7 +72,7 @@ Click **Add a task** at the bottom of the day, or press N, type, then press Ente
 
 The new task goes to the day on screen. The chip at the end of the field names that day: click it to send the task somewhere else without leaving the day you’re on, to **Today**, **Tomorrow**, **Next week** or any date. From the field, Tab reaches the chip.
 
-![Book a table for Friday typed in the field, and the day chip open: Today, Tomorrow, Next week, a calendar of April 2026 and, at the bottom, Repeat: Never.](https://day.bemorin.com/guide/shots/add-light.webp)
+![Book a table for Friday typed in the field, and the day chip open: Today, Tomorrow, Next week, a calendar of April 2026 and, at the bottom, Repeat: Never.](https://getone.day/guide/shots/add-light.webp)
 
 *The day chip sends a new task to another day. Repeat, at the bottom, makes it come back.*
 
@@ -106,9 +106,9 @@ Click a task, anywhere but its circle, to open it. An open task holds:
 
 - a **note**, for anything longer than a title. Select text to format it, use the usual shortcuts (Ctrl or ⌘ with B for bold, I italic, E code, K a link), or type Markdown as you go: `**bold**`, `*italic*`, `` `code` ``, `~~strike~~`, and `-` then a space to start a list;
 - **sub-tasks**, a checklist of smaller steps. As you tick them, the task’s circle fills, and the count under its title keeps track;
-- **Repeat** and **Send**, for this task alone: see [Repeating tasks](https://day.bemorin.com/guide/#repeat) and [Sending tasks](https://day.bemorin.com/guide/#send).
+- **Repeat** and **Send**, for this task alone: see [Repeating tasks](https://getone.day/guide/#repeat) and [Sending tasks](https://getone.day/guide/#send).
 
-![The task Prepare the weekly review, open: a note with bold and italic words, three sub-tasks with the first one ticked, Add a sub-task, then Repeat and Send.](https://day.bemorin.com/guide/shots/task-light.webp)
+![The task Prepare the weekly review, open: a note with bold and italic words, three sub-tasks with the first one ticked, Add a sub-task, then Repeat and Send.](https://getone.day/guide/shots/task-light.webp)
 
 *An open task: its note, its sub-tasks, and Repeat and Send at the bottom.*
 
@@ -122,7 +122,7 @@ For what comes back, open the day chip of a new task, then **Repeat**. An existi
 
 Each occurrence appears when its day comes. Ticking, moving or deleting one leaves the others alone, and missed ones don’t pile up as leftovers. Under a repeating task, a small line says when it comes back. To end a repeat, open the task, then **Repeat** and **Stop repeating**.
 
-![The Repeat panel for Yoga class: Weekly, every 1 week, on Monday and Thursday. Below, Every Monday and Thursday, Next: Thu 16 Apr, with Cancel and Done.](https://day.bemorin.com/guide/shots/repeat-light.webp)
+![The Repeat panel for Yoga class: Weekly, every 1 week, on Monday and Thursday. Below, Every Monday and Thursday, Next: Thu 16 Apr, with Cancel and Done.](https://getone.day/guide/shots/repeat-light.webp)
 
 *A weekly repeat on Mondays and Thursdays. The summary says when it comes next.*
 
@@ -132,7 +132,7 @@ Type `#` and a word anywhere in a task or a sub-task, like `#work` or `#home`. T
 
 The filter at the right of the date (F) shows only the tasks with one tag; while it’s on, new tasks get that tag too. Click the dot beside a tag to give it one of eight colours, which it then wears wherever it appears.
 
-![The Filter by tag panel under the date: All tasks, then #home in green, #travel in blue and #work in orange.](https://day.bemorin.com/guide/shots/tags-light.webp)
+![The Filter by tag panel under the date: All tasks, then #home in green, #travel in blue and #work in orange.](https://getone.day/guide/shots/tags-light.webp)
 
 *Filter by tag, with each tag’s colour.*
 
@@ -142,11 +142,11 @@ Search (/, or Ctrl K) looks through every day at once: titles, notes and sub-tas
 
 Pick a result, with a click or with ↑ ↓ and Enter, to go to its day, where the task lights up. On a phone, search opens as a drawer over the day: drag it down to close it.
 
-![Search for lisbon: Book the train to Lisbon, today, and Pack for Lisbon, tomorrow, both tagged #travel.](https://day.bemorin.com/guide/shots/search-light.webp)
+![Search for lisbon: Book the train to Lisbon, today, and Pack for Lisbon, tomorrow, both tagged #travel.](https://getone.day/guide/shots/search-light.webp)
 
 *Search finds tasks on every day, and says which day each one is on.*
 
-Before you type anything, search lists your tags, then the buttons for [backups](https://day.bemorin.com/guide/#backups), and for changing [the lock](https://day.bemorin.com/guide/#lock) once it’s on.
+Before you type anything, search lists your tags, then the buttons for [backups](https://getone.day/guide/#backups), and for changing [the lock](https://getone.day/guide/#lock) once it’s on.
 
 ## Tools
 
@@ -161,8 +161,8 @@ The timer (T) counts down 5, 15, 25 or 45 minutes, or any time from 1 minute to 
 
 While it runs, the time left shows in the bar, and **Pause**, **+1 min** and **Stop** are a click away. When time’s up, One Day plays a soft chime. The timer keeps time even if you close One Day: open it again to see what’s left.
 
-![The timer, calm: 25 min left, a thin line under the minutes, then Pause, +1 min and Stop.](https://day.bemorin.com/guide/shots/timer-light.webp)
-![The timer, live: minutes and seconds, from 25:00 to 24:57, each digit rolling into place.](https://day.bemorin.com/guide/shots/timer-live-still-light.webp)
+![The timer, calm: 25 min left, a thin line under the minutes, then Pause, +1 min and Stop.](https://getone.day/guide/shots/timer-light.webp)
+![The timer, live: minutes and seconds, from 25:00 to 24:57, each digit rolling into place.](https://getone.day/guide/shots/timer-live-still-light.webp)
 
 *Calm, on the left: whole minutes. Live, on the right: the seconds roll, like the date.*
 
@@ -177,7 +177,7 @@ On a phone, this opens the share sheet. On a computer, the link is copied: paste
 
 The tasks travel inside the link itself, after the `#`. Browsers never send that part to a server, so nothing is stored on the way. Anyone who has the link can read them, as with any message.
 
-![A card titled A task for you: Pick a restaurant for Saturday, with a note and 2 sub-tasks, a Today chip, Ignore and Add.](https://day.bemorin.com/guide/shots/inbox-light.webp)
+![A card titled A task for you: Pick a restaurant for Saturday, with a note and 2 sub-tasks, a Today chip, Ignore and Add.](https://getone.day/guide/shots/inbox-light.webp)
 
 *Opening a link: the task, what comes with it, and the day it will go to.*
 
@@ -185,7 +185,7 @@ The tasks travel inside the link itself, after the `#`. Browsers never send that
 
 Claude, ChatGPT or another assistant can add tasks for you. Ask in your own words, for example “Add to One Day: buy bread tomorrow, call the bank about the loan, and water the plants every Tuesday and Friday”. The assistant answers with a link. Open it, and One Day shows the tasks, each with its note, sub-tasks, day and repeat, and a ticked box: untick the ones you don’t want. **Add all** puts them in, with one undo; **Ignore** drops them all.
 
-![A card titled 3 tasks for you: Buy bread, tomorrow; Call the bank, with a note and a sub-task, today; Water the plants, every Tuesday and Friday from today. Each has a ticked box; below, a Today chip, Ignore and Add all.](https://day.bemorin.com/guide/shots/assistant-light.webp)
+![A card titled 3 tasks for you: Buy bread, tomorrow; Call the bank, with a note and a sub-task, today; Water the plants, every Tuesday and Friday from today. Each has a ticked box; below, a Today chip, Ignore and Add all.](https://getone.day/guide/shots/assistant-light.webp)
 
 *Tasks from an assistant: each with its day and its repeat, and nothing added until you say so.*
 
@@ -196,7 +196,7 @@ Setting it up takes a minute:
 - **ChatGPT, claude.ai and other assistants:** copy the paragraph below and paste it where the assistant keeps instructions. In ChatGPT, on the web or in the desktop app, open Settings from your profile menu, then **Personalization**: turn on **Enable customization** and paste the paragraph into **Custom Instructions**. On iPhone or Android, it is Settings → **Customize ChatGPT**. The paragraph fits the 1,500 characters of the free plan ([OpenAI’s steps](https://help.openai.com/en/articles/8096356-chatgpt-custom-instructions)). In claude.ai, on the web or in the desktop app, click your initials at the bottom left, then **Settings** → **Your Claude**, and paste it under **Instructions** (in the older layout, Settings → Account → Instructions for Claude; [Anthropic’s steps](https://support.claude.com/en/articles/10185728-understanding-claude-s-personalization-features)). For a single project, paste it in that project’s instructions instead.
 
 ```text
-When I ask to add tasks to One Day, answer with one link holding them all, shown as a Markdown link "Add to One Day". Build it as https://day.bemorin.com/#add? followed by name=value pairs joined by &:
+When I ask to add tasks to One Day, answer with one link holding them all, shown as a Markdown link "Add to One Day". Build it as https://getone.day/#add? followed by name=value pairs joined by &:
 task= the task (#word makes a tag). Each task= starts a new task; the pairs after it describe that task.
 note= details (plain text; **bold**, - lists and links work)
 sub= one sub-task; repeat it for more
@@ -204,7 +204,7 @@ day= today, tomorrow, monday…sunday (the next one) or YYYY-MM-DD. Leave it out
 repeat= daily, weekdays, weekends, weekly, monthly, yearly, or an RRULE such as FREQ=WEEKLY;BYDAY=MO,TH or FREQ=MONTHLY;BYDAY=-1FR. It counts from the task's day.
 Tags: when several tasks belong to one project, end each task with the same short tag (task=Book+flights+%23lisbon). Reuse a tag I named or used before; otherwise pick one and name it in your answer, so I can ask for another before opening the link. A one-off errand needs no tag.
 Encode values as in a URL query: a space is +, and write %2B for +, %26 for &, %23 for #, %25 for %, %28 and %29 for ( ), %0A for a new line. Accented letters can stay as they are.
-Example: https://day.bemorin.com/#add?task=Buy+bread&day=tomorrow&task=Call+the+bank&note=About+the+loan&sub=Find+the+number&task=Water+the+plants&repeat=FREQ=WEEKLY;BYDAY=TU,FR
+Example: https://getone.day/#add?task=Buy+bread&day=tomorrow&task=Call+the+bank&note=About+the+loan&sub=Find+the+number&task=Water+the+plants&repeat=FREQ=WEEKLY;BYDAY=TU,FR
 Nothing is sent anywhere: the tasks stay in the link until I open it and confirm.
 ```
 
@@ -270,9 +270,9 @@ On a phone, One Day fills the screen and keeps everything within reach of your t
 
 Swipe sideways to change day. Tap a task to open it; hold it, then drag, to reorder it. A sheet or the drawer closes when you drag it down. On Android, the back button closes what is open first (a sheet, the drawer, an open task) before it leaves One Day.
 
-![On a phone, the field to add a task rises from the bottom, with Book a table for Friday typed in and a Today chip.](https://day.bemorin.com/guide/shots/phone-add-light.webp)
-![On a phone, search open as a drawer over the day, with two results for lisbon.](https://day.bemorin.com/guide/shots/phone-search-light.webp)
-![On a phone, More: Install One Day in red, Undo and Redo greyed while there is nothing to take back, Import backup, Export backup, How to use One Day, then the links.](https://day.bemorin.com/guide/shots/phone-more-light.webp)
+![On a phone, the field to add a task rises from the bottom, with Book a table for Friday typed in and a Today chip.](https://getone.day/guide/shots/phone-add-light.webp)
+![On a phone, search open as a drawer over the day, with two results for lisbon.](https://getone.day/guide/shots/phone-search-light.webp)
+![On a phone, More: Install One Day in red, Undo and Redo greyed while there is nothing to take back, Import backup, Export backup, How to use One Day, then the links.](https://getone.day/guide/shots/phone-more-light.webp)
 
 ### Install it
 
@@ -286,18 +286,18 @@ Until it’s installed, One Day offers it: at the top of the page on a large scr
 - **Android:** in Chrome’s menu (**⋮**), **Add to Home screen** or **Install app**.
 - **Firefox on a computer:** keep One Day in a tab. It works the same, offline included.
 
-![Install One Day, in a pill at the top of the page, with a cross beside it, between the time and the sun.](https://day.bemorin.com/guide/shots/install-light.webp)
+![Install One Day, in a pill at the top of the page, with a cross beside it, between the time and the sun.](https://getone.day/guide/shots/install-light.webp)
 
 *On a large screen, the offer sits at the top. Its cross puts it away for good, into a small button beside the sun.*
 
-New versions arrive by themselves: One Day fetches them in the background and switches the next time it opens. If an installed copy seems stuck, see [the installed app shows an old version](https://day.bemorin.com/guide/#old-version).
+New versions arrive by themselves: One Day fetches them in the background and switches the next time it opens. If an installed copy seems stuck, see [the installed app shows an old version](https://getone.day/guide/#old-version).
 
 ### Light and dark
 
 One Day follows your device’s light or dark appearance. The sun or the moon at the top right switches it in one click, and the choice is kept. To follow the device again, switch back to whatever it uses. This guide follows the same choice.
 
-![The day in light mode.](https://day.bemorin.com/guide/shots/day-light.webp)
-![The same day in dark mode.](https://day.bemorin.com/guide/shots/day-dark.webp)
+![The day in light mode.](https://getone.day/guide/shots/day-light.webp)
+![The same day in dark mode.](https://getone.day/guide/shots/day-dark.webp)
 
 *The same day, in light and in dark.*
 
@@ -307,16 +307,16 @@ Where your tasks live, how to keep a copy, and how to lock them.
 
 ### Privacy
 
-**Your tasks stay on your device.** One Day keeps them in your browser’s storage for this site. There is no server, database or account behind it, so nobody else can see them, not even its maker. If you [sync them with your own cloud](https://day.bemorin.com/guide/#sync), they also go there, encrypted with your passphrase before they leave: your cloud can’t read them, and nothing ever reaches One Day.
+**Your tasks stay on your device.** One Day keeps them in your browser’s storage for this site. There is no server, database or account behind it, so nobody else can see them, not even its maker. If you [sync them with your own cloud](https://getone.day/guide/#sync), they also go there, encrypted with your passphrase before they leave: your cloud can’t read them, and nothing ever reaches One Day.
 
 - **No cookies, no analytics, no third-party requests.** The font comes with the app, and the site’s security policy lets nothing else load. This guide makes the same promise.
 - **The links are plain links.** Nothing is contacted until you click one. The dogood.day link tells that site you came from One Day; the others send nothing.
 - **It works offline** once you’ve opened it online one time. The browser keeps a copy of the app’s own files, never of your tasks.
 - **What the browser keeps for One Day:** your tasks, the timer’s settings, your light or dark choice and, if you put off the install offer, that you did. With sync on, also its key and your sign-in to your cloud.
 
-The other side of the coin: your tasks live in **this browser, on this device**. Another browser, another device or a private window has its own separate list, and clearing the site’s data erases them. That’s what [sync](https://day.bemorin.com/guide/#sync) and [backups](https://day.bemorin.com/guide/#backups) are for.
+The other side of the coin: your tasks live in **this browser, on this device**. Another browser, another device or a private window has its own separate list, and clearing the site’s data erases them. That’s what [sync](https://getone.day/guide/#sync) and [backups](https://getone.day/guide/#backups) are for.
 
-![Search before typing: your tags, then Your tasks are stored only in this browser. Nothing is sent anywhere, with Import backup and Export backup.](https://day.bemorin.com/guide/shots/backups-light.webp)
+![Search before typing: your tags, then Your tasks are stored only in this browser. Nothing is sent anywhere, with Import backup and Export backup.](https://getone.day/guide/shots/backups-light.webp)
 
 *Search, before you type: where your tasks are, and the backup buttons. On a phone, they’re in More.*
 
@@ -326,8 +326,8 @@ For the legal details, read the [privacy policy](https://bemorin.com/privacy#one
 
 To have the same tasks on your phone and your computer, One Day can keep them in your own **Google Drive**, **Dropbox** or **OneDrive**, one at a time. There is still no account and no server: each device talks to your cloud directly, and your tasks are **encrypted with a passphrase** before they leave it. Your cloud sees one file and when it changes, never a task, and nothing reaches One Day. **iCloud** is coming soon.
 
-![Sync with your cloud: the same tasks on your phone and your computer, encrypted before they leave, with Google Drive, Dropbox and Microsoft OneDrive to pick from, each with its logo, and iCloud, coming soon.](https://day.bemorin.com/guide/shots/sync-pick-light.webp)
-![Sync is on: up to date, synced at 09:41, with Sync now, what Google sees, how to add another device, then Stop syncing and Done.](https://day.bemorin.com/guide/shots/sync-on-light.webp)
+![Sync with your cloud: the same tasks on your phone and your computer, encrypted before they leave, with Google Drive, Dropbox and Microsoft OneDrive to pick from, each with its logo, and iCloud, coming soon.](https://getone.day/guide/shots/sync-pick-light.webp)
+![Sync is on: up to date, synced at 09:41, with Sync now, what Google sees, how to add another device, then Stop syncing and Done.](https://getone.day/guide/shots/sync-on-light.webp)
 
 *Pick your cloud, sign in there and choose a passphrase. Then sync says where it stands.*
 
@@ -352,7 +352,7 @@ Offline, One Day works as always: your changes are kept on the device, and go up
 
 #### With the lock
 
-They work together. With the [lock](https://day.bemorin.com/guide/#lock) on, sync’s key and your sign-in are encrypted with your tasks, so a locked One Day syncs nothing until you open it. The two passphrases can be the same or not: the lock’s opens One Day on this device, the sync passphrase opens your tasks in your cloud.
+They work together. With the [lock](https://getone.day/guide/#lock) on, sync’s key and your sign-in are encrypted with your tasks, so a locked One Day syncs nothing until you open it. The two passphrases can be the same or not: the lock’s opens One Day on this device, the sync passphrase opens your tasks in your cloud.
 
 > **A forgotten sync passphrase cannot be recovered**, by anyone. The devices that already sync keep working. To start over, choose **Forgot it?** where a device asks for it: One Day erases the copy in your cloud, and you choose a new passphrase. Your other devices then ask for the new one.
 
@@ -372,7 +372,7 @@ Good to know:
 
 #### Moving to a new phone or computer
 
-With [sync](https://day.bemorin.com/guide/#sync) on, connect the new one to the same cloud and your tasks come along. Without it, you bring them yourself, in one of two ways:
+With [sync](https://getone.day/guide/#sync) on, connect the new one to the same cloud and your tasks come along. Without it, you bring them yourself, in one of two ways:
 
 1. **Everything:** on the old device, **Export backup**. Move the file to the new one (AirDrop, email, a cloud drive), open One Day there and choose **Import backup**.
 2. **Just a day’s open tasks:** on the old device, **Send this day**, then open the link on the new one, for each day you need. The link carries the tasks with their notes and sub-tasks, but not their repeats.
@@ -383,7 +383,7 @@ With the lock on, backups are encrypted with your passphrase: you’ll need it t
 
 **Import backup** also reads what other to-do apps export: Todoist, TickTick, Google Tasks, Evernote and todo.txt, and tables saved as CSV (Coda, an Any.do board, a Notion database, a spreadsheet). Pick the file, or the `.zip` it came in. Before anything is added, One Day shows how many tasks will come and on which days; **Add all** brings them in, and one undo takes them all back. The file is read here, in your browser: nothing is sent anywhere.
 
-![A card titled 7 tasks from TickTick, read in this browser with nothing sent anywhere: the days they go to, each with its tasks, done ones on the day they were done; a note on the tags, the repeat it can’t follow and what is left out; Cancel and Add all.](https://day.bemorin.com/guide/shots/import-light.webp)
+![A card titled 7 tasks from TickTick, read in this browser with nothing sent anywhere: the days they go to, each with its tasks, done ones on the day they were done; a note on the tags, the repeat it can’t follow and what is left out; Cancel and Add all.](https://getone.day/guide/shots/import-light.webp)
 
 *An export from TickTick, day by day, before anything comes in.*
 
@@ -402,8 +402,8 @@ If someone else might open your computer or phone, a passphrase keeps your tasks
 
 From then on, it asks for the passphrase when it opens, after five minutes away, and as soon as you press L or click the lock. Where your device can, your fingerprint, face or device PIN opens it too; setting that up asks for the passphrase once.
 
-![Protect One Day: two passphrase fields, an option to also unlock with fingerprint, face or device PIN, and a red warning that a forgotten passphrase means the tasks are gone for good, with I understand ticked.](https://day.bemorin.com/guide/shots/protect-light.webp)
-![One Day is locked: a passphrase field, Unlock, and Forgot it?](https://day.bemorin.com/guide/shots/lock-light.webp)
+![Protect One Day: two passphrase fields, an option to also unlock with fingerprint, face or device PIN, and a red warning that a forgotten passphrase means the tasks are gone for good, with I understand ticked.](https://getone.day/guide/shots/protect-light.webp)
+![One Day is locked: a passphrase field, Unlock, and Forgot it?](https://getone.day/guide/shots/lock-light.webp)
 
 *Turning the lock on asks you to confirm what a lost passphrase means. Locked, One Day shows nothing until it gets the passphrase.*
 
@@ -426,23 +426,27 @@ Answers to common questions, and where to ask the others.
 
 #### Where are my tasks stored?
 
-In your browser, on this device, for this site only. With [sync](https://day.bemorin.com/guide/#sync) on, also in your own Google Drive, Dropbox or OneDrive, encrypted. There is never a copy on a server of One Day’s.
+In your browser, on this device, for this site only. With [sync](https://getone.day/guide/#sync) on, also in your own Google Drive, Dropbox or OneDrive, encrypted. There is never a copy on a server of One Day’s.
+
+#### One Day moved to getone.day. Where are my tasks?
+
+Still in your browser, kept for One Day’s old address until you bring them over. Open [day.bemorin.com](https://day.bemorin.com/) in the browser that holds them and choose **Move my tasks**: they go from that page to getone.day, inside your browser, never through a server. With [sync](https://getone.day/guide/#sync) on, turn it on again at getone.day, with the same cloud and passphrase: everything comes back. If you installed One Day, install it again from getone.day. An app on the Home Screen of an iPhone or iPad keeps its own copy: export a backup there, then import it at getone.day. Old links, an assistant’s too, still work: day.bemorin.com sends them on.
 
 #### Can I use One Day on my phone and my computer?
 
-Yes. Turn on [sync](https://day.bemorin.com/guide/#sync) on both, with the same cloud account and the same passphrase, and they keep one list. Without it, each keeps its own: see the next question.
+Yes. Turn on [sync](https://getone.day/guide/#sync) on both, with the same cloud account and the same passphrase, and they keep one list. Without it, each keeps its own: see the next question.
 
 #### How do I get my tasks onto another device?
 
-With [sync](https://day.bemorin.com/guide/#sync), connect it to the same cloud. Otherwise, for a day’s open tasks, **Send this day** and open the link on the other device: send it by message, by email or in a note to yourself. For everything, export a backup, move the file and import it there. Importing adds what’s missing and keeps what’s there, so you can do it again later. See [Moving to a new phone or computer](https://day.bemorin.com/guide/#moving).
+With [sync](https://getone.day/guide/#sync), connect it to the same cloud. Otherwise, for a day’s open tasks, **Send this day** and open the link on the other device: send it by message, by email or in a note to yourself. For everything, export a backup, move the file and import it there. Importing adds what’s missing and keeps what’s there, so you can do it again later. See [Moving to a new phone or computer](https://getone.day/guide/#moving).
 
 #### Can I bring my tasks from Todoist or another app?
 
-Yes: from Todoist, TickTick, Google Tasks, Evernote, todo.txt or a table saved as CSV. Export them there, then choose **Import backup** here. See [From another app](https://day.bemorin.com/guide/#other-apps).
+Yes: from Todoist, TickTick, Google Tasks, Evernote, todo.txt or a table saved as CSV. Export them there, then choose **Import backup** here. See [From another app](https://getone.day/guide/#other-apps).
 
 #### Can my AI assistant add tasks?
 
-Yes. Claude, ChatGPT or another assistant writes a link, and opening it adds the tasks once you say so. See [With an AI assistant](https://day.bemorin.com/guide/#assistants).
+Yes. Claude, ChatGPT or another assistant writes a link, and opening it adds the tasks once you say so. See [With an AI assistant](https://getone.day/guide/#assistants).
 
 #### The installed app shows an old version
 
@@ -450,7 +454,7 @@ Close it completely and open it again, twice. The first time, it opens the versi
 
 #### I use Safari. Can my tasks disappear?
 
-They can, if One Day isn’t installed: Safari may erase a site’s data when you haven’t opened it for seven days of browsing, tasks included. Installed apps are kept (**Add to Home Screen** on an iPhone or iPad, **Add to Dock** on a Mac). [Install it](https://day.bemorin.com/guide/#install), and export a backup now and then.
+They can, if One Day isn’t installed: Safari may erase a site’s data when you haven’t opened it for seven days of browsing, tasks included. Installed apps are kept (**Add to Home Screen** on an iPhone or iPad, **Add to Dock** on a Mac). [Install it](https://getone.day/guide/#install), and export a backup now and then.
 
 #### My tasks are gone. What happened?
 
@@ -458,7 +462,7 @@ Usually one of these: a different browser or browser profile; a private window, 
 
 #### I forgot my passphrase
 
-It can’t be recovered: see [The lock](https://day.bemorin.com/guide/#lock). **Forgot it?** on the lock screen erases the tasks so you can start again. Then you can import a backup made before the lock was on, or one whose passphrase you know.
+It can’t be recovered: see [The lock](https://getone.day/guide/#lock). **Forgot it?** on the lock screen erases the tasks so you can start again. Then you can import a backup made before the lock was on, or one whose passphrase you know.
 
 #### Does it work offline?
 

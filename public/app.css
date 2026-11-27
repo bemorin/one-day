@@ -4232,6 +4232,19 @@ mark {
   }
 }
 
+/* moving to getone.day: what the step says, as a list read from the left; at day.bemorin.com, nothing of One Day
+   behind the card that clears the old copy */
+.mvli {
+  margin-top: 0;
+  text-align: left;
+}
+.mvli:empty {
+  display: none;
+}
+html.gone #home {
+  visibility: hidden;
+}
+
 /* importing from another app: what comes in, day by day, before it is added */
 .icard {
   width: min(440px, 100%);

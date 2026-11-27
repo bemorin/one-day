@@ -1,6 +1,6 @@
 # One Day for Claude
 
-A small [MCP](https://modelcontextprotocol.io) server with one tool, `make_one_day_link`. Claude gives it tasks, each with an optional note, sub-tasks, day and repeat, and gets back a link that adds them to [One Day](https://day.bemorin.com). You open the link, check the tasks, and add them.
+A small [MCP](https://modelcontextprotocol.io) server with one tool, `make_one_day_link`. Claude gives it tasks, each with an optional note, sub-tasks, day and repeat, and gets back a link that adds them to [One Day](https://getone.day). You open the link, check the tasks, and add them.
 
 - **Nothing leaves your computer through it.** It runs locally, reads requests on stdin and answers on stdout. It opens no network connection, writes no file and keeps nothing between calls.
 - **Nothing travels through a server.** The tasks ride in the link, after the `#`, which browsers never send to a server. One Day stores them in your browser once you confirm. The link format is described in [docs/links.md](../docs/links.md).
@@ -57,7 +57,7 @@ Claude calls `make_one_day_link` and shows the link. Opening it shows the tasks 
 
 ## Your own copy of One Day
 
-Links point to `https://day.bemorin.com/`. For another address (your own copy, or a preview), set `ONE_DAY_URL`:
+Links point to `https://getone.day/`. For another address (your own copy, or a preview), set `ONE_DAY_URL`:
 
 ```sh
 claude mcp add -e ONE_DAY_URL=https://day.example.com/ --scope user one-day -- node /path/to/one-day/mcp/server.mjs

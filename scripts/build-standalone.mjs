@@ -31,8 +31,10 @@ html = html
   .replace('</title>', () => `</title>\n    <link rel="icon" href="data:image/svg+xml;base64,${icon}" />`)
   .replace(/<link rel="stylesheet" href="app\.css"\s*\/?>/, () => `<style>\n${css}</style>`)
   .replace(/<script src="app\.js"><\/script>/, () => `<script>\n${js}</script>`)
+  // a single file has no old address to move from (see moved.js)
+  .replace(/\s*<!-- One Day moved from[^>]*-->\s*<script src="moved\.js"><\/script>/, '')
   // the guide is a page of its own: a single file links to the one online
-  .replace('href="guide/"', 'href="https://day.bemorin.com/guide/"');
+  .replace('href="guide/"', 'href="https://getone.day/guide/"');
 
 await mkdir(join(root, 'dist'), { recursive: true });
 const out = join(root, 'dist', artifact ? 'one-day.artifact.html' : 'one-day.html');

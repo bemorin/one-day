@@ -8,6 +8,8 @@
       content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com https://api.dropboxapi.com https://content.dropboxapi.com https://graph.microsoft.com https://login.microsoftonline.com https://*.files.1drv.com https://my.microsoftpersonalcontent.com; manifest-src 'self'; worker-src 'self'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
     />
     <meta name="referrer" content="no-referrer" />
+    <!-- One Day moved from day.bemorin.com to getone.day: at the old address, this decides first what happens -->
+    <script src="moved.js"></script>
     <meta
       name="description"
       content="A calm, minimalist task list that shows one day at a time. Private by design: your tasks stay on your device, or sync encrypted through your own cloud."
@@ -17,8 +19,8 @@
     <meta property="og:type" content="website" />
     <meta property="og:title" content="One Day" />
     <meta property="og:description" content="A calm to-do list that shows one day at a time. Free and private: no account, and your tasks stay yours, on your device or encrypted in your own cloud." />
-    <meta property="og:url" content="https://day.bemorin.com/" />
-    <meta property="og:image" content="https://day.bemorin.com/share.jpg" />
+    <meta property="og:url" content="https://getone.day/" />
+    <meta property="og:image" content="https://getone.day/share.jpg" />
     <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -542,7 +544,7 @@
         <div class="sug" id="sug" role="listbox" aria-label="Tags"></div>
       </div>
       <footer class="foot" id="foot">
-        <a class="promo" href="https://dogood.day/?utm_source=day.bemorin.com&amp;utm_medium=referral" target="_blank" rel="noopener" referrerpolicy="strict-origin"
+        <a class="promo" href="https://dogood.day/?utm_source=getone.day&amp;utm_medium=referral" target="_blank" rel="noopener" referrerpolicy="strict-origin"
           >Start journaling with <b>dogood.day</b></a
         >
         <a class="kofi" href="https://ko-fi.com/bemorin" target="_blank" rel="noopener" aria-label="Buy me a coffee on Ko-fi"
@@ -698,6 +700,50 @@
         <div class="racts">
           <button class="tbtn" id="impNo" type="button">Cancel</button
           ><button class="pbtn" id="impGo" type="button">Add all</button>
+        </div>
+      </div>
+    </div>
+    <!-- moving to getone.day: at day.bemorin.com, the step that brings the tasks over (see "moving to getone.day") -->
+    <div class="modal" id="mv" role="dialog" aria-modal="true" aria-labelledby="mvT" aria-describedby="mvSub" hidden>
+      <form class="lcard" id="mvForm" novalidate>
+        <img class="lico" src="icons/icon.svg" alt="" width="64" height="64" />
+        <h2 id="mvT">One Day has moved to getone.day</h2>
+        <p class="lsub" id="mvSub"></p>
+        <ul class="syli mvli" id="mvLi"></ul>
+        <input type="text" name="username" autocomplete="username" value="One Day" hidden />
+        <input id="mvPass" type="password" autocomplete="current-password" placeholder="Passphrase" aria-label="Passphrase" aria-describedby="mvErr" hidden />
+        <p class="lerr" id="mvErr" role="alert"></p>
+        <div class="racts" id="mvActs">
+          <button class="tbtn" id="mvNo" type="button">Not now</button
+          ><button class="pbtn" id="mvGo" type="submit">Move my tasks</button>
+        </div>
+        <button class="tbtn wide" id="mvLink" type="button" hidden>Move with a link</button>
+        <button class="tbtn wide" id="mvFile" type="button" hidden>Export backup</button>
+        <p class="lhint" id="mvHint" hidden></p>
+      </form>
+    </div>
+    <!-- at day.bemorin.com, once moved: the copy left there, cleared only after this yes (see moved.js) -->
+    <div class="modal" id="mvclr" role="dialog" aria-modal="true" aria-labelledby="mvcT" aria-describedby="mvcSub" hidden>
+      <div class="lcard">
+        <img class="lico" src="icons/icon.svg" alt="" width="64" height="64" />
+        <h2 id="mvcT">Clear the old copy?</h2>
+        <p class="lsub" id="mvcSub">Your tasks are at getone.day now. This only clears the copy that day.bemorin.com still keeps in this browser.</p>
+        <div class="racts">
+          <button class="tbtn" id="mvcNo" type="button">Keep it</button
+          ><button class="pbtn" id="mvcYes" type="button">Clear it</button>
+        </div>
+      </div>
+    </div>
+    <!-- at getone.day: tasks that came from day.bemorin.com, asked about (by link) or told about once they are here -->
+    <div class="modal" id="mvin" role="dialog" aria-modal="true" aria-labelledby="mviT" aria-describedby="mviSub" hidden>
+      <div class="lcard" id="mviCard">
+        <img class="lico" src="icons/icon.svg" alt="" width="64" height="64" />
+        <h2 id="mviT"></h2>
+        <p class="lsub" id="mviSub"></p>
+        <ul class="syli mvli" id="mviLi"></ul>
+        <div class="racts">
+          <button class="tbtn" id="mviNo" type="button"></button
+          ><button class="pbtn" id="mviYes" type="button"></button>
         </div>
       </div>
     </div>
