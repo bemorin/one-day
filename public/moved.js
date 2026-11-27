@@ -86,24 +86,30 @@ const MOVE = (() => {
     moved = JSON.parse(ls('oneday.moved'));
   } catch (e) {}
   if (!moved || typeof moved !== 'object' || moved.to !== NEW) moved = null;
+  // the Android app's mark, kept by this address for its tab: getone.day is told it too, as the address can't carry it
+  let play = false;
+  try {
+    play = sessionStorage.getItem('oneday.app') === 'android' && !/[?&]app=android(&|$)/.test(location.search);
+  } catch (e) {}
   const mode = m => Object.freeze({ ...base, mode: m, moved, has }),
     // on to getone.day: the same page there, with what follows ? and #, unless told otherwise
     on = (hash = h, path = location.pathname) => {
-      location.replace(NEW + path + location.search + hash);
+      const q = location.search + (play ? (location.search ? '&' : '?') + 'app=android' : '');
+      location.replace(NEW + path + q + hash);
       return mode('gone');
     };
 
   if (page) {
-    // Back from getone.day, after a move by link: the number this browser kept for it (no other page can know it)
-    // says the tasks arrived. Then sync stops here, its key and sign-in leave what this browser keeps, and the other
-    // tabs stop too.
+    // Back from getone.day, once the tasks sent there by a link are added (after a yes there): the number this browser
+    // kept for that move, which no other page can know, says they arrived. Then sync stops here (its key and sign-in
+    // leave what this browser keeps, and the other tabs stop too), and this browser remembers the move.
     const back = /^#moved=([\w-]{8,40})\.([0-9a-f]{64})$/.exec(h);
     if (back) {
       let w = null;
       try {
         w = JSON.parse(ls('oneday.moving'));
       } catch (e) {}
-      if (w && w.id === back[1] && w.sum === back[2] && Date.now() - w.at < 36e5) {
+      if (w && w.id === back[1] && w.sum === back[2] && Date.now() - w.at < 864e5) {
         try {
           const o = v1 && JSON.parse(v1);
           if (o && o.sync) {
@@ -121,12 +127,14 @@ const MOVE = (() => {
           bc.postMessage({ t: 'stop' });
           bc.close();
         } catch (e) {}
-        put('oneday.moved', JSON.stringify({ to: NEW, at: Date.now(), n: +w.n || 0, sig: w.sig || now, how: 'link' }));
+        const m = { to: NEW, at: Date.now(), n: +w.n || 0, sig: w.sig || now, how: 'link' };
+        // with the copy that went, to tell later what changed here since (see moveMerge in app.js), if there is room
+        if (!(typeof w.keep === 'string' && put('oneday.moved', JSON.stringify({ ...m, keep: w.keep })))) put('oneday.moved', JSON.stringify(m));
         drop('oneday.moving');
         return on(typeof w.hash === 'string' && /^#add[=?]/.test(w.hash) ? w.hash : '', '/');
       }
-      // not this browser's move: the address is cleaned, and One Day opens as it would
-      clean();
+      // not this browser's move, or one long gone: nothing is remembered, and getone.day, where it came from, opens
+      return on('', '/');
     }
     // asked from getone.day: the copy left here, cleared after a yes
     if (h === '#clear-old-copy') {
@@ -145,7 +153,13 @@ const MOVE = (() => {
       return mode('old');
     }
   }
-  if (moved) return !has || now === moved.sig ? on() : mode('again');
+  if (moved) {
+    if (!has) return on();
+    if (now !== moved.sig) return mode('again');
+    // moved by a backup file, from an app on a Home Screen: no other page can reach the copy kept here, so nothing is
+    // sent on; One Day says where it lives now, and the copy stays at hand
+    return moved.how === 'file' ? mode('filed') : on();
+  }
   return has ? mode('old') : on();
 
   // Clear the old copy? Its own small card: One Day doesn't open behind it.
@@ -173,7 +187,8 @@ const MOVE = (() => {
         put('oneday.moved', JSON.stringify({ ...m, cleared: Date.now() }));
         on('#old-copy-cleared', '/');
       };
-      yes.focus();
+      // the safe choice first: Enter keeps the copy
+      no.focus();
     });
   }
 })();

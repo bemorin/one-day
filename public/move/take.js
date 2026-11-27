@@ -2,8 +2,8 @@
    One Day at day.bemorin.com opened this window to hand it the tasks that browser keeps there, page to page: only that
    address's page is listened to, and only the window that opened this one. The tasks are kept aside in this browser's
    storage for getone.day, until One Day opens here and adds them, overwriting nothing; then this window closes, or
-   becomes One Day. A long link after # is the other way in: the tasks are taken out of the address at once, and One
-   Day asks before adding them. Nothing is sent anywhere. */
+   becomes One Day. A long link after # is the other way in: the tasks are taken out of the address at once, One Day
+   asks before adding them, and only then tells day.bemorin.com that they arrived. Nothing is sent anywhere. */
 (() => {
   'use strict';
   const OLD = 'https://day.bemorin.com',
@@ -63,7 +63,7 @@
     ((!!p.tasks && typeof p.tasks === 'object' && !!p.tasks.days && typeof p.tasks.days === 'object') ||
       (!!p.vault && typeof p.vault === 'object' && !!p.vault.data));
   // kept aside, compressed, for One Day to add when it opens here: '' when kept, or why not
-  async function keep(json, sum, via) {
+  async function keep(json, sum, via, id = '') {
     let p = null;
     try {
       p = JSON.parse(json);
@@ -71,7 +71,7 @@
     if (!fits(p)) return 'bad';
     const z = b64.enc(await through(TE.encode(json), new CompressionStream('deflate-raw'), 64e6));
     try {
-      localStorage.setItem('oneday.incoming', JSON.stringify({ v: 1, via, from: OLD, at: Date.now(), sum, z }));
+      localStorage.setItem('oneday.incoming', JSON.stringify({ v: 1, via, from: OLD, at: Date.now(), sum, z, ...(id ? { id } : {}) }));
     } catch (e) {
       return 'full';
     }
@@ -82,8 +82,8 @@
     bad: 'These tasks could not be read.',
   };
 
-  // The link way: the tasks after #, taken out of the address before anything else, kept, then back to
-  // day.bemorin.com with the number it gave the move, so that it knows they arrived.
+  // The link way: the tasks after #, taken out of the address before anything else, and kept with the number
+  // day.bemorin.com gave the move. One Day opens here and asks; once they are added, it hands that number back.
   const h = location.hash;
   if (/^#v1\./.test(h)) {
     try {
@@ -100,13 +100,13 @@
     try {
       const json = TD.decode(await through(b64.dec(m[2]), new DecompressionStream('deflate-raw'), 64e6));
       sum = await hex(json);
-      why = await keep(json, sum, 'link');
+      why = await keep(json, sum, 'link', m[1]);
     } catch (e) {
       why = 'bad';
     }
     if (why) return say(WHY[why], true);
-    say('Your tasks are at getone.day. Back to day.bemorin.com for a moment…');
-    location.replace(OLD + '/#moved=' + m[1] + '.' + sum);
+    say('Your tasks are at getone.day.');
+    location.replace('../');
   }
 
   // The window way: One Day at day.bemorin.com opened this window, and is told it is ready.
@@ -152,8 +152,9 @@
       window.close();
       say('Done: One Day is open in the other tab. You can close this one.', true);
     } else if (d.step === 'open') {
+      // an installed app's move: this window becomes One Day, with the link's tasks it was opened with, if any
       clearTimeout(after);
-      location.replace('../');
+      location.replace('../' + (typeof d.hash === 'string' && /^#add[=?]/.test(d.hash) && d.hash.length < 32000 ? d.hash : ''));
     }
   });
   tell({ step: 'ready' });

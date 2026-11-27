@@ -5,8 +5,9 @@ import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { deflateRawSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { hosts, cloudAt, OLD, NEW } from './hosts.mjs';
-import { answer } from '../scripts/pages.mjs';
+import { answer, parseHeaders, headersFor } from '../scripts/pages.mjs';
 import { Drive } from './clouds.mjs';
 
 test.describe.configure({ timeout: 90000 });
@@ -79,6 +80,7 @@ async function keepAt(ctx, origin, items) {
 }
 const tasksOf = j => Object.values(j.days).flatMap(d => d.tasks);
 const row = (page, text) => page.locator('#list .row', { hasText: text });
+const origin = u => new URL(u).origin;
 // the step at the old address, then the window at getone.day, which closes once the tasks are there
 async function move(page) {
   await expect(page.locator('#mv')).toBeVisible();
@@ -87,7 +89,7 @@ async function move(page) {
   const w = await pop;
   // it may close before it is watched: what counts is that it did
   await expect.poll(() => w.isClosed(), { timeout: 20000 }).toBe(true);
-  await page.waitForURL(u => new URL(u).origin === NEW);
+  await page.waitForURL(u => origin(u) === NEW);
 }
 async function welcomed(page) {
   await expect(page.locator('#mvin')).toBeVisible();
@@ -100,13 +102,37 @@ async function fresh(ctx) {
   await page.goto(OLD + '/');
   return page;
 }
+async function protect(page, pass = LOCK) {
+  await page.locator('#lpill').click();
+  await page.locator('#lsPass').fill(pass);
+  await page.locator('#lsPass2').fill(pass);
+  await page.locator('#lsOk').check();
+  await page.locator('#lsGo').click();
+  await expect(page.locator('#lockset')).toBeHidden({ timeout: 20000 });
+}
+// getone.day's window as if it cut itself off from the page that opened it (the first time only)
+const sever = () => {
+  let n = 0;
+  return (url, a) => (url.origin === NEW && url.pathname === '/move/' && n++ === 0 ? { ...a, headers: { ...a.headers, 'Cross-Origin-Opener-Policy': 'same-origin' } } : undefined);
+};
+// the step fails, then the link
+async function byLink(page) {
+  await expect(page.locator('#mv')).toBeVisible();
+  const pop = page.waitForEvent('popup');
+  await page.locator('#mvGo').click();
+  await pop;
+  await expect(page.locator('#mvT')).toHaveText('getone.day didn’t answer', { timeout: 20000 });
+  await page.locator('#mvLink').click();
+  await page.waitForURL(NEW + '/');
+  await expect(page.locator('#mviT')).toHaveText('Bring these tasks here?');
+}
 
 test.describe('moving to getone.day', () => {
   test('a browser with nothing kept at day.bemorin.com goes on to getone.day, with its #add link and the rest of the address', async ({ browser }) => {
     const { ctx, errors } = await browserAt(browser);
     const page = await ctx.newPage();
     await page.goto(OLD + '/#add?task=Buy+bread&day=tomorrow');
-    await page.waitForURL(u => new URL(u).origin === NEW);
+    await page.waitForURL(u => origin(u) === NEW);
     await expect(page.locator('#inbox')).toBeVisible();
     await expect(page.locator('#inTitle')).toHaveText('Buy bread');
     await page.goto(OLD + '/guide/#sync');
@@ -115,7 +141,7 @@ test.describe('moving to getone.day', () => {
     const asked = [];
     page.on('request', r => asked.push(r.url()));
     await page.goto(OLD + '/?app=android');
-    await page.waitForURL(u => new URL(u).origin === NEW);
+    await page.waitForURL(u => origin(u) === NEW);
     expect(asked).toContain(NEW + '/?app=android');
     // nothing was written at the old address
     expect(await storageAt(ctx, OLD)).toEqual({});
@@ -144,12 +170,26 @@ test.describe('moving to getone.day', () => {
     expect(there['oneday.theme']).toBe('dark');
     expect(there['oneday.incoming']).toBeUndefined();
     expect(JSON.parse(there['oneday.movedin'])).toMatchObject({ from: OLD, copy: true, shown: true, sync: '', locked: false });
-    // the old address remembers, and keeps its copy until it is cleared
-    const left = await storageAt(ctx, OLD);
-    expect(JSON.parse(left['oneday.moved'])).toMatchObject({ to: NEW, how: 'window' });
+    // the old address remembers what went, and keeps its copy until it is cleared
+    const left = await storageAt(ctx, OLD),
+      moved = JSON.parse(left['oneday.moved']);
+    expect(moved).toMatchObject({ to: NEW, how: 'window' });
+    expect(typeof moved.keep).toBe('string');
     const kept = JSON.parse(left['oneday.v1']);
     for (const t of tasksOf(data)) expect(tasksOf(kept).find(x => x.id === t.id)).toEqual(t);
     expect(errors).toEqual([]);
+    await ctx.close();
+  });
+
+  test('the Android app’s mark goes along with the move', async ({ browser }) => {
+    const { ctx } = await browserAt(browser),
+      asked = [];
+    ctx.on('request', r => asked.push(r.url()));
+    await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(seed()) });
+    const page = await ctx.newPage();
+    await page.goto(OLD + '/?app=android');
+    await move(page);
+    expect(asked).toContain(NEW + '/?app=android');
     await ctx.close();
   });
 
@@ -164,7 +204,7 @@ test.describe('moving to getone.day', () => {
     await expect(page.locator('#inTitle')).toHaveText('Pay the rent');
     await page.locator('#inYes').click();
     await expect(row(page, 'Pay the rent')).toBeVisible();
-    expect(new URL(page.url()).origin).toBe(OLD);
+    expect(origin(page.url())).toBe(OLD);
     // a new link in this open tab: the step again, and this time the link's tasks move with the rest
     await page.evaluate(() => (location.hash = '#add?task=Feed+the+cat'));
     await expect(page.locator('#mvLi')).toContainText('The tasks in your link go there too.');
@@ -178,24 +218,37 @@ test.describe('moving to getone.day', () => {
     await ctx.close();
   });
 
-  test('tasks already at getone.day stay as they are: what comes is added beside them', async ({ browser }) => {
+  test('tasks already at getone.day are merged with what comes: each task keeps its latest change, none is lost', async ({ browser }) => {
     const { ctx } = await browserAt(browser);
-    await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(seed()), 'oneday.theme': 'dark' });
-    const mine = { days: { [today()]: { u: 5, tasks: [{ id: 'a1', text: 'My own version', done: false }, { id: 'z9', text: 'Only here', done: false }] } }, rules: {}, tags: {} };
+    await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(seed()), 'oneday.timer': TIMER, 'oneday.theme': 'dark' });
+    // a1 changed earlier here, d4 later here (each day's u says when), and one task of its own
+    const mine = {
+      days: {
+        [today()]: { u: 5, tasks: [{ id: 'a1', text: 'My older version', done: false }, { id: 'z9', text: 'Only here', done: false }] },
+        [plus(3)]: { u: 1900000000000, tasks: [{ id: 'd4', text: 'Book the night train', done: false }] },
+      },
+      rules: {},
+      tags: {},
+    };
     await keepAt(ctx, NEW, { 'oneday.v1': JSON.stringify(mine), 'oneday.theme': 'light' });
     const page = await fresh(ctx);
     await move(page);
     await expect(page.locator('#toast')).toContainText('came from day.bemorin.com');
     await welcomed(page);
-    const got = JSON.parse((await storageAt(ctx, NEW))['oneday.v1']);
-    expect(tasksOf(got).find(t => t.id === 'a1').text).toBe('My own version');
-    for (const id of ['z9', 'b2', 'c3', 'd4']) expect(tasksOf(got).some(t => t.id === id)).toBe(true);
+    const there = await storageAt(ctx, NEW),
+      got = JSON.parse(there['oneday.v1']),
+      t = id => tasksOf(got).filter(x => x.id === id);
+    expect(t('a1').map(x => x.text)).toEqual(['Write the report #work']);
+    expect(t('d4').map(x => x.text)).toEqual(['Book the night train']);
+    for (const id of ['z9', 'b2', 'c3']) expect(t(id)).toHaveLength(1);
     expect(got.rules.w1).toBeTruthy();
-    expect((await storageAt(ctx, NEW))['oneday.theme']).toBe('light');
+    // the settings come where there are none here
+    expect(there['oneday.theme']).toBe('light');
+    expect(there['oneday.timer']).toBe(TIMER);
     await ctx.close();
   });
 
-  test('once moved, day.bemorin.com goes on to getone.day every time, other tabs too, and offers again if its tasks change', async ({ browser }) => {
+  test('once moved, day.bemorin.com goes on every time, other tabs too; tasks changed there later come too, edits included', async ({ browser }) => {
     const { ctx } = await browserAt(browser);
     await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(seed()) });
     const other = await fresh(ctx);
@@ -205,28 +258,48 @@ test.describe('moving to getone.day', () => {
     await move(page);
     await welcomed(page);
     // the tab left open at the old address goes on as well
-    await other.waitForURL(u => new URL(u).origin === NEW);
+    await other.waitForURL(u => origin(u) === NEW);
     await page.goto(OLD + '/');
     await page.waitForURL(NEW + '/');
     await page.goto(OLD + '/#add?task=Buy+stamps');
-    await page.waitForURL(u => new URL(u).origin === NEW);
+    await page.waitForURL(u => origin(u) === NEW);
     await expect(page.locator('#inTitle')).toHaveText('Buy stamps');
     await page.goto(OLD + '/guide/');
     await page.waitForURL(NEW + '/guide/');
-    // an old tab wrote a task at the old address after the move: offered again, and it comes too
-    const old = JSON.parse((await storageAt(ctx, OLD))['oneday.v1']);
-    old.days[today()].tasks.push({ id: 'late1', text: 'Written after the move', done: false });
-    await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(old) });
+    // at getone.day, a task deleted since the move
+    const n1 = JSON.parse((await storageAt(ctx, NEW))['oneday.v1']);
+    n1.days[today()].tasks = n1.days[today()].tasks.filter(x => x.id !== 'b2');
+    n1.days[today()].u = Date.now();
+    await keepAt(ctx, NEW, { 'oneday.v1': JSON.stringify(n1) });
+    // at day.bemorin.com, an old tab changed things after the move: a note, a sub-task, a tick, a new task
+    const o = JSON.parse((await storageAt(ctx, OLD))['oneday.v1']),
+      a1 = o.days[today()].tasks.find(x => x.id === 'a1'),
+      d4 = o.days[plus(3)].tasks.find(x => x.id === 'd4');
+    a1.note = 'Bring the <b>new</b> numbers';
+    a1.subs.push({ id: 's3', text: 'Print it', done: false });
+    o.days[today()].tasks.push({ id: 'late1', text: 'Written after the move', done: false });
+    o.days[today()].u = Date.now() + 1000;
+    d4.done = true;
+    d4.at = Date.now();
+    o.days[plus(3)].u = Date.now() + 1000;
+    await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(o) });
     await page.goto(OLD + '/');
     await expect(page.locator('#mvT')).toHaveText('Some tasks changed here');
     await move(page);
     await expect(page.locator('#toast')).toContainText('came from day.bemorin.com');
     await welcomed(page);
-    await expect(row(page, 'Written after the move')).toBeVisible();
+    const got = JSON.parse((await storageAt(ctx, NEW))['oneday.v1']),
+      t = id => tasksOf(got).find(x => x.id === id);
+    expect(t('a1').note).toBe('Bring the <b>new</b> numbers');
+    expect(t('a1').subs.map(s => s.text)).toEqual(['Draft it', 'Send it', 'Print it']);
+    expect(t('d4').done).toBe(true);
+    expect(t('late1').text).toBe('Written after the move');
+    // deleted at getone.day since the first move: it stays deleted
+    expect(t('b2')).toBeUndefined();
     await ctx.close();
   });
 
-  test('the copy left at day.bemorin.com goes only after a yes there', async ({ browser }) => {
+  test('the copy left at day.bemorin.com goes only after a yes there, Keep it first', async ({ browser }) => {
     const { ctx } = await browserAt(browser);
     await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(seed()), 'oneday.timer': TIMER });
     const page = await fresh(ctx);
@@ -236,7 +309,9 @@ test.describe('moving to getone.day', () => {
     await page.waitForURL(OLD + '/#clear-old-copy');
     await expect(page.locator('#mvclr')).toBeVisible();
     await expect(page.locator('#mvcT')).toHaveText('Clear the old copy?');
-    await page.locator('#mvcNo').click();
+    // Enter keeps it
+    await expect(page.locator('#mvcNo')).toBeFocused();
+    await page.keyboard.press('Enter');
     await page.waitForURL(NEW + '/');
     expect((await storageAt(ctx, OLD))['oneday.v1']).toBeTruthy();
     // later, from search: the same question, and a yes this time
@@ -264,12 +339,7 @@ test.describe('moving to getone.day', () => {
     await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(seed()) });
     const page = await fresh(ctx);
     await page.locator('#mvNo').click();
-    await page.locator('#lpill').click();
-    await page.locator('#lsPass').fill(LOCK);
-    await page.locator('#lsPass2').fill(LOCK);
-    await page.locator('#lsOk').check();
-    await page.locator('#lsGo').click();
-    await expect(page.locator('#lockset')).toBeHidden({ timeout: 20000 });
+    await protect(page);
     const before = JSON.parse((await storageAt(ctx, OLD))['oneday.vault']);
     await page.reload();
     await page.locator('#lockPass').fill(LOCK);
@@ -294,16 +364,39 @@ test.describe('moving to getone.day', () => {
     await ctx.close();
   });
 
-  test('sync: it stops at the old address, which never talks to the cloud again; reconnected at getone.day, everything comes back', async ({ browser }) => {
+  test('with the lock on and the page not opened with the passphrase, the step asks for it, and a wrong one moves nothing', async ({ browser }) => {
+    const { ctx } = await browserAt(browser);
+    await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(seed()) });
+    const page = await fresh(ctx);
+    await page.locator('#mvNo').click();
+    await protect(page);
+    // a link brings the step back in this page, which was never unlocked with the passphrase
+    await page.evaluate(() => (location.hash = '#add?task=Pay+the+rent'));
+    await expect(page.locator('#mvPass')).toBeVisible();
+    await page.locator('#mvPass').fill('not the passphrase');
+    const pop = page.waitForEvent('popup');
+    await page.locator('#mvGo').click();
+    const w = await pop;
+    await expect(page.locator('#mvErr')).toHaveText('That passphrase doesn’t open these tasks');
+    await expect.poll(() => w.isClosed()).toBe(true);
+    expect((await storageAt(ctx, OLD))['oneday.moved']).toBeUndefined();
+    await page.locator('#mvPass').fill(LOCK);
+    await move(page);
+    await expect(page.locator('#lock')).toBeVisible();
+    await ctx.close();
+  });
+
+  test('sync: it stops at the old address, whose tabs never talk to the cloud again; reconnected at getone.day, everything comes back once', async ({ browser }) => {
     const drive = new Drive(),
       { ctx } = await browserAt(browser, { patch: [IDS], clouds: [drive] }),
-      fromOld = [];
+      late = [];
+    let after = false;
     ctx.on('request', r => {
       let o = '';
       try {
-        o = new URL(r.frame().url()).origin;
+        o = origin(r.frame().url());
       } catch (e) {}
-      if (o === OLD && /googleapis\.com/.test(r.url())) fromOld.push(r.url());
+      if (after && o === OLD && /googleapis\.com/.test(r.url())) late.push(r.url());
     });
     await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(seed()) });
     const page = await fresh(ctx);
@@ -322,67 +415,129 @@ test.describe('moving to getone.day', () => {
     await page.locator('#syGo').click();
     await expect(page.locator('#syncd')).toBeHidden();
     expect(drive.files.length).toBe(1);
-    await page.reload();
-    await expect(page.locator('#mvLi')).toContainText('Sync with your Google Drive stops here');
-    await move(page);
-    fromOld.length = 0;
-    // no key, no sign-in left at the old address
-    const left = await storageAt(ctx, OLD);
-    expect(JSON.parse(left['oneday.v1']).sync).toBeUndefined();
-    await expect(page.locator('#mviLi')).toContainText('Sync was on there');
-    await page.locator('#mviYes').click();
+    // this tab stays open at the old address, syncing; another one moves
+    const mover = await fresh(ctx);
+    await expect(mover.locator('#mvLi')).toContainText('Sync with your Google Drive stops here');
+    await move(mover);
+    after = true;
+    // no key, no sign-in left at the old address, and the open tab goes on to getone.day without asking the cloud
+    expect(JSON.parse((await storageAt(ctx, OLD))['oneday.v1']).sync).toBeUndefined();
+    await page.waitForURL(u => origin(u) === NEW);
+    await page.waitForTimeout(1500);
+    expect(late).toEqual([]);
+    await expect(mover.locator('#mviLi')).toContainText('Sync was on there');
+    await mover.locator('#mviYes').click();
     // reconnected at getone.day: the same cloud and passphrase
-    await page.locator('#spill:visible, #syncb:visible').first().click();
-    const pop2 = page.waitForEvent('popup');
-    await page.locator('#syCh [data-c="google"]').click();
+    await mover.locator('#spill:visible, #syncb:visible').first().click();
+    const pop2 = mover.waitForEvent('popup');
+    await mover.locator('#syCh [data-c="google"]').click();
     await expect.poll(async () => (await pop2).isClosed(), { timeout: 15000 }).toBe(true);
-    await expect(page.locator('#syT')).toHaveText('Enter your sync passphrase', { timeout: 15000 });
-    await page.locator('#syPass').fill(PASS);
-    await page.locator('#syGo').click();
-    await expect(page.locator('#syT')).toHaveText('Sync is on', { timeout: 20000 });
-    await expect(page.locator('#sySt .syd')).toHaveAttribute('data-s', 'idle', { timeout: 20000 });
+    await expect(mover.locator('#syT')).toHaveText('Enter your sync passphrase', { timeout: 15000 });
+    await mover.locator('#syPass').fill(PASS);
+    await mover.locator('#syGo').click();
+    await expect(mover.locator('#syT')).toHaveText('Sync is on', { timeout: 20000 });
+    await expect(mover.locator('#sySt .syd')).toHaveAttribute('data-s', 'idle', { timeout: 20000 });
     const got = JSON.parse((await storageAt(ctx, NEW))['oneday.v1']),
       ids = tasksOf(got).map(t => t.id);
     for (const t of tasksOf(seed())) expect(ids.filter(id => id === t.id)).toHaveLength(1);
-    // the old address, opened again, goes on at once and asks the cloud nothing
-    const again = await ctx.newPage();
-    await again.goto(OLD + '/');
-    await again.waitForURL(NEW + '/');
-    await again.waitForTimeout(1500);
-    expect(fromOld).toEqual([]);
+    expect(late).toEqual([]);
     await ctx.close();
   });
 
-  test('where getone.day’s window can’t answer, a link carries the tasks: getone.day asks before adding them', async ({ browser }) => {
-    let first = true;
-    const { ctx, errors } = await browserAt(browser, {
-      // the window's page as if it cut itself off from the page that opened it
-      on: (url, a) => {
-        if (url.origin === NEW && url.pathname === '/move/' && first) {
-          first = false;
-          return { ...a, headers: { ...a.headers, 'Cross-Origin-Opener-Policy': 'same-origin' } };
-        }
+  test('a getone.day tab left open opens again with what came, and writes nothing over it', async ({ browser }) => {
+    const { ctx } = await browserAt(browser);
+    await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(seed()) });
+    await keepAt(ctx, NEW, { 'oneday.v1': JSON.stringify({ days: { [today()]: { u: 5, tasks: [{ id: 'z9', text: 'Only here', done: false }] } }, rules: {}, tags: {} }) });
+    const other = await ctx.newPage();
+    await other.goto(NEW + '/');
+    await expect(row(other, 'Only here')).toBeVisible();
+    const reloaded = other.waitForEvent('load');
+    const page = await fresh(ctx);
+    await move(page);
+    await expect(page.locator('#mvin')).toBeVisible();
+    await reloaded;
+    // it shows what came, and what it adds now goes beside it
+    await welcomed(other);
+    await welcomed(page);
+    await expect(row(other, 'Write the report')).toBeVisible();
+    await other.locator('#input').fill('Added in the other tab');
+    await other.locator('#input').press('Enter');
+    await expect(row(other, 'Added in the other tab')).toBeVisible();
+    const got = JSON.parse((await storageAt(ctx, NEW))['oneday.v1']),
+      texts = tasksOf(got).map(t => t.text);
+    for (const x of ['Write the report #work', 'Water the plants', 'Only here', 'Added in the other tab']) expect(texts).toContain(x);
+    await ctx.close();
+  });
+
+  test('a browser with no room at getone.day keeps what came aside, says so, and adds it once there is room', async ({ browser }) => {
+    const { ctx } = await browserAt(browser, {
+      init: () => {
+        if (location.origin !== 'https://getone.day') return;
+        const set = Storage.prototype.setItem;
+        Storage.prototype.setItem = function (k, v) {
+          if (this === localStorage && k === 'oneday.v1' && localStorage.getItem('oneday.incoming') && !sessionStorage.getItem('room'))
+            throw new DOMException('full', 'QuotaExceededError');
+          return set.call(this, k, v);
+        };
       },
     });
     await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(seed()) });
+    await keepAt(ctx, NEW, { 'oneday.v1': JSON.stringify({ days: { [today()]: { u: 5, tasks: [{ id: 'z9', text: 'Only here', done: false }] } }, rules: {}, tags: {} }) });
     const page = await fresh(ctx);
-    await expect(page.locator('#mv')).toBeVisible();
-    const pop = page.waitForEvent('popup');
-    await page.locator('#mvGo').click();
-    await pop;
-    await expect(page.locator('#mvT')).toHaveText('getone.day didn’t answer', { timeout: 20000 });
-    await expect(page.locator('#mvLink')).toBeVisible();
-    await expect(page.locator('#mvFile')).toBeVisible();
+    await move(page);
+    await expect(page.locator('#toast')).toContainText('This browser has no room left for these tasks');
+    let there = await storageAt(ctx, NEW);
+    expect(there['oneday.incoming']).toBeTruthy();
+    expect(there['oneday.movedin']).toBeUndefined();
+    expect(tasksOf(JSON.parse(there['oneday.v1'])).map(t => t.id)).toEqual(['z9']);
+    await expect(page.locator('#mvin')).toBeHidden();
+    // room again: the next opening adds them
+    await page.evaluate(() => sessionStorage.setItem('room', '1'));
+    await page.reload();
+    await welcomed(page);
+    there = await storageAt(ctx, NEW);
+    expect(there['oneday.incoming']).toBeUndefined();
+    expect(tasksOf(JSON.parse(there['oneday.v1'])).map(t => t.id)).toEqual(expect.arrayContaining(['z9', 'a1', 'b2']));
+    await ctx.close();
+  });
+
+  test('where getone.day’s window can’t answer, a link carries the tasks: getone.day asks, and the old address remembers only once they are added', async ({ browser }) => {
+    const { ctx, errors } = await browserAt(browser, { on: sever() });
+    await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(seed()) });
+    const page = await fresh(ctx);
+    await byLink(page);
+    expect(await page.evaluate(() => location.hash)).toBe('');
     expect((await storageAt(ctx, OLD))['oneday.moved']).toBeUndefined();
-    await page.locator('#mvLink').click();
-    await page.waitForURL(NEW + '/');
-    await expect(page.locator('#mviT')).toHaveText('Bring these tasks here?');
     await page.locator('#mviYes').click();
     await welcomed(page);
     await expect(row(page, 'Write the report')).toBeVisible();
-    expect(JSON.parse((await storageAt(ctx, OLD))['oneday.moved'])).toMatchObject({ to: NEW, how: 'link' });
-    expect((await storageAt(ctx, OLD))['oneday.moving']).toBeUndefined();
+    const left = await storageAt(ctx, OLD);
+    expect(JSON.parse(left['oneday.moved'])).toMatchObject({ to: NEW, how: 'link' });
+    expect(left['oneday.moving']).toBeUndefined();
     expect(errors).toEqual([]);
+    await ctx.close();
+  });
+
+  test('a link’s question: Escape or a lock asks again later, Cancel lets it go, and nothing is lost either way', async ({ browser }) => {
+    const { ctx } = await browserAt(browser, { on: sever() });
+    await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(seed()) });
+    await keepAt(ctx, NEW, { 'oneday.v1': JSON.stringify({ days: { [today()]: { u: 5, tasks: [{ id: 'z9', text: 'Only here', done: false }] } }, rules: {}, tags: {} }) });
+    const page = await fresh(ctx);
+    await byLink(page);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#mvin')).toBeHidden();
+    expect((await storageAt(ctx, NEW))['oneday.incoming']).toBeTruthy();
+    expect((await storageAt(ctx, OLD))['oneday.moved']).toBeUndefined();
+    // asked again; Cancel this time
+    await page.reload();
+    await expect(page.locator('#mviT')).toHaveText('Bring these tasks here?');
+    await page.locator('#mviNo').click();
+    await expect(page.locator('#mvin')).toBeHidden();
+    expect((await storageAt(ctx, NEW))['oneday.incoming']).toBeUndefined();
+    expect((await storageAt(ctx, OLD))['oneday.moved']).toBeUndefined();
+    // the tasks are still at the old address, which offers the step again
+    await page.goto(OLD + '/');
+    await expect(page.locator('#mvT')).toHaveText('One Day has moved to getone.day');
     await ctx.close();
   });
 
@@ -409,7 +564,6 @@ test.describe('moving to getone.day', () => {
     expect(there['oneday.incoming']).toBeUndefined();
     expect(JSON.stringify(there)).not.toContain('Planted task');
     expect(await storageAt(ctx, OLD)).toEqual({});
-    void createHash;
     await ctx.close();
   });
 
@@ -440,7 +594,7 @@ test.describe('moving to getone.day', () => {
     await ctx.close();
   });
 
-  test('an app on an iPhone’s Home Screen moves by a backup file, then remembers', async ({ browser }) => {
+  test('an app on an iPhone’s Home Screen moves by a backup file, then says where One Day lives, its copy still at hand', async ({ browser }) => {
     const { ctx } = await browserAt(browser, { init: () => Object.defineProperty(Navigator.prototype, 'standalone', { get: () => true }) });
     await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(seed()) });
     const page = await fresh(ctx);
@@ -451,8 +605,41 @@ test.describe('moving to getone.day', () => {
     expect((await dl).suggestedFilename()).toMatch(/^one-day-backup-.*\.json$/);
     await expect(page.locator('#mvGo')).toHaveText('They’re at getone.day');
     await page.locator('#mvGo').click();
-    await page.waitForURL(NEW + '/');
+    // still here, saying so, with the tasks behind
+    await expect(page.locator('#mvT')).toHaveText('One Day lives at getone.day now');
+    expect(origin(page.url())).toBe(OLD);
+    await expect(page.locator('#mvFile')).toBeVisible();
     expect(JSON.parse((await storageAt(ctx, OLD))['oneday.moved'])).toMatchObject({ to: NEW, how: 'file' });
+    const pop = page.waitForEvent('popup');
+    await page.locator('#mvGo').click();
+    await (await pop).waitForURL(u => origin(u) === NEW);
+    await page.locator('#mvNo').click();
+    await expect(row(page, 'Write the report')).toBeVisible();
+    await ctx.close();
+  });
+
+  test('an installed app moves its link’s tasks too: the window it opens becomes One Day, with them', async ({ browser }) => {
+    const { ctx } = await browserAt(browser, {
+      // the old address opened as an installed app
+      init: () => {
+        if (location.origin !== 'https://day.bemorin.com') return;
+        const mm = window.matchMedia.bind(window);
+        window.matchMedia = q => (/display-mode: standalone/.test(q) ? mm('(min-width: 0px)') : mm(q));
+      },
+    });
+    await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(seed()) });
+    const page = await ctx.newPage();
+    await page.goto(OLD + '/#add?task=Pay+the+rent');
+    await expect(page.locator('#mvLi')).toContainText('install One Day from getone.day');
+    const pop = page.waitForEvent('popup');
+    await page.locator('#mvGo').click();
+    const w = await pop;
+    await expect(page.locator('#mvT')).toHaveText('Your tasks are at getone.day', { timeout: 20000 });
+    await w.waitForURL(u => origin(u) === NEW && new URL(u).pathname === '/');
+    await welcomed(w);
+    await expect(w.locator('#inTitle')).toHaveText('Pay the rent');
+    await page.locator('#mvGo').click();
+    await page.waitForURL(NEW + '/');
     await ctx.close();
   });
 
@@ -474,14 +661,24 @@ test.describe('moving to getone.day', () => {
     await ctx.close();
   });
 
-  test('each address gets its own opener policy: the old one keeps its windows, getone.day’s move/ cuts none', async () => {
+  test('each address gets its own opener policy, as Pages reads _headers: one rule per pattern, detaches first', async () => {
     const coop = async u => (await answer(new URL(u))).headers['Cross-Origin-Opener-Policy'];
     expect(await coop(OLD + '/')).toBe('same-origin-allow-popups');
+    expect(await coop(OLD + '/guide/')).toBe('same-origin-allow-popups');
     expect(await coop(NEW + '/')).toBe('same-origin');
     expect(await coop(NEW + '/guide/')).toBe('same-origin');
     expect(await coop(NEW + '/move/')).toBeUndefined();
     expect(await coop('https://getone-day.one-day-2eb.pages.dev/move/')).toBe('same-origin');
     expect(await coop('http://localhost:4401/')).toBe('same-origin');
+    // Pages keeps one rule per pattern: written twice, a pattern loses its first block (and the old host its policy)
+    const text = await readFile(new URL('../public/_headers', import.meta.url), 'utf8'),
+      patterns = text
+        .split(/\r?\n/)
+        .filter(l => l.trim() && !l.trim().startsWith('#') && !/^\s/.test(l))
+        .map(l => l.trim());
+    expect(new Set(patterns).size).toBe(patterns.length);
+    const trap = parseHeaders(['/*', '  X: a', 'https://h/*', '  ! X', 'https://h/*', '  X: b'].join('\n'));
+    expect(headersFor(trap, 'h', '/')).toEqual({ X: 'a, b' });
   });
 
   for (const scheme of ['light', 'dark'])

@@ -32,45 +32,44 @@ const like = (s, part) =>
 
 // _headers: a pattern on its own line, then indented "Name: value" lines, or "! Name" to take off what a rule above
 // set. A pattern is a path, for every host, or an address with https:// and a host, for that host alone (Cloudflare
-// leaves out the protocol and the port when it compares). Rules apply in the order of the file.
+// leaves out the protocol and the port when it compares). As Pages does, one rule is kept per pattern: a later block
+// with the same pattern takes the earlier one's place, in the earlier one's position.
 export function parseHeaders(text) {
-  const rules = [];
+  const rules = new Map();
   let rule = null;
   for (const line of text.split(/\r?\n/)) {
     if (!line.trim() || line.trim().startsWith('#')) continue;
     if (!/^\s/.test(line)) {
       const p = line.trim(),
         m = /^https:\/\/([^/]+)(\/.*)$/.exec(p);
-      rules.push(
-        (rule = {
-          pattern: p,
-          host: m ? new RegExp('^' + like(m[1], '[^.]+') + '$', 'i') : null,
-          path: new RegExp('^' + like(m ? m[2] : p, '[^/]+') + '$'),
-          headers: [],
-        }),
-      );
+      rule = {
+        pattern: p,
+        host: m ? new RegExp('^' + like(m[1], '[^.]+') + '$', 'i') : null,
+        path: new RegExp('^' + like(m ? m[2] : p, '[^/]+') + '$'),
+        set: new Map(),
+        unset: [],
+      };
+      rules.set(p, rule);
     } else if (rule) {
       const t = line.trim();
-      if (t.startsWith('!')) rule.headers.push([t.slice(1).trim(), null]);
+      if (t.startsWith('!')) rule.unset.push(t.slice(1).trim().toLowerCase());
       else {
         const i = t.indexOf(':');
-        if (i > 0) rule.headers.push([t.slice(0, i).trim(), t.slice(i + 1).trim()]);
+        if (i > 0) rule.set.set(t.slice(0, i).trim().toLowerCase(), [t.slice(0, i).trim(), t.slice(i + 1).trim()]);
       }
     }
   }
-  return rules;
+  return [...rules.values()];
 }
-// the headers a request gets, in their names' own spelling: repeated ones joined with a comma, as Cloudflare does
+// The headers a request gets, in their names' own spelling: each matching rule, in order, takes off what it detaches,
+// then adds its own; a header set again is joined to the value already there with a comma, as Cloudflare does.
 export function headersFor(rules, host, path) {
   const out = new Map();
   for (const r of rules) {
     if (r.host && !r.host.test(host)) continue;
     if (!r.path.test(path)) continue;
-    for (const [k, v] of r.headers) {
-      const key = k.toLowerCase();
-      if (v === null) out.delete(key);
-      else out.set(key, out.has(key) ? [out.get(key)[0], out.get(key)[1] + ', ' + v] : [k, v]);
-    }
+    for (const key of r.unset) out.delete(key);
+    for (const [key, [k, v]] of r.set) out.set(key, out.has(key) ? [out.get(key)[0], out.get(key)[1] + ', ' + v] : [k, v]);
   }
   return Object.fromEntries([...out.values()]);
 }
@@ -99,7 +98,8 @@ export async function answer(url, { pub = PUB, local = false } = {}) {
       if (headers['Content-Security-Policy'])
         headers['Content-Security-Policy'] = headers['Content-Security-Policy'].replace(/;\s*upgrade-insecure-requests/, '');
     }
-    headers['Content-Type'] = TYPES[extname(file)] || 'application/octet-stream';
+    // the file's own type, unless _headers gives one (as Pages lets it)
+    if (!Object.keys(headers).some(k => k.toLowerCase() === 'content-type')) headers['Content-Type'] = TYPES[extname(file)] || 'application/octet-stream';
     return res(200, headers, await readFile(file));
   } catch (e) {
     // Like Cloudflare Pages: a top-level 404.html answers unknown paths with a real 404.

@@ -15,11 +15,10 @@
 # One Day moved from day.bemorin.com to getone.day (see moved.js): the old address opens a window at the new one and
 # hands it the tasks, page to page. A page with Cross-Origin-Opener-Policy: same-origin can't keep such a window, so
 # the old address keeps the windows it opens, and the one page of the new address that takes the tasks in sends none.
-# Rules apply in this order: each detach (!) takes off what the rules above it set.
+# Rules apply in this order, and each detach (!) takes off what the rules above it set. Pages keeps one rule per
+# pattern (a second block with the same pattern would replace the first), so a detach and its new value share a block.
 https://day.bemorin.com/*
   ! Cross-Origin-Opener-Policy
-
-https://day.bemorin.com/*
   Cross-Origin-Opener-Policy: same-origin-allow-popups
 
 https://getone.day/move/
