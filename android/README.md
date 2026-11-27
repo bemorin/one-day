@@ -27,4 +27,6 @@ Needs Node, [Bubblewrap](https://github.com/GoogleChromeLabs/bubblewrap) (`npm i
 2. In this folder: `bubblewrap update` (raises the version code and name; `--skipVersionUpgrade` to keep them), then `bubblewrap build --skipPwaValidation`, with the key's password in `BUBBLEWRAP_KEYSTORE_PASSWORD` and `BUBBLEWRAP_KEY_PASSWORD`.
 3. Upload `app-release-bundle.aab` to Play Console. Every upload needs a version code above the last one: commit `twa-manifest.json` after each `update`.
 
+`bubblewrap build` runs `gradlew.bat` from this folder, which a shell that won't run programs from the current folder (`NoDefaultCurrentDirectoryInExePath`) refuses. There, do its steps by hand, with full paths: `gradlew.bat bundleRelease`, then `jarsigner -sigalg SHA256withRSA -digestalg SHA-256 -keystore <upload keystore> -signedjar app-release-bundle.aab app/build/outputs/bundle/release/app-release.aab upload`. The app needs Android 7.0 or later (`minSdkVersion` 24, what Android Browser Helper asks).
+
 A new build is needed only to change the app itself: its name, icon, colours, start address, or the Android version it targets (Google Play raises the required target every year). Changes to the site need no build.
