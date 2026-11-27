@@ -10868,9 +10868,17 @@ if (typeof MOVE === 'undefined' || (MOVE.mode !== 'gone' && MOVE.mode !== 'clear
   let MVW = null; // the window at getone.day, and what it said
   const shaHex = async s =>
     [...new Uint8Array(await crypto.subtle.digest('SHA-256', TE.encode(s)))].map(b => b.toString(16).padStart(2, '0')).join('');
-  const mvGet = k => {
+  // what this browser keeps, read so that a browser keeping no site data (it throws) still opens One Day
+  const mvRaw = k => {
       try {
-        return JSON.parse(localStorage.getItem(k));
+        return localStorage.getItem(k);
+      } catch (e) {
+        return null;
+      }
+    },
+    mvGet = k => {
+      try {
+        return JSON.parse(mvRaw(k));
       } catch (e) {
         return null;
       }
@@ -11072,7 +11080,7 @@ if (typeof MOVE === 'undefined' || (MOVE.mode !== 'gone' && MOVE.mode !== 'clear
     const json = JSON.stringify(p);
     return { json, sum: await shaHex(json), id: b64.enc(rnd(12)), sig: MV.sig(v1, vk), n: p.n, keep };
   }
-  const moveSig = () => MV.sig(localStorage.getItem(LS), localStorage.getItem(VK));
+  const moveSig = () => MV.sig(mvRaw(LS), mvRaw(VK));
   // getone.day's window says it is ready: nothing changes here before it does
   function moveReady(m, ms) {
     return new Promise(res => {
@@ -11191,6 +11199,8 @@ if (typeof MOVE === 'undefined' || (MOVE.mode !== 'gone' && MOVE.mode !== 'clear
     if (!MVD || MVD.busy) return;
     if (MVD.st === 'done') return moveLater();
     if (MV.mode === 'filed' && !MVD.st) {
+      // the passphrase field shows only once Export backup asked for it: Enter in it exports
+      if (!MI.mvPass.hidden) return MI.mvFile.onclick();
       if (!window.open(MV.NEW + '/', '_blank')) location.href = MV.NEW + '/';
       return;
     }
@@ -11285,14 +11295,15 @@ if (typeof MOVE === 'undefined' || (MOVE.mode !== 'gone' && MOVE.mode !== 'clear
   };
   // A page brought back by the browser's Back (its back-forward cache) missed what other tabs did meanwhile: at the old
   // address, a move finished elsewhere; at getone.day, tasks that came. It opens again rather than writing over them.
-  const mvSeen = { moved: localStorage.getItem(MVKEYS.moved), at: (movedInfo() || {}).at || 0 };
+  const mvSeen = { moved: mvRaw(MVKEYS.moved), at: (movedInfo() || {}).at || 0 };
   addEventListener('pageshow', e => {
     if (!e.persisted) return;
-    if (MVOLD && localStorage.getItem(MVKEYS.moved) !== mvSeen.moved) return location.reload();
+    // at the old address, also a step left waiting (it sent a link, say): it opens again rather than stay stuck
+    if (MVOLD && ((MVD && MVD.busy) || mvRaw(MVKEYS.moved) !== mvSeen.moved)) return location.reload();
     if (MVNEW && ((movedInfo() || {}).at || 0) !== mvSeen.at) location.reload();
   });
   // nothing kept here yet: what came is taken as it was
-  const moveFresh = () => !vault && !SYS && !localStorage.getItem(VK) && (!localStorage.getItem(LS) || syFresh(S));
+  const moveFresh = () => !vault && !SYS && !mvRaw(VK) && (!mvRaw(LS) || syFresh(S));
   // the copy that went last time, as the old address kept it: what both sides came from (null when it can't be read)
   async function moveBase(s) {
     try {

@@ -760,6 +760,29 @@ test.describe('moving to getone.day', () => {
     await ctx.close();
   });
 
+  test('One Day still opens at either address in a browser that keeps no site data', async ({ browser }) => {
+    const { ctx, errors } = await browserAt(browser, {
+      // as with "Don't allow sites to save data": reading either storage throws
+      init: () => {
+        for (const k of ['localStorage', 'sessionStorage'])
+          Object.defineProperty(window, k, {
+            get() {
+              throw new DOMException('Access is denied for this document.', 'SecurityError');
+            },
+          });
+      },
+    });
+    const page = await ctx.newPage();
+    await page.goto(NEW + '/');
+    await expect(page.locator('#list .row').first()).toBeVisible();
+    // nothing can be kept at the old address either: on to getone.day
+    await page.goto(OLD + '/');
+    await page.waitForURL(u => origin(u) === NEW);
+    await expect(page.locator('#list .row').first()).toBeVisible();
+    expect(errors).toEqual([]);
+    await ctx.close();
+  });
+
   test('each address gets its own opener policy, as Pages reads _headers: one rule per pattern, detaches first', async () => {
     const coop = async u => (await answer(new URL(u))).headers['Cross-Origin-Opener-Policy'];
     expect(await coop(OLD + '/')).toBe('same-origin-allow-popups');
