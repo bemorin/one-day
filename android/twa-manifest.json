@@ -1,0 +1,52 @@
+{
+  "packageId": "com.bemorin.oneday",
+  "host": "day.bemorin.com",
+  "name": "One Day",
+  "launcherName": "One Day",
+  "display": "standalone",
+  "themeColor": "#FFFFFF",
+  "themeColorDark": "#0E0E0E",
+  "navigationColor": "#FFFFFF",
+  "navigationColorDark": "#0E0E0E",
+  "navigationDividerColor": "#FFFFFF",
+  "navigationDividerColorDark": "#0E0E0E",
+  "backgroundColor": "#FFFFFF",
+  "enableNotifications": false,
+  "startUrl": "/?app=android",
+  "iconUrl": "https://day.bemorin.com/icons/icon-512.png",
+  "maskableIconUrl": "https://day.bemorin.com/icons/icon-maskable-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "../../../android/key/one-day-upload.keystore",
+    "alias": "upload"
+  },
+  "appVersionName": "1.0",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://day.bemorin.com/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://day.bemorin.com/",
+  "minSdkVersion": 21,
+  "orientation": "default",
+  "fingerprints": [
+    {
+      "name": "upload",
+      "value": "02:2B:C9:A9:FA:38:27:92:EC:15:1D:C2:4F:61:5B:35:77:47:44:95:78:8D:AF:61:17:AE:C6:02:19:B4:D7:49"
+    }
+  ],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "protocolHandlers": [],
+  "fileHandlers": [],
+  "launchHandlerClientMode": "",
+  "displayOverride": [],
+  "appVersion": "1.0"
+}

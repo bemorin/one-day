@@ -6,6 +6,28 @@ if (/Android/i.test(navigator.userAgent)) {
   const vp = document.querySelector('meta[name="viewport"]');
   if (vp) vp.content = vp.content.replace(/,\s*viewport-fit=cover/, '');
 }
+/* One Day's app on Google Play is this very page, which Chrome opens full screen at ./?app=android (android/ in the
+   repository). Chrome also names the app as where the page came from, which is all a link opened in the app shows. The
+   page keeps it in mind for as long as the app's tab lives (a reload, the guide and back), and takes the mark out of
+   its address, so a day sent from the app never carries it. Google Play wants an app's payments to go through it, so
+   there the coffee (Ko-fi, outside Google Play) is left out: One Day stays free, and the website keeps the coffee. */
+const PLAY = (() => {
+  let on = false;
+  try {
+    const u = new URL(location.href);
+    if (u.searchParams.get('app') === 'android') {
+      on = true;
+      u.searchParams.delete('app');
+      history.replaceState(history.state, '', u.pathname + u.search + u.hash);
+    }
+    if (/^android-app:\/\/com\.bemorin\.oneday(\/|$)/.test(document.referrer)) on = true;
+    if (on) sessionStorage.setItem('oneday.app', 'android');
+    else on = sessionStorage.getItem('oneday.app') === 'android';
+  } catch (e) {}
+  return on;
+})();
+// More and search's foot copy the footer's coffee when there is one: gone from the footer, it is gone from them too
+if (PLAY) document.querySelectorAll('#foot .kofi').forEach(k => k.remove());
 try {
   const th = localStorage.getItem('oneday.theme');
   if (th === 'light' || th === 'dark') document.documentElement.dataset.theme = th;
@@ -7832,7 +7854,8 @@ try {
     // a page of its own on the web: not a file on the disk, not inside another page
     WEB = canTop && /^https?:$/.test(location.protocol) && !window.claude;
   let insEv = null,
-    insApp = APPQ.matches || navigator.standalone === true,
+    // One Day's app on Google Play is installed by definition
+    insApp = APPQ.matches || navigator.standalone === true || PLAY,
     insLater = false;
   try {
     insLater = localStorage.getItem(INSK) === 'later';
@@ -11033,7 +11056,7 @@ try {
     document.querySelector('link[rel=manifest]')
   )
     navigator.serviceWorker.register('sw.js').catch(() => {});
-  if (navigator.storage && navigator.storage.persist && matchMedia('(display-mode: standalone)').matches)
+  if (navigator.storage && navigator.storage.persist && (matchMedia('(display-mode: standalone)').matches || PLAY))
     navigator.storage
       .persisted()
       .then(p => p || navigator.storage.persist())

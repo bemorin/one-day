@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.bemorin.oneday",
+      "sha256_cert_fingerprints": ["02:2B:C9:A9:FA:38:27:92:EC:15:1D:C2:4F:61:5B:35:77:47:44:95:78:8D:AF:61:17:AE:C6:02:19:B4:D7:49"]
+    }
+  }
+]

@@ -1,0 +1,10 @@
+# Bubblewrap generates everything here from twa-manifest.json (bubblewrap update): only that file and the README are
+# kept. A signing key never goes in git: it lives in the maintainer's password manager.
+/*
+!/.gitignore
+!/README.md
+!/twa-manifest.json
+*.keystore
+*.jks
+*.aab
+*.apk

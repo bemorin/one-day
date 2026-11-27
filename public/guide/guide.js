@@ -70,10 +70,19 @@ function guideMarkdown(doc = document) {
   return out.filter(Boolean).join('\n\n') + '\n';
 }
 
+// In One Day's app on Google Play, the guide leaves the coffee out, as the app does (see PLAY in app.js): the app's tab
+// remembers it, and a link opened in the app comes from it.
+let play = false;
+try {
+  play = sessionStorage.getItem('oneday.app') === 'android' || /^android-app:\/\/com\.bemorin\.oneday(\/|$)/.test(document.referrer);
+  if (play) sessionStorage.setItem('oneday.app', 'android');
+} catch (e) {}
+
 document.addEventListener('DOMContentLoaded', () => {
   const root = document.documentElement;
   if (root.dataset.theme)
     for (const m of document.querySelectorAll('meta[name="theme-color"]')) m.content = root.dataset.theme === 'dark' ? '#0e0e0e' : '#ffffff';
+  if (play) document.querySelectorAll('.kofi').forEach(k => k.remove());
 
   // Copy page as Markdown: to the clipboard only.
   const btn = document.getElementById('copy'),
