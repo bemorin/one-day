@@ -15,15 +15,20 @@ struct DayWebView {
   final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
     let bridge: Bridge
     let cloud: CloudBridge
+    private let sheet: SignInSheet
     private weak var web: WKWebView?
     private var downloads: [ObjectIdentifier: URL] = [:]
     private let log = Logger(subsystem: "com.bemorin.oneday", category: "web")
 
     init(saved: SavedState, tips: TipJar) {
-      bridge = Bridge(saved: saved)
-      cloud = CloudBridge(store: CloudStore.live())
+      let sheet = SignInSheet()
+      self.sheet = sheet
+      bridge = Bridge(saved: saved, signIns: KeychainSignIns())
+      cloud = CloudBridge(store: CloudStore.live(), sheet: sheet)
       super.init()
       bridge.onTip = { [weak tips] in tips?.open() }
+      // the sign-in sheet stands over the day's window
+      sheet.anchor = { [weak self] in self?.web?.window }
     }
 
     func makeWebView() -> WKWebView {

@@ -14,13 +14,16 @@ import WebKit
 struct WebViewTests {
   let saved = SavedState(file: FileManager.default.temporaryDirectory.appending(path: "one-day-web-\(UUID().uuidString)/saved.json"))
   let cloud = FakeCloud()
+  let signIns = FakeSignIns()
+  let sheet = FakeSheet()
 
-  /// The app's page in a web view of its own, iCloud stood in for, nothing kept once the test ends.
+  /// The app's page in a web view of its own, iCloud, the sign-in sheet and the keychain stood in for, nothing kept once
+  /// the test ends.
   func open() async throws -> (WKWebView, Bridge) {
-    let bridge = Bridge(saved: saved)
+    let bridge = Bridge(saved: saved, signIns: signIns)
     let site = try #require(SiteFiles.bundled())
     let web = WebHost.makeWebView(
-      site: site, bridge: bridge, cloud: CloudBridge(store: CloudStore(database: cloud)), store: .nonPersistent())
+      site: site, bridge: bridge, cloud: CloudBridge(store: CloudStore(database: cloud), sheet: sheet), store: .nonPersistent())
     show(web)
     web.load(URLRequest(url: SiteFiles.home))
     // a call that lands while the page is still loading fails: it is simply asked again
@@ -37,9 +40,9 @@ struct WebViewTests {
     let found = try await web.callAsyncJavaScript(
       """
       return [String(isSecureContext), typeof crypto.subtle, String('serviceWorker' in navigator),
-        String('PublicKeyCredential' in window), location.origin, String(oneDayApp.icloud)].join(' ')
+        String('PublicKeyCredential' in window), location.origin, String(oneDayApp.icloud), String(oneDayApp.signin)].join(' ')
       """, contentWorld: .page) as? String
-    #expect(found == "true object false false oneday://localhost true")
+    #expect(found == "true object false false oneday://localhost true true")
 
     _ = try await web.callAsyncJavaScript("localStorage.setItem('oneday.theme', 'dark'); return true", contentWorld: .page)
     try await eventually { saved.items["oneday.theme"] == "dark" }
@@ -93,6 +96,43 @@ struct WebViewTests {
       """, contentWorld: .page) as? String
     #expect(said == "null sealed true conflict")
     #expect(cloud.copy?.text == "sealed")
+    #expect(bridge.errors.isEmpty, "The page failed: \(bridge.errors)")
+  }
+
+  @Test("The page's sign-in to another cloud goes to the sheet, and the address the cloud sends you to comes back")
+  func signInSheet() async throws {
+    let (web, bridge) = try await open()
+    let said = try await web.callAsyncJavaScript(
+      """
+      const ask = o => window.webkit.messageHandlers.onedayCloud.postMessage(o);
+      const back = await ask({ op: 'signin', url: 'https://www.dropbox.com/oauth2/authorize?state=s1' });
+      let refused = '';
+      try { await ask({ op: 'signin', url: 'https://example.com/' }); } catch (e) { refused = e.message; }
+      return [back, refused].join(' ');
+      """, contentWorld: .page) as? String
+    #expect(said == "https://day.bemorin.com/oauth/?code=c1&state=s1 refused")
+    #expect(sheet.opened.count == 1)
+    #expect(bridge.errors.isEmpty, "The page failed: \(bridge.errors)")
+  }
+
+  @Test("The keychain's sign-in starts each page, and the page's changes to it reach the keychain, never the app's file")
+  func keychain() async throws {
+    let (web, bridge) = try await open()
+    // the page's sign-in, as bridge.js sends it
+    _ = try await web.callAsyncJavaScript(
+      #"webkit.messageHandlers.oneday.postMessage({ op: 'auth.keep', value: '{"v":1,"cloud":"google","a":"g-1"}' }); return true"#,
+      contentWorld: .page)
+    try await eventually { signIns.text == #"{"v":1,"cloud":"google","a":"g-1"}"# }
+    // the next page starts with it
+    WebHost.refreshBoot(of: web, bridge: bridge)
+    let next = web.configuration.userContentController.userScripts.first?.source ?? ""
+    #expect(next.contains(#""signin":true"#))
+    #expect(next.contains("g-1"))
+    // forgotten: sync stopped
+    _ = try await web.callAsyncJavaScript(
+      "webkit.messageHandlers.oneday.postMessage({ op: 'auth.keep', value: null }); return true", contentWorld: .page)
+    try await eventually { signIns.text == nil }
+    #expect(!saved.items.values.contains { $0.contains("g-1") })
     #expect(bridge.errors.isEmpty, "The page failed: \(bridge.errors)")
   }
 }

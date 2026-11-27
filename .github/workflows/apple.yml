@@ -5,9 +5,9 @@ name: Apple app
 on:
   push:
     branches: [main, apple-app]
-    paths: ['apple/**', 'public/**', 'tests/apple-bridge.spec.mjs', '.github/workflows/apple.yml']
+    paths: ['apple/**', 'public/**', 'tests/apple-*.spec.mjs', 'tests/clouds.mjs', '.github/workflows/apple.yml']
   pull_request:
-    paths: ['apple/**', 'public/**', 'tests/apple-bridge.spec.mjs', '.github/workflows/apple.yml']
+    paths: ['apple/**', 'public/**', 'tests/apple-*.spec.mjs', 'tests/clouds.mjs', '.github/workflows/apple.yml']
   workflow_dispatch:
 
 permissions:
@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   bridge:
-    name: The app's bridge, in the browser
+    name: The app's bridge and its clouds, in the browser
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -30,7 +30,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npx playwright test tests/apple-bridge.spec.mjs
+      # the app's bridge, iCloud and the other clouds as the app runs them, with the app's side played in the test
+      - run: npx playwright test tests/apple-bridge.spec.mjs tests/apple-icloud.spec.mjs tests/apple-clouds.spec.mjs
 
   # Two kinds of Mac at once: GitHub sometimes has no free Mac of one kind for a while. Each takes the newest Xcode 26 it
   # carries (Xcode 26 or later is what the App Store asks for since April 2026).

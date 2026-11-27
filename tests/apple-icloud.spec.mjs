@@ -139,7 +139,7 @@ async function connect(page, { join = false } = {}) {
 test.describe('iCloud in the app', () => {
   test.describe.configure({ timeout: 90000 });
 
-  test('the app offers iCloud alone, by its name and without a logo; the website keeps its three clouds, iCloud coming soon', async ({ browser, baseURL, page }) => {
+  test('without the sign-in sheet, the app offers iCloud alone, by its name and without a logo; the website keeps its three clouds, iCloud coming soon', async ({ browser, baseURL, page }) => {
     const A = await appDevice(browser, baseURL, new ICloud());
     await openDialog(A.page);
     const clouds = A.page.locator('#syCh .syc');

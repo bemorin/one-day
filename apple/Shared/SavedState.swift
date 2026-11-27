@@ -57,10 +57,11 @@ final class SavedState {
     if dirty { save() }
   }
 
-  /// What the page needs before its own code runs (bridge.js reads it): this file's number and keys, and the app
-  /// (its platform, its version, whether it carries iCloud).
-  func boot(platform: String, version: String, icloud: Bool = false) -> String {
-    let boot = Boot(platform: platform, version: version, icloud: icloud, seq: seq, items: items)
+  /// What the page needs before its own code runs (bridge.js reads it): this file's number and keys, and the app (its
+  /// platform, its version, whether it carries iCloud, whether it opens the other clouds' sign-in pages, and the
+  /// sign-in it keeps in the keychain, which is no part of this file).
+  func boot(platform: String, version: String, icloud: Bool = false, signin: Bool = false, auth: String? = nil) -> String {
+    let boot = Boot(platform: platform, version: version, icloud: icloud, signin: signin, auth: auth, seq: seq, items: items)
     guard let data = try? JSONEncoder().encode(boot), let json = String(data: data, encoding: .utf8) else { return "null" }
     return json
   }
@@ -128,6 +129,8 @@ final class SavedState {
     var platform: String
     var version: String
     var icloud: Bool
+    var signin: Bool
+    var auth: String?
     var seq: Int
     var items: [String: String]
   }

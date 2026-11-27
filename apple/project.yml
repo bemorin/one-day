@@ -5,9 +5,10 @@
 name: OneDay
 options:
   bundleIdPrefix: com.bemorin
+  # 17.4 and 14.4: the sign-in sheet that comes back on One Day's own web address (SignInSheet.swift) starts there
   deploymentTarget:
-    iOS: "17.0"
-    macOS: "14.0"
+    iOS: "17.4"
+    macOS: "14.4"
   developmentLanguage: en
   createIntermediateGroups: true
 settings:

@@ -418,6 +418,8 @@ try {
     IDX = null;
     if (locked) return false;
     if (syncHook) syncHook();
+    // in the app, the sign-in to a web cloud goes to the app's keychain instead (see appKeep)
+    appKeep(SYS);
     if (vault) {
       sealSoon();
       return true;
@@ -425,7 +427,7 @@ try {
     // another tab may have just turned the lock on: the tasks are never written in clear next to it
     if (lockReady && localStorage.getItem(VK) && adoptVault()) return true;
     try {
-      localStorage.setItem(LS, JSON.stringify(SYS ? { ...S, sync: SYS } : S));
+      localStorage.setItem(LS, JSON.stringify(SYS ? { ...S, sync: syStored(SYS) } : S));
       return true;
     } catch (e) {
       return false;
@@ -7341,7 +7343,7 @@ try {
           const dek = DEK,
             kid = KID,
             tasksJ = plain(),
-            sysJ = SYS ? TE.encode(JSON.stringify(SYS)) : null,
+            sysJ = SYS ? TE.encode(JSON.stringify(syStored(SYS))) : null,
             data = await sealWith(dek, tasksJ),
             sync = sysJ ? await sealWith(dek, sysJ) : null;
           if (locked || !vault) break;
@@ -8519,7 +8521,7 @@ try {
       data = await sealWith(dek, TE.encode(JSON.stringify(tasks))),
       // sync's key and base, stored with those tasks, are sealed again with them
       sys = await openSys(DEK, cur),
-      sync = sys ? await sealWith(dek, TE.encode(JSON.stringify(sys))) : null,
+      sync = sys ? await sealWith(dek, TE.encode(JSON.stringify(syStored(sys)))) : null,
       now = storedVault();
     if (!still(now) || now.data.ct !== cur.data.ct) return null;
     return { cur: now, data, tasks, sys, sync };
@@ -8573,7 +8575,7 @@ try {
       const merged = mergePlain();
       if (merged != null) v.data = await sealWith(dek, plain());
       // sync's key and base are sealed with the tasks from now on, never left in clear
-      if (SYS) v.sync = await sealWith(dek, TE.encode(JSON.stringify(SYS)));
+      if (SYS) v.sync = await sealWith(dek, TE.encode(JSON.stringify(syStored(SYS))));
       // read it all back before the plain copy goes
       const back = await unseal(kek, v.pass);
       if (back.length !== 32 || back.some((x, i) => x !== raw[i])) throw new Error('lock check');
@@ -8645,7 +8647,7 @@ try {
       if (!still(now) || now.data.ct !== cur.data.ct) return BUSY;
       const data = { days: cleanDays(j && j.days), rules: cleanRules(j && j.rules), tags: cleanTags(j && j.tags) };
       // sync's key and base stay with the tasks they belong to, now in clear like them
-      localStorage.setItem(LS, JSON.stringify(sys ? { ...data, sync: sys } : data));
+      localStorage.setItem(LS, JSON.stringify(sys ? { ...data, sync: syStored(sys) } : data));
       localStorage.removeItem(VK);
       if (now.bio) forgetPasskey(now.bio.id);
       S = data;
@@ -8948,10 +8950,12 @@ try {
        both sides are kept, and a mark on either side stays.
      Offline, changes wait here, and go up once the connection is back. While locked, nothing syncs: the key is sealed. */
   // One Day's app for iPhone, iPad and Mac (apple/ in the repository) serves this page from inside itself, where no cloud
-  // can send a sign-in back. It tells the page so before the page's own code runs (oneDayApp), and syncs through the
-  // person's iCloud instead, which the page reaches through the app (see "iCloud" below).
+  // can send a sign-in back. It tells the page so before the page's own code runs (oneDayApp). It syncs through the
+  // person's iCloud, which the page reaches through the app (see "iCloud" below), and with the other clouds too: their
+  // sign-in pages open in the system's sign-in sheet, which hands their answer to the app (APPSI, see appSheet).
   const APP = window.oneDayApp || null,
-    APPCL = (APP && window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.onedayCloud) || null;
+    APPCL = (APP && window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.onedayCloud) || null,
+    APPSI = !!(APPCL && APP.signin && appKeeps());
   const SYF = 'one-day.json',
     SYCH = 'one-day-oauth',
     // One Day's public id at each cloud, from the app registered there for One Day's own addresses (a copy published
@@ -9006,9 +9010,11 @@ try {
   }
   // sync's key and base as kept with the tasks, checked; anything else is no sync at all
   function cleanSys(o) {
-    // iCloud only in the app, the others only on the web (this runs before the clouds below are set up)
-    const inApp = !!window.oneDayApp;
-    if (!o || typeof o !== 'object' || o.v !== 1 || !(inApp ? o.cloud === 'icloud' : ['google', 'dropbox', 'onedrive'].includes(o.cloud)))
+    // iCloud only in the app, the others on the web, and in the app where it opens their sign-in pages (this runs
+    // before the clouds below are set up)
+    const inApp = !!window.oneDayApp,
+      web = !!o && ['google', 'dropbox', 'onedrive'].includes(o.cloud);
+    if (!o || typeof o !== 'object' || o.v !== 1 || !(inApp ? o.cloud === 'icloud' || (web && window.oneDayApp.signin && appKeeps()) : web))
       return null;
     const k = o.key;
     if (
@@ -9024,8 +9030,7 @@ try {
       !okBlob(k.pass)
     )
       return null;
-    const a = o.auth,
-      sys = {
+    const sys = {
         v: 1,
         cloud: o.cloud,
         key: { raw: k.raw, kid: k.kid, kdf: { iter: k.kdf.iter, salt: k.kdf.salt }, pass: { iv: k.pass.iv, ct: k.pass.ct } },
@@ -9035,11 +9040,42 @@ try {
         lh: typeof o.lh === 'string' ? o.lh : '',
         // the account it syncs with, as the cloud names it: a sign-in to another one is refused
         acct: typeof o.acct === 'string' && o.acct.length <= 200 ? o.acct : '',
-      };
-    // the sign-in to the cloud: its token, and what renews it where the cloud allows
+      },
+      // the sign-in to the cloud: its token, and what renews it where the cloud allows. In the app, a web cloud's is
+      // the one the app keeps, never one kept with the tasks.
+      a = web && appKeeps() ? appAuth(o.cloud, sys.acct) : o.auth;
     if (a && typeof a.a === 'string' && (+a.ax > 0 || (typeof a.r === 'string' && a.r)))
       sys.auth = { a: a.a, ax: +a.ax, r: typeof a.r === 'string' ? a.r : '', rx: +a.rx || 0 };
     return sys;
+  }
+  /* In the app, a sign-in to Google Drive, Dropbox or OneDrive is kept by the app, in the device's keychain, for this
+     device only (apple/Shared/SignIns.swift). It never goes with the tasks, here or in the app's copy of them: those go
+     in the device's backups, and a key to the cloud has no place there. These run before the app's flags are read
+     below (cleanSys runs first), so they ask the app's object itself. */
+  function appKeeps() {
+    const o = window.oneDayApp;
+    return !!(o && o.auth && typeof o.auth.get === 'function' && typeof o.auth.keep === 'function');
+  }
+  // the sign-in the app keeps, if it is for that cloud (and that account, once both know it)
+  function appAuth(c, acct) {
+    let a = null;
+    try {
+      a = JSON.parse(window.oneDayApp.auth.get() || 'null');
+    } catch (e) {}
+    if (!a || typeof a !== 'object' || a.v !== 1 || a.cloud !== c || typeof a.a !== 'string') return null;
+    return acct && a.acct && a.acct !== acct ? null : a;
+  }
+  // sync's part as it is written with the tasks: in the app, without a web cloud's sign-in
+  function syStored(sys) {
+    if (!sys || !sys.auth || sys.cloud === 'icloud' || !appKeeps()) return sys;
+    const { auth, ...rest } = sys;
+    return rest;
+  }
+  // the app's keychain takes the sign-in to the web cloud sync goes with, or forgets it (sync off, or with iCloud)
+  function appKeep(sys) {
+    if (!appKeeps()) return;
+    const a = sys && sys.cloud !== 'icloud' ? sys.auth : null;
+    window.oneDayApp.auth.keep(a ? JSON.stringify({ v: 1, cloud: sys.cloud, a: a.a || '', ax: +a.ax || 0, r: a.r || '', rx: +a.rx || 0, acct: sys.acct || '' }) : null);
   }
 
   /* talking to a cloud: no cookie, no referrer, and nothing kept by the browser's cache */
@@ -9174,8 +9210,9 @@ try {
     }
   }
   const syTok = (j, s) => ({ a: j.access_token, ax: Date.now() + (+j.expires_in || s) * 1000 }),
-    // where each cloud sends you back: One Day's own page for it, never anywhere else
-    syBack = () => new URL('oauth/', location.href).href.replace(/[?#].*$/, '');
+    // Where each cloud sends you back: One Day's own page for it, never anywhere else. In the app, that page on One Day's
+    // website, the address the clouds know: the sign-in sheet hands it to the app instead of opening it (appSheet).
+    syBack = () => (APPSI ? 'https://day.bemorin.com/oauth/' : new URL('oauth/', location.href).href.replace(/[?#].*$/, ''));
 
   /* Google Drive: One Day's hidden folder there (the appDataFolder, scope drive.appdata), which no other app and no other
      file can reach. Google gives a page without a server one way to sign in: a token in the address it sends back,
@@ -9521,8 +9558,13 @@ try {
       revoke() {},
     };
   }
-  // the clouds this page offers (iCloud in the app, the others on the web), and whether one is set up here
-  const syClouds = () => Object.keys(CL).filter(k => !!CL[k].native === !!APPCL),
+  // The clouds this page offers, and whether one is set up here. On the web: Google Drive, Dropbox, OneDrive. In the
+  // app: iCloud first, the device's own, then the others where the app opens their sign-in pages.
+  const syClouds = () => {
+      const own = Object.keys(CL).filter(k => CL[k].native),
+        web = Object.keys(CL).filter(k => !CL[k].native);
+      return APPCL ? [...own, ...(APPSI ? web : [])] : web;
+    },
     syOk = c => (CL[c] && CL[c].native ? !!(APP && APP.icloud) : !!CLOUD_IDS[c]);
 
   /* Signing in, on the cloud's own page. On a computer it opens in a window of its own, opened by the click itself
@@ -9544,6 +9586,7 @@ try {
       ver = b64.enc(rnd(48)),
       ch = b64.enc(new Uint8Array(await crypto.subtle.digest('SHA-256', TE.encode(ver)))),
       url = CL[c].url(st, ch, again);
+    if (APPSI) return CL[c].take(await appSheet(url, st), ver);
     if (!pop) {
       try {
         sessionStorage.setItem('oneday.signin', JSON.stringify({ st, ver, c, at: Date.now() }));
@@ -9633,6 +9676,55 @@ try {
     if (!a && kept && p && kept.state === p.st) a = kept;
     if (!a || !p || typeof a.state !== 'string' || a.state !== p.st || !CL[p.c] || !(Date.now() - p.at < 15 * 60e3)) return null;
     return { c: p.c, ans: a, ver: p.ver };
+  }
+  /* In the app, a cloud's sign-in page opens in the system's sign-in sheet: the browser's own, never the app's view of
+     this page, where Google refuses to sign in. The cloud sends you back to One Day's page on its website, and the
+     sheet hands that address to the app instead of opening it. Its answer is read here, as oauth/ reads it on the web,
+     and taken only if its state is this sign-in's. Closed by its own button, the sheet changes nothing ('closed'). */
+  function appSheet(url, st) {
+    return new Promise((res, rej) => {
+      let done = false;
+      const end = () => {
+        done = true;
+        if (SYW && SYW.st === st) SYW = null;
+      };
+      SYW = {
+        st,
+        cancel() {
+          if (done) return;
+          end();
+          APPCL.postMessage({ op: 'signin.cancel' }).catch(() => {});
+          rej(new SyErr('cancel'));
+        },
+      };
+      APPCL.postMessage({ op: 'signin', url }).then(
+        back => {
+          if (done) return;
+          end();
+          const ans = syAnswerIn(back);
+          if (!ans || ans.state !== st) rej(new SyErr('signin'));
+          else res(ans);
+        },
+        e => {
+          if (done) return;
+          end();
+          rej(new SyErr(String((e && e.message) || '') === 'closed' ? 'closed' : 'signin'));
+        },
+      );
+    });
+  }
+  // the cloud's answer in the address it sends you back to (after ? or #), as oauth/oauth.js reads it; null for any
+  // other address
+  function syAnswerIn(href) {
+    let u = null;
+    try {
+      u = new URL(String(href));
+    } catch (e) {}
+    if (!u || u.origin + u.pathname !== syBack()) return null;
+    const q = u.searchParams,
+      h = new URLSearchParams(u.hash.slice(1)),
+      get = k => (h.get(k) || q.get(k) || '').slice(0, 4096);
+    return { type: 'one-day-oauth', state: get('state'), code: get('code'), token: get('access_token'), expires: get('expires_in'), scope: get('scope'), error: get('error'), at: Date.now() };
   }
 
   /* the sealed copy */
@@ -10421,7 +10513,8 @@ try {
       sub = `One Day uses the ${CL[c].co} account this device is signed in to.`;
     } else if (st === 'wait') {
       t = `Signing in to ${n}`;
-      sub = `Finish in the window that opened. ${CL[c].co} asks you to let One Day use its own folder there, and nothing else.`;
+      // in the app, the cloud's page opens in the system's sheet, over this one
+      sub = `${APPSI ? `Finish on ${CL[c].co}’s page, over this one.` : 'Finish in the window that opened.'} ${CL[c].co} asks you to let One Day use its own folder there, and nothing else.`;
     } else if (st === 'go') {
       t = `Opening ${n}…`;
       sub = 'Sign in there, and you’ll come straight back to One Day.';
@@ -10489,11 +10582,12 @@ try {
   // a cloud picked: its sign-in opens from this very click
   function syPick(c) {
     if (!SYD || !syOk(c)) return;
-    // iCloud has no sign-in page: the app asks the device for its account
+    // iCloud has no sign-in page: the app asks the device for its account. The app opens the other clouds' pages in a
+    // sheet of the system's (appSheet), never in a window of this page's.
     const nat = !!CL[c].native,
-      win = nat ? null : syWin();
+      win = nat || APPSI ? null : syWin();
     SYD.c = c;
-    SYD.step = nat ? 'check' : win ? 'wait' : 'go';
+    SYD.step = nat ? 'check' : win || APPSI ? 'wait' : 'go';
     say(SY.syForm, SY.syErr, '');
     syDraw();
     syFocus();
@@ -10517,6 +10611,11 @@ try {
           if (SYD !== m || (e && e.kind === 'cancel')) return;
           m.step = 'pick';
           syDraw();
+          // the sign-in sheet closed without signing in: back to the clouds, with nothing to say
+          if (e && e.kind === 'closed') {
+            syFocus();
+            return;
+          }
           wrong(SY.syForm, SY.syErr, null, syWhy(e, c));
           // a file there that One Day can't read: the way out is to start it again
           if (e && e.kind === 'alien') {
@@ -10531,9 +10630,9 @@ try {
     if (!SYS) return;
     const c = SYS.cloud,
       nat = !!CL[c].native,
-      win = nat ? null : syWin();
+      win = nat || APPSI ? null : syWin();
     if (SYD) {
-      SYD.step = nat ? 'check' : win ? 'wait' : 'go';
+      SYD.step = nat ? 'check' : win || APPSI ? 'wait' : 'go';
       syDraw();
     }
     const m = SYD;
@@ -10548,11 +10647,13 @@ try {
         },
         e => {
           if (e && e.kind === 'cancel') return;
+          // the sign-in sheet closed without signing in: nothing to say
+          const said = !(e && e.kind === 'closed');
           if (SYD && SYD === m) {
             m.step = 'on';
             syDraw();
-            wrong(SY.syForm, SY.syErr, null, syWhy(e, c));
-          } else toast(syWhy(e, c));
+            if (said) wrong(SY.syForm, SY.syErr, null, syWhy(e, c));
+          } else if (said) toast(syWhy(e, c));
         },
       );
   }
@@ -10874,6 +10975,9 @@ try {
   // started, or unlocked: sync takes up where it was
   function syWake() {
     if (!SYON || locked) return;
+    // In the app, the keychain holds the sign-in to the cloud sync goes with, and nothing else: one left from before
+    // goes now (an app deleted and installed again starts without the old one, which the keychain outlives).
+    appKeep(SYS);
     const back = SYBACK;
     SYBACK = null;
     if (SYS) {

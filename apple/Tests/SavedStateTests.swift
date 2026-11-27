@@ -69,6 +69,17 @@ struct SavedStateTests {
     #expect(object["seq"] as? Int == 4)
     #expect(object["platform"] as? String == "ios")
     #expect((object["items"] as? [String: String])?["oneday.v1"] == #"{"days":{}}"#)
+    #expect(object["signin"] as? Bool == false)
+    #expect(object["auth"] == nil)
+
+    // the sign-in the keychain holds goes with it, and never into the file
+    let withSignIn = saved.boot(platform: "ios", version: "1.0 (1)", signin: true, auth: #"{"cloud":"dropbox"}"#)
+    let signedIn = try #require(try JSONSerialization.jsonObject(with: Data(withSignIn.utf8)) as? [String: Any])
+    #expect(signedIn["signin"] as? Bool == true)
+    #expect(signedIn["auth"] as? String == #"{"cloud":"dropbox"}"#)
+    saved.flush()
+    let written = try String(contentsOf: saved.file, encoding: .utf8)
+    #expect(!written.contains("dropbox"))
   }
 
   @Test(

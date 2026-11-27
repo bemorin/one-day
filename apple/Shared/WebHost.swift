@@ -17,7 +17,7 @@ enum WebHost {
   }
 
   /// A web view for the app's pages. Tests give their own data store, so they never touch the app's, and their own
-  /// stand-in for iCloud.
+  /// stand-ins for iCloud, the sign-in sheet and the keychain.
   static func makeWebView(site: SiteFiles, bridge: Bridge, cloud: CloudBridge, store: WKWebsiteDataStore = .default()) -> WKWebView {
     let config = WKWebViewConfiguration()
     config.websiteDataStore = store
@@ -30,6 +30,7 @@ enum WebHost {
     #endif
     let web = WKWebView(frame: .zero, configuration: config)
     bridge.icloud = cloud.store != nil
+    bridge.signin = cloud.sheet != nil
     refreshBoot(of: web, bridge: bridge)
     #if DEBUG
       web.isInspectable = true
@@ -44,15 +45,17 @@ enum WebHost {
     return web
   }
 
-  /// The script every page of the app runs first (bridge.js), with what the app's file holds now. It is set again
-  /// before each page of the app opens, so a page always starts from the latest copy.
+  /// The script every page of the app runs first (bridge.js), with what the app's file holds now and the sign-in the
+  /// keychain holds. It is set again before each page of the app opens, so a page always starts from the latest copy.
   static func refreshBoot(of web: WKWebView, bridge: Bridge) {
     let content = web.configuration.userContentController
     content.removeAllUserScripts()
     guard let url = Bundle.main.url(forResource: "bridge", withExtension: "js"),
       let script = try? String(contentsOf: url, encoding: .utf8)
     else { return }
-    let boot = bridge.saved.boot(platform: platform, version: version, icloud: bridge.icloud)
+    let boot = bridge.saved.boot(
+      platform: platform, version: version, icloud: bridge.icloud, signin: bridge.signin,
+      auth: bridge.signin ? bridge.signIns.read() : nil)
     let source = script.replacingOccurrences(of: "/*BOOT*/null", with: boot)
     content.addUserScript(WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true))
   }

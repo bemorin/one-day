@@ -6,10 +6,15 @@
      timer, the theme. Nothing else, a cloud's sign-in answer least of all.
    - When a page opens, the newer copy wins: the app's file when the web view's copy is older or gone; the web view's
      when the app missed its last changes (it was closed before it wrote them), and then they all go to the app.
+   - A sign-in to Google Drive, Dropbox or OneDrive (its tokens) is no part of that: the app keeps it in the device's
+     keychain, for this device only (SignIns.swift), since the tasks' copy goes in the device's backups. The page
+     reads it as the app held it when the page opened (oneDayApp.auth.get), and gives it back each time it changes
+     (oneDayApp.auth.keep), never to its own storage.
    - The app has no service worker (its files are in the app already) and no passkeys (a passkey belongs to a website:
      the app will unlock with Face ID or Touch ID instead).
-   The app puts what it holds, { platform, version, icloud, seq, items }, in place of the BOOT mark on the last line.
-   iCloud itself has a bridge of its own, which answers (webkit.messageHandlers.onedayCloud; see CloudBridge.swift). */
+   The app puts what it holds, { platform, version, icloud, signin, auth, seq, items }, in place of the BOOT mark on
+   the last line. The clouds have a bridge of their own, which answers: iCloud, and the system's sheet for the other
+   clouds' sign-in pages (webkit.messageHandlers.onedayCloud; see CloudBridge.swift). */
 (function (boot) {
   'use strict';
   const host = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.oneday;
@@ -26,9 +31,26 @@
   try {
     delete window.PublicKeyCredential;
   } catch (e) {}
+  // the sign-in the app keeps, as the page wrote it (JSON), or null; a change goes to the app, and only a change
+  let auth = typeof boot.auth === 'string' ? boot.auth : null;
+  const signIn = Object.freeze({
+    get: () => auth,
+    keep(v) {
+      v = v == null ? null : String(v);
+      if (v === auth) return;
+      auth = v;
+      post({ op: 'auth.keep', value: v });
+    },
+  });
   try {
     Object.defineProperty(window, 'oneDayApp', {
-      value: Object.freeze({ platform: String(boot.platform || ''), version: String(boot.version || ''), icloud: boot.icloud === true }),
+      value: Object.freeze({
+        platform: String(boot.platform || ''),
+        version: String(boot.version || ''),
+        icloud: boot.icloud === true,
+        signin: boot.signin === true,
+        auth: signIn,
+      }),
     });
   } catch (e) {}
 

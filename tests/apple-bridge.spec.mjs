@@ -83,12 +83,42 @@ test('app: only the listed keys go (never a sign-in answer); no service worker, 
     });
     return ['serviceWorker' in navigator, 'PublicKeyCredential' in window, JSON.stringify(window.oneDayApp)];
   });
-  expect(env).toEqual([false, false, '{"platform":"ios","version":"1.0 (1)","icloud":false}']);
+  expect(env).toEqual([false, false, '{"platform":"ios","version":"1.0 (1)","icloud":false,"signin":false,"auth":{}}']);
   await expect.poll(async () => (await sent(page)).some(m => m.op === 'error' && m.message.includes('boom'))).toBe(true);
   const keys = (await sent(page)).filter(m => m.op === 'store.set').map(m => m.key);
   expect(keys).not.toContain('oneday.signin');
   expect(keys).not.toContain('oneday.signedin');
   expect(keys).not.toContain('other');
+});
+
+test('app: the sign-in the app keeps is read as it was when the page opened, and only a change goes back to the app', async ({ page }) => {
+  const kept = JSON.stringify({ v: 1, cloud: 'dropbox', a: 'dbx-a-1', ax: 1, r: 'dbx-r-1', rx: 0, acct: '' }),
+    next = JSON.stringify({ v: 1, cloud: 'dropbox', a: 'dbx-a-2', ax: 2, r: 'dbx-r-1', rx: 0, acct: '' });
+  await page.addInitScript(() => {
+    window.__sent = [];
+    window.webkit = { messageHandlers: { oneday: { postMessage: m => window.__sent.push(JSON.parse(JSON.stringify(m))) } } };
+  });
+  await page.addInitScript({
+    content: BRIDGE.replace('/*BOOT*/null', JSON.stringify({ platform: 'ios', version: '1.0 (1)', signin: true, auth: kept, seq: 0, items: {} })),
+  });
+  // a page of the app that runs none of the day's code, which would write its own sign-in (or none) at once
+  await page.goto('/robots.txt');
+  const got = await page.evaluate(
+    ([kept, next]) => {
+      const a = window.oneDayApp.auth,
+        first = a.get();
+      a.keep(kept);
+      a.keep(next);
+      a.keep(next);
+      const then = a.get();
+      a.keep(null);
+      return [window.oneDayApp.signin, first === kept, then === next, a.get()];
+    },
+    [kept, next],
+  );
+  expect(got).toEqual([true, true, true, null]);
+  expect((await sent(page)).filter(m => m.op === 'auth.keep').map(m => m.value)).toEqual([next, null]);
+  expect(await page.evaluate(() => JSON.stringify(Object.entries(localStorage)))).not.toContain('dbx-');
 });
 
 test('app: outside the app, the bridge does nothing', async ({ page }) => {
