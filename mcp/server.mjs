@@ -27,7 +27,9 @@ const TOOL = {
     "user's browser. Use it when the user wants tasks, to-dos or a plan in One Day. Several tasks, each with an " +
     'optional note, sub-tasks, day and repeat, go in one link. Nothing is sent anywhere: the tasks travel inside the ' +
     "link, after the #. Give the link to the user; opening it shows the tasks in One Day, which adds them once the user " +
-    "confirms. Call this rather than opening One Day, using the computer or editing One Day's code: the link is the whole job.",
+    "confirms. Call this rather than opening One Day, using the computer or editing One Day's code: the link is the whole job. " +
+    'When several tasks belong to one project, end each title with the same short tag (#lisbon): reuse one the user named ' +
+    'or used before, otherwise pick one and say which, so the user can ask for another before opening the link.',
   inputSchema: {
     type: 'object',
     properties: {

@@ -102,7 +102,13 @@ Three tasks: a talk to prepare on Friday, with a note and two sub-tasks; plants 
 
 ### ChatGPT, claude.ai and other assistants
 
-They need no server. Where the assistant takes skills, add [`skills/one-day`](../skills/one-day/SKILL.md): the same instructions as a skill, with no length limit, that the assistant uses when you mention One Day (in ChatGPT, Plugins → Skills → Create, then paste it in the editor or upload the folder; type `@` to pick it by name; in claude.ai, upload the folder as a zip under Settings → Capabilities). Otherwise, paste these instructions where the assistant keeps them (in ChatGPT, the custom instructions in Settings → Personalization, a project's instructions or a custom GPT's; in claude.ai, a project's instructions or your profile preferences). Then ask, in any language: “Add to One Day: buy bread tomorrow, and water the plants every Tuesday and Friday.”
+They need no server. Where the assistant takes skills, add [`skills/one-day`](../skills/one-day/SKILL.md): the same instructions as a skill, with no length limit, that the assistant uses when you mention One Day (in ChatGPT, Plugins → Skills → Create, then paste it in the editor or upload the folder; type `@` to pick it by name; in claude.ai, upload the folder as a zip under Settings → Capabilities). Otherwise, paste these instructions where the assistant keeps them:
+
+- **ChatGPT**, on the web or in the desktop app: open Settings from your profile menu, then **Personalization**. Turn on **Enable customization** and paste the instructions into **Custom Instructions**. On iPhone or Android, it is Settings → **Customize ChatGPT**. They fit the 1,500 characters of the free plan ([OpenAI's steps](https://help.openai.com/en/articles/8096356-chatgpt-custom-instructions)).
+- **claude.ai**, on the web or in the desktop app: click your initials at the bottom left, then **Settings** → **Your Claude**, and paste them under **Instructions** (in the older layout, Settings → Account → Instructions for Claude; [Anthropic's steps](https://support.claude.com/en/articles/10185728-understanding-claude-s-personalization-features)).
+- For a single project, paste them in that project's instructions instead (or, in ChatGPT, a custom GPT's).
+
+Then ask, in any language: “Add to One Day: buy bread tomorrow, and water the plants every Tuesday and Friday.”
 
 ```text
 When I ask to add tasks to One Day, answer with one link holding them all, shown as a Markdown link "Add to One Day". Build it as https://day.bemorin.com/#add? followed by name=value pairs joined by &:
@@ -111,6 +117,7 @@ note= details (plain text; **bold**, - lists and links work)
 sub= one sub-task; repeat it for more
 day= today, tomorrow, monday…sunday (the next one) or YYYY-MM-DD. Leave it out and I choose.
 repeat= daily, weekdays, weekends, weekly, monthly, yearly, or an RRULE such as FREQ=WEEKLY;BYDAY=MO,TH or FREQ=MONTHLY;BYDAY=-1FR. It counts from the task's day.
+Tags: when several tasks belong to one project, end each task with the same short tag (task=Book+flights+%23lisbon). Reuse a tag I named or used before; otherwise pick one and name it in your answer, so I can ask for another before opening the link. A one-off errand needs no tag.
 Encode values as in a URL query: a space is +, and write %2B for +, %26 for &, %23 for #, %25 for %, %28 and %29 for ( ), %0A for a new line. Accented letters can stay as they are.
 Example: https://day.bemorin.com/#add?task=Buy+bread&day=tomorrow&task=Call+the+bank&note=About+the+loan&sub=Find+the+number&task=Water+the+plants&repeat=FREQ=WEEKLY;BYDAY=TU,FR
 Nothing is sent anywhere: the tasks stay in the link until I open it and confirm.

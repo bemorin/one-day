@@ -474,8 +474,16 @@
               </li>
               <li>
                 <b>ChatGPT, claude.ai and other assistants:</b> copy the paragraph below and paste it where the assistant
-                keeps instructions. In ChatGPT: the custom instructions in Settings → Personalization, a project’s
-                instructions or a custom GPT’s. In claude.ai: a project’s instructions or your profile preferences.
+                keeps instructions. In ChatGPT, on the web or in the desktop app, open Settings from your profile menu,
+                then <b>Personalization</b>: turn on <b>Enable customization</b> and paste the paragraph into
+                <b>Custom Instructions</b>. On iPhone or Android, it is Settings → <b>Customize ChatGPT</b>. The paragraph
+                fits the 1,500 characters of the free plan
+                (<a href="https://help.openai.com/en/articles/8096356-chatgpt-custom-instructions">OpenAI’s steps</a>). In
+                claude.ai, on the web or in the desktop app, click your initials at the bottom left, then
+                <b>Settings</b> → <b>Your Claude</b>, and paste it under <b>Instructions</b> (in the older layout,
+                Settings → Account → Instructions for Claude;
+                <a href="https://support.claude.com/en/articles/10185728-understanding-claude-s-personalization-features">Anthropic’s steps</a>).
+                For a single project, paste it in that project’s instructions instead.
               </li>
             </ul>
             <div class="prompt">
@@ -485,6 +493,7 @@ note= details (plain text; **bold**, - lists and links work)
 sub= one sub-task; repeat it for more
 day= today, tomorrow, monday…sunday (the next one) or YYYY-MM-DD. Leave it out and I choose.
 repeat= daily, weekdays, weekends, weekly, monthly, yearly, or an RRULE such as FREQ=WEEKLY;BYDAY=MO,TH or FREQ=MONTHLY;BYDAY=-1FR. It counts from the task's day.
+Tags: when several tasks belong to one project, end each task with the same short tag (task=Book+flights+%23lisbon). Reuse a tag I named or used before; otherwise pick one and name it in your answer, so I can ask for another before opening the link. A one-off errand needs no tag.
 Encode values as in a URL query: a space is +, and write %2B for +, %26 for &amp;, %23 for #, %25 for %, %28 and %29 for ( ), %0A for a new line. Accented letters can stay as they are.
 Example: https://day.bemorin.com/#add?task=Buy+bread&amp;day=tomorrow&amp;task=Call+the+bank&amp;note=About+the+loan&amp;sub=Find+the+number&amp;task=Water+the+plants&amp;repeat=FREQ=WEEKLY;BYDAY=TU,FR
 Nothing is sent anywhere: the tasks stay in the link until I open it and confirm.</pre>

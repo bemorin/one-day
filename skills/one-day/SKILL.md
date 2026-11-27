@@ -17,6 +17,10 @@ One Day has no server and no account: tasks reach it in a link, after the `#`, w
 - `day=` `today`, `tomorrow`, a weekday (`monday` to `sunday`: the next one, today included) or `YYYY-MM-DD`. Leave it out when the user names no day: they will pick one.
 - `repeat=` `daily`, `weekdays`, `weekends`, `weekly`, `monthly`, `yearly`, or an iCalendar RRULE: `FREQ=DAILY`, `WEEKLY`, `MONTHLY` or `YEARLY`, with `INTERVAL=n`, `BYDAY` (`MO,TH`; in a month `2TU` or `-1FR`), `BYMONTHDAY=15` in a monthly repeat (`-1` for the last day), `BYMONTH=3;BYMONTHDAY=14` in a yearly one (a yearly date always names its month), `UNTIL=YYYYMMDD` or `COUNT=n`. A repeat counts from the task's day: `weekly` and `monthly` follow that day's weekday or date.
 
+## Tag a project
+
+When several tasks belong to one project or topic, end each task with the same short tag, such as `#lisbon` (written `%23lisbon` in the link): a word of letters or digits, which may hold `-`, `_` or `/`. Reuse a tag the user named or used before; otherwise pick one and name it in your answer, so the user can ask for another before opening the link. A one-off errand needs no tag.
+
 ## Encode the values
 
 As in a URL query: a space is `+`; write `%2B` for `+`, `%26` for `&`, `%3D` for `=`, `%23` for `#`, `%25` for `%`, `%28` and `%29` for `(` and `)`, and `%0A` for a line break. Accented letters and emoji can stay as they are. In a repeat, `;` and `=` can stay: `repeat=FREQ=WEEKLY;BYDAY=MO,TH`.
