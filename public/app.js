@@ -11194,13 +11194,18 @@ if (typeof MOVE === 'undefined' || (MOVE.mode !== 'gone' && MOVE.mode !== 'clear
     MVPASS = true;
     return '';
   }
+  // In the screen saying where One Day lives (a Home Screen app moved by a file), the passphrase field is there only
+  // for Export backup, which asked for it: Enter in it exports, and Open getone.day still opens getone.day.
+  MI.mvPass.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || MV.mode !== 'filed' || !MVD || MVD.st) return;
+    e.preventDefault();
+    MI.mvFile.onclick();
+  });
   MI.mvForm.addEventListener('submit', async e => {
     e.preventDefault();
     if (!MVD || MVD.busy) return;
     if (MVD.st === 'done') return moveLater();
     if (MV.mode === 'filed' && !MVD.st) {
-      // the passphrase field shows only once Export backup asked for it: Enter in it exports
-      if (!MI.mvPass.hidden) return MI.mvFile.onclick();
       if (!window.open(MV.NEW + '/', '_blank')) location.href = MV.NEW + '/';
       return;
     }

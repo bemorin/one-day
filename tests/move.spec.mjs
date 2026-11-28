@@ -760,6 +760,44 @@ test.describe('moving to getone.day', () => {
     await ctx.close();
   });
 
+  test('a moved Home Screen app, locked and opened without the passphrase: Export backup asks for it, Enter exports, Open getone.day opens', async ({ browser }) => {
+    const { ctx } = await browserAt(browser, {
+      // a fingerprint or face unlock leaves the passphrase unasked: the passphrase unlock is made to do the same
+      patch: [["    // opened with the passphrase: moving to getone.day doesn't ask for it again\n    MVPASS = true;\n", '\n']],
+      init: () => Object.defineProperty(Navigator.prototype, 'standalone', { get: () => true }),
+    });
+    await keepAt(ctx, OLD, { 'oneday.v1': JSON.stringify(seed()) });
+    const page = await fresh(ctx);
+    await page.locator('#mvNo').click();
+    await protect(page);
+    await page.reload();
+    await page.locator('#lockPass').fill(LOCK);
+    await page.locator('#lockPass').press('Enter');
+    // the file way asks for the passphrase first: it is what opens the backup at getone.day
+    await expect(page.locator('#mvPass')).toBeVisible();
+    await page.locator('#mvPass').fill(LOCK);
+    let dl = page.waitForEvent('download');
+    await page.locator('#mvGo').click();
+    await dl;
+    await page.locator('#mvGo').click();
+    await page.locator('#lockPass').fill(LOCK);
+    await page.locator('#lockPass').press('Enter');
+    await expect(page.locator('#mvT')).toHaveText('One Day lives at getone.day now');
+    await expect(page.locator('#mvPass')).toBeHidden();
+    // Export backup again: the field shows, and Enter in it exports
+    await page.locator('#mvFile').click();
+    await expect(page.locator('#mvPass')).toBeVisible();
+    await page.locator('#mvPass').fill(LOCK);
+    dl = page.waitForEvent('download');
+    await page.locator('#mvPass').press('Enter');
+    await dl;
+    // and Open getone.day, with the field still there, opens getone.day
+    const pop = page.waitForEvent('popup');
+    await page.locator('#mvGo').click();
+    await (await pop).waitForURL(u => origin(u) === NEW);
+    await ctx.close();
+  });
+
   test('One Day still opens at either address in a browser that keeps no site data', async ({ browser }) => {
     const { ctx, errors } = await browserAt(browser, {
       // as with "Don't allow sites to save data": reading either storage throws
