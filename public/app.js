@@ -11197,7 +11197,7 @@ if (typeof MOVE === 'undefined' || (MOVE.mode !== 'gone' && MOVE.mode !== 'clear
   // In the screen saying where One Day lives (a Home Screen app moved by a file), the passphrase field is there only
   // for Export backup, which asked for it: Enter in it exports, and Open getone.day still opens getone.day.
   MI.mvPass.addEventListener('keydown', e => {
-    if (e.key !== 'Enter' || MV.mode !== 'filed' || !MVD || MVD.st) return;
+    if (e.key !== 'Enter' || e.isComposing || MV.mode !== 'filed' || !MVD || MVD.st) return;
     e.preventDefault();
     MI.mvFile.onclick();
   });
