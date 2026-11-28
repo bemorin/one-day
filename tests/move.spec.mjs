@@ -828,7 +828,8 @@ test.describe('moving to getone.day', () => {
     expect(await coop(NEW + '/')).toBe('same-origin');
     expect(await coop(NEW + '/guide/')).toBe('same-origin');
     expect(await coop(NEW + '/move/')).toBeUndefined();
-    expect(await coop('https://getone-day.one-day-2eb.pages.dev/move/')).toBe('same-origin');
+    // a preview (here a deployment's own address) keeps the strict policy everywhere
+    expect(await coop('https://3f2a9c1b.one-day-2eb.pages.dev/move/')).toBe('same-origin');
     expect(await coop('http://localhost:4401/')).toBe('same-origin');
     // Pages keeps one rule per pattern: written twice, a pattern loses its first block (and the old host its policy)
     const text = await readFile(new URL('../public/_headers', import.meta.url), 'utf8'),

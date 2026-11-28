@@ -309,7 +309,7 @@ Where your tasks live, how to keep a copy, and how to lock them.
 
 **Your tasks stay on your device.** One Day keeps them in your browser’s storage for this site. There is no server, database or account behind it, so nobody else can see them, not even its maker. If you [sync them with your own cloud](https://getone.day/guide/#sync), they also go there, encrypted with your passphrase before they leave: your cloud can’t read them, and nothing ever reaches One Day.
 
-- **No cookies, no analytics, no third-party requests.** The font comes with the app, and the site’s security policy lets nothing else load. This guide makes the same promise.
+- **No cookies, no analytics in the app, no third-party requests.** The font comes with the app, and the site’s security policy lets nothing else load. This guide makes the same promise. Like any host, Cloudflare counts the requests it serves; One Day’s maker looks at those totals (how many openings, from which countries), never at anyone in particular.
 - **The links are plain links.** Nothing is contacted until you click one. The dogood.day link tells that site you came from One Day; the others send nothing.
 - **It works offline** once you’ve opened it online one time. The browser keeps a copy of the app’s own files, never of your tasks.
 - **What the browser keeps for One Day:** your tasks, the timer’s settings, your light or dark choice and, if you put off the install offer, that you did. With sync on, also its key and your sign-in to your cloud.

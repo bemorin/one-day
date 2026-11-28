@@ -24,6 +24,15 @@ https://day.bemorin.com/*
 https://getone.day/move/
   ! Cross-Origin-Opener-Policy
 
+# TEMPORARY, removed before the merge: the two rules above, on this branch's preview host, to check how Cloudflare reads
+# them (expected: same-origin-allow-popups everywhere there, and no Cross-Origin-Opener-Policy on /move/).
+https://getone-day.one-day-2eb.pages.dev/*
+  ! Cross-Origin-Opener-Policy
+  Cross-Origin-Opener-Policy: same-origin-allow-popups
+
+https://getone-day.one-day-2eb.pages.dev/move/
+  ! Cross-Origin-Opener-Policy
+
 /sw.js
   Cache-Control: no-cache
 
